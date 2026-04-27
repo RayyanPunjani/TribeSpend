@@ -137,6 +137,20 @@ dist
 !.yarn/sdks
 !.yarn/versions
 
+# --- TribeSpend additions ---
+
+# Vite build output (explicit)
+dist/
+
+# Local Vite cache (sometimes outside node_modules)
+node_modules/.vite
+
+# macOS junk
+.DS_Store
+
+# Local dev artifacts (optional safety)
+*.localstorage
+
 # Vite files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
