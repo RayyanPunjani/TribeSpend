@@ -7,7 +7,7 @@ import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { formatCurrency } from '@/utils/formatters'
 import { POINT_VALUE_CENTS, EXCLUDED_FROM_SPEND } from '@/lib/constants'
-import type { CardRewardRule, CardCredit, CreditCard as CreditCardType } from '@/types'
+import type { CardRewardRule, CardCredit, CreditCard as CreditCardType, Transaction } from '@/types'
 
 function getEffectiveCashbackRate(rule: CardRewardRule): number {
   if (rule.rewardType === 'cashback') return rule.rewardRate
@@ -99,7 +99,7 @@ function getPeriodInfo(
 function isStatementCreditUsed(
   credit: CardCredit,
   period: PeriodInfo,
-  transactions: ReturnType<typeof useTransactionStore>['transactions'],
+  transactions: Transaction[],
 ): boolean {
   return transactions.some((t) => {
     if (t.cardId !== credit.cardId) return false

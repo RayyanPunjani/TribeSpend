@@ -6,6 +6,7 @@ import { formatDate, formatCurrency } from '@/utils/formatters'
 import { useCardStore } from '@/stores/cardStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { suggestCategory } from '@/services/keywordCategorizer'
 import { suggestMerchantPattern, matchesRule } from '@/services/categoryMatcher'
 
@@ -37,6 +38,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
   const { cards } = useCardStore()
   const { rules, add: addRule } = useCategoryRuleStore()
   const { transactions: existingTxns, updateMany } = useTransactionStore()
+  const { householdId } = useAuth()
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
 
@@ -159,13 +161,16 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
 
     const createdRules = await Promise.all(
       newRules.map((nr) =>
-        addRule({
-          merchantPattern: suggestMerchantPattern(nr.merchant),
-          rawDescriptionExample: nr.rawExample,
-          cleanDescription: nr.merchant,
-          category: nr.category,
-          source: 'user_correction',
-        }),
+        addRule(
+          householdId!,
+          {
+            merchantPattern: suggestMerchantPattern(nr.merchant),
+            rawDescriptionExample: nr.rawExample,
+            cleanDescription: nr.merchant,
+            category: nr.category,
+            source: 'user_correction',
+          },
+        ),
       ),
     )
 
