@@ -55,7 +55,7 @@ const sections = [
     title: 'Data Retention & Deletion',
     body: [
       'We retain information for as long as needed to provide the service, comply with legal obligations, resolve disputes, and maintain business records.',
-      'You may delete data within the app where deletion tools are available. To request account or data deletion, contact support@tribespend.com.',
+      'You may delete data within the app where deletion tools are available. To request account or data deletion, contact tribespend@gmail.com.',
     ],
   },
   {
@@ -68,7 +68,7 @@ const sections = [
   {
     title: 'Contact',
     body: [
-      'If you have questions about this Privacy Policy or want to request data deletion, contact us at support@tribespend.com.',
+      'If you have questions about this Privacy Policy or want to request data deletion, contact us at tribespend@gmail.com.',
     ],
   },
 ]
