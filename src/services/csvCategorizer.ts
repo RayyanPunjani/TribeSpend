@@ -1,0 +1,142 @@
+/**
+ * Categorize CSV-parsed rows:
+ * 1. Apply saved Category Rules (free, local)
+ * 2. For remaining unknowns, batch-call Claude with just merchant names (~$0.01-0.02/file)
+ */
+
+import type { CsvParsedRow, CategoryRule } from '@/types'
+import { findMatchingRule } from './categoryMatcher'
+import { suggestCategory } from './keywordCategorizer'
+import { CATEGORIES as ALL_CATEGORIES } from '@/utils/categories'
+
+const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
+// Exclude meta-categories from AI classification targets
+const CATEGORIES = ALL_CATEGORIES.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
+
+/**
+ * Categorize a list of parsed CSV rows using:
+ * 1. Saved category rules (local, free)
+ * 2. Claude API batch call for unknown merchants only
+ */
+export async function categorizeCsvRows(
+  rows: CsvParsedRow[],
+  rules: CategoryRule[],
+  apiKey: string,
+  model: string,
+): Promise<CsvParsedRow[]> {
+  const result = rows.map((row) => ({ ...row }))
+
+  // Step 1: Apply saved rules
+  for (const row of result) {
+    if (row.isPayment || row.isBalancePayment) {
+      row.category = 'Payment'
+      continue
+    }
+    if (row.isCredit) {
+      // User rule takes priority; otherwise auto-assign
+      const rule = findMatchingRule(row.description, rules)
+      if (rule) {
+        row.category = rule.category
+        row.cleanDescription = rule.cleanDescription
+      } else {
+        row.category = 'Refunds & Credits'
+      }
+      continue
+    }
+    if (row.category !== 'Needs Review') continue // already set by bank mapping
+
+    const rule = findMatchingRule(row.description, rules)
+    if (rule) {
+      row.category = rule.category
+      row.cleanDescription = rule.cleanDescription
+    }
+  }
+
+  // Step 1.5: Keyword matching for still-unknown transactions (no API call needed)
+  for (const row of result) {
+    if (row.category !== 'Needs Review' || row.isPayment || row.isBalancePayment) continue
+    const suggested = suggestCategory(row.description)
+    if (suggested) {
+      row.category = suggested
+    }
+  }
+
+  // Step 2: Collect unique merchants still needing AI categorization
+  const needsCategorization = result.filter(
+    (r) => r.category === 'Needs Review' && !r.isPayment && !r.isBalancePayment,
+  )
+  const uniqueMerchants = [...new Set(needsCategorization.map((r) => r.cleanDescription || r.description))]
+
+  if (uniqueMerchants.length === 0 || !apiKey) return result
+
+  // Step 3: Batch Claude call with only merchant names
+  try {
+    const aiCategories = await batchCategorizeMerchants(uniqueMerchants, apiKey, model)
+
+    // Apply AI results
+    for (const row of result) {
+      if (row.category !== 'Needs Review') continue
+      const merchant = row.cleanDescription || row.description
+      const aiCat = aiCategories[merchant]
+      if (aiCat && (CATEGORIES as readonly string[]).includes(aiCat)) {
+        row.category = aiCat
+      }
+    }
+  } catch (err) {
+    console.warn('[csvCategorizer] AI batch categorization failed, leaving as Needs Review:', err)
+  }
+
+  return result
+}
+
+async function batchCategorizeMerchants(
+  merchants: string[],
+  apiKey: string,
+  model: string,
+): Promise<Record<string, string>> {
+  const prompt = `Categorize these merchants/businesses into one of these categories:
+${CATEGORIES.join(', ')}
+
+Merchants:
+${merchants.map((m, i) => `${i + 1}. ${m}`).join('\n')}
+
+Return ONLY valid JSON object mapping merchant name to category. Example:
+{"Walmart": "Groceries", "Uber": "Transportation"}
+
+If unsure about a merchant, use "Miscellaneous". Never use a category not in the list.`
+
+  const resp = await fetch(ANTHROPIC_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: model || 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      stream: false,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+
+  if (!resp.ok) {
+    throw new Error(`Anthropic API error ${resp.status}`)
+  }
+
+  const data = await resp.json()
+  const text: string = data.content?.[0]?.text ?? ''
+
+  // Extract JSON from response
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start === -1 || end === -1) return {}
+
+  try {
+    return JSON.parse(text.slice(start, end + 1))
+  } catch {
+    return {}
+  }
+}
