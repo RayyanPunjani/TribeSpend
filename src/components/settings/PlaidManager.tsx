@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { usePlaidLink } from 'react-plaid-link'
+import { Link } from 'react-router-dom'
 import {
   Link2, RefreshCw, Trash2, CheckCircle, AlertCircle,
   Loader2, Building2, CreditCard, ChevronDown, ChevronUp, UserPlus,
@@ -525,6 +526,12 @@ export default function PlaidManager() {
             {items.length === 0
               ? 'No accounts linked yet.'
               : `${items.length} institution${items.length !== 1 ? 's' : ''} connected`}
+          </p>
+          <p className="mt-2 max-w-xl text-xs leading-relaxed text-slate-500">
+            By connecting your bank account, you authorize TribeSpend to access your financial data through Plaid for transaction tracking and spending insights. TribeSpend does not receive or store your bank login credentials.{' '}
+            <Link to="/privacy" className="font-medium text-accent-600 hover:text-accent-700">
+              Privacy Policy
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2">

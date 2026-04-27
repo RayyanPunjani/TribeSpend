@@ -116,6 +116,11 @@ export default function LoginPage() {
             Create one free
           </Link>
         </p>
+        <p className="text-center text-xs text-gray-600 mt-4">
+          <Link to="/privacy" className="text-gray-500 hover:text-teal-300">
+            Privacy Policy
+          </Link>
+        </p>
       </div>
     </div>
   )

@@ -51,6 +51,9 @@ export default function SignupPage() {
           <Link to="/login" className="text-teal-400 font-semibold text-sm hover:text-teal-300">
             Back to sign in
           </Link>
+          <Link to="/privacy" className="block text-gray-500 hover:text-teal-300 text-xs mt-5">
+            Privacy Policy
+          </Link>
         </div>
       </div>
     )
@@ -149,6 +152,11 @@ export default function SignupPage() {
           Already have an account?{' '}
           <Link to="/login" className="text-teal-400 font-semibold hover:text-teal-300">
             Sign in
+          </Link>
+        </p>
+        <p className="text-center text-xs text-gray-600 mt-4">
+          <Link to="/privacy" className="text-gray-500 hover:text-teal-300">
+            Privacy Policy
           </Link>
         </p>
       </div>
