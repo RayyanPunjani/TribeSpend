@@ -114,31 +114,32 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
 }
 
 function triggerBudgetAlerts() {
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  try {
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-  if (!anonKey) {
-    console.warn('[transactionStore] Skipping budget alert trigger: missing VITE_SUPABASE_ANON_KEY')
-    return
+    if (!anonKey) {
+      console.warn('[transactionStore] Skipping budget alert trigger: missing VITE_SUPABASE_ANON_KEY')
+      return
+    }
+
+    void fetch(BUDGET_ALERTS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${anonKey}`,
+      },
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          const details = await response.text().catch(() => '')
+          console.warn('[transactionStore] Budget alert trigger failed:', response.status, details)
+        }
+      })
+      .catch((error) => {
+        console.warn('[transactionStore] Budget alert trigger failed:', error)
+      })
+  } catch (error) {
+    console.warn('[transactionStore] Budget alert trigger failed:', error)
   }
-
-  fetch(BUDGET_ALERTS_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${anonKey}`,
-      apikey: anonKey,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ source: 'transaction-insert' }),
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        const details = await response.text().catch(() => '')
-        console.warn('[transactionStore] Budget alert trigger failed:', response.status, details)
-      }
-    })
-    .catch((error) => {
-      console.warn('[transactionStore] Budget alert trigger failed:', error)
-    })
 }
 
 export const useTransactionStore = create<TransactionState>((set, get) => ({
