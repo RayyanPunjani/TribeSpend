@@ -11,6 +11,8 @@ import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
 const INITIAL_SESSION_TIMEOUT_MS = 3500
+const PROFILE_FETCH_TIMEOUT_MS = 4500
+const AUTH_LOADING_TIMEOUT_MS = 6500
 
 export interface Profile {
   id: string
@@ -56,7 +58,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-  const profileRequestId = useRef(0)
+  const authFlowId = useRef(0)
+  const profileRef = useRef<Profile | null>(null)
+  const sessionRef = useRef<Session | null>(null)
+
+  const setProfileState = useCallback((p: Profile | null) => {
+    profileRef.current = p
+    setProfile(p)
+  }, [])
+
+  const setSessionState = useCallback((s: Session | null) => {
+    sessionRef.current = s
+    setSession(s)
+    setUser(s?.user ?? null)
+  }, [])
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
@@ -90,16 +105,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile])
 
   const refreshProfile = useCallback(async () => {
-    if (!session?.user?.id) return
-    const p = await fetchProfileWithRetry(session.user.id)
-    if (p) setProfile(p)
-  }, [session, fetchProfileWithRetry])
+    const userId = sessionRef.current?.user?.id
+    if (!userId) return
+
+    const p = await withTimeout(
+      fetchProfileWithRetry(userId),
+      PROFILE_FETCH_TIMEOUT_MS,
+      'Manual profile refresh',
+    )
+    if (p) setProfileState(p)
+  }, [fetchProfileWithRetry, setProfileState])
 
   useEffect(() => {
     let mounted = true
 
+    const applyAuthSession = async (
+      event: string,
+      s: Session | null,
+      options: { forceProfileFetch?: boolean; showLoading?: boolean } = {},
+    ) => {
+      const requestId = ++authFlowId.current
+      const userId = s?.user?.id ?? null
+      const existingProfile = profileRef.current
+      const hasCurrentProfile = !!userId && existingProfile?.id === userId && !!existingProfile.household_id
+
+      try {
+        if (options.showLoading && !hasCurrentProfile) setLoading(true)
+
+        setSessionState(s)
+
+        if (!userId) {
+          setProfileState(null)
+          return
+        }
+
+        if (existingProfile && existingProfile.id !== userId) {
+          setProfileState(null)
+        }
+
+        if (hasCurrentProfile && !options.forceProfileFetch) {
+          return
+        }
+
+        const p = await withTimeout(
+          fetchProfileWithRetry(userId),
+          PROFILE_FETCH_TIMEOUT_MS,
+          `${event} profile fetch`,
+        )
+
+        if (!mounted || requestId !== authFlowId.current) return
+        if (p) {
+          setProfileState(p)
+        }
+      } catch (err) {
+        console.error(`[Auth] ${event} error:`, err)
+      } finally {
+        if (mounted && requestId === authFlowId.current) {
+          setLoading(false)
+        }
+      }
+    }
+
     const initializeAuth = async () => {
-      const requestId = ++profileRequestId.current
+      const requestId = ++authFlowId.current
 
       try {
         const result = await withTimeout(
@@ -108,24 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Initial session fetch',
         )
 
-        if (!mounted || requestId !== profileRequestId.current) return
+        if (!mounted || requestId !== authFlowId.current) return
 
         const s = result?.data.session ?? null
-        setSession(s)
-        setUser(s?.user ?? null)
-
-        if (s?.user?.id) {
-          const p = await fetchProfileWithRetry(s.user.id)
-          if (mounted && requestId === profileRequestId.current) {
-            setProfile(p)
-          }
-        } else {
-          setProfile(null)
-        }
+        await applyAuthSession('INITIAL_SESSION', s, {
+          forceProfileFetch: true,
+          showLoading: true,
+        })
       } catch (err) {
         console.error('[Auth] getSession error:', err)
       } finally {
-        if (mounted && requestId === profileRequestId.current) {
+        if (mounted && requestId === authFlowId.current) {
           setLoading(false)
         }
       }
@@ -135,29 +196,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (!mounted) return
-      const requestId = ++profileRequestId.current
+      const userId = s?.user?.id ?? null
+      const currentUserId = sessionRef.current?.user?.id ?? null
+      const isSameUserRefresh = _event === 'TOKEN_REFRESHED' && userId && userId === currentUserId
 
-      try {
-        setLoading(true)
-        setSession(s)
-        setUser(s?.user ?? null)
-
-        if (s?.user?.id) {
-          const p = await fetchProfileWithRetry(s.user.id)
-          if (mounted && requestId === profileRequestId.current) setProfile(p)
-        } else {
-          setProfile(null)
-        }
-      } finally {
-        if (mounted && requestId === profileRequestId.current) setLoading(false)
-      }
+      await applyAuthSession(_event, s, {
+        forceProfileFetch: !isSameUserRefresh,
+        showLoading: !isSameUserRefresh,
+      })
     })
 
     return () => {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [fetchProfileWithRetry])
+  }, [fetchProfileWithRetry, setProfileState, setSessionState])
+
+  useEffect(() => {
+    if (!loading) return
+
+    const timeoutId = window.setTimeout(() => {
+      console.warn(`[Auth] Loading exceeded ${AUTH_LOADING_TIMEOUT_MS}ms; releasing loading state`)
+      setLoading(false)
+    }, AUTH_LOADING_TIMEOUT_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [loading])
 
   const signUp = async (email: string, password: string, name?: string) => {
     const { error } = await supabase.auth.signUp({
@@ -183,7 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut()
-    setProfile(null)
+    setSessionState(null)
+    setProfileState(null)
   }
 
   return (

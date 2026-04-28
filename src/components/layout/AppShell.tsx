@@ -21,6 +21,23 @@ import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
+const STORE_LOAD_TIMEOUT_MS = 8000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[AppShell] ${label} load timed out after ${ms}ms`)
+      resolve(null)
+    }, ms)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId)
+  })
+}
+
 export default function AppShell() {
   const { householdId } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
@@ -36,6 +53,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (!householdId) return
+    let cancelled = false
 
     setDataLoaded(false)
     const loaders = [
@@ -49,7 +67,15 @@ export default function AppShell() {
       ['budgets', () => loadBudgets(householdId)],
     ] as const
 
-    Promise.allSettled(loaders.map(([, load]) => load()))
+    Promise.allSettled(
+      loaders.map(([name, load]) =>
+        withTimeout(
+          Promise.resolve().then(load),
+          STORE_LOAD_TIMEOUT_MS,
+          name,
+        ),
+      ),
+    )
       .then((results) => {
         results.forEach((result, i) => {
           if (result.status === 'rejected') {
@@ -57,7 +83,13 @@ export default function AppShell() {
           }
         })
       })
-      .finally(() => setDataLoaded(true))
+      .finally(() => {
+        if (!cancelled) setDataLoaded(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [householdId])
 
   if (!householdId) {

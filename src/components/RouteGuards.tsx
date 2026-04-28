@@ -21,7 +21,7 @@ export function RequireAuth() {
 
 export function RedirectIfAuth() {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <Outlet />
   if (user) return <Navigate to="/app" replace />
   return <Outlet />
 }
