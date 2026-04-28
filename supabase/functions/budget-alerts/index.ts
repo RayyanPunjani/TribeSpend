@@ -165,16 +165,26 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  const resendApiKey = Deno.env.get('RESEND_API_KEY')
+
+const serviceRoleKey =
+
+  Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
   if (!supabaseUrl) {
     return json({ error: 'Missing SUPABASE_URL environment variable' }, 500)
   }
 
   if (!serviceRoleKey) {
-    return json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY environment variable; budget alerts require the service role key to bypass RLS' }, 500)
-  }
+  return json(
+    {
+      error:
+        'Missing SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY) environment variable; budget alerts require the service role key to bypass RLS',
+    },
+    500
+  )
+}
 
   if (!resendApiKey) {
     return json({ error: 'Missing RESEND_API_KEY secret; budget alert emails were not sent' }, 500)
@@ -197,14 +207,21 @@ Deno.serve(async (req) => {
     errors: [] as string[],
   }
 
-  const { data: budgets, error: budgetsError } = await supabase
-    .from('budgets')
-    .select('*')
-    .not('notify_email', 'is', null)
+// 🔍 DEBUG TEST — check if service role can read budgets
 
-  if (budgetsError) {
-    return json({ error: 'Failed to fetch budgets', details: budgetsError.message }, 500)
-  }
+const { data: budgets, error: budgetsError } = await supabase
+
+  .from('budgets')
+
+  .select('*')
+
+  .not('notify_email', 'is', null)
+
+if (budgetsError) {
+
+  return json({ error: 'Failed to fetch budgets', details: budgetsError.message }, 500)
+
+}
 
   for (const budget of (budgets ?? []) as BudgetRow[]) {
     summary.checked += 1
