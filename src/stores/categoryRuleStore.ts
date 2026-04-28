@@ -40,6 +40,15 @@ function toRow(rule: Partial<CategoryRule>, householdId?: string): Record<string
   return row
 }
 
+function isDuplicateRuleError(error: unknown): boolean {
+  const err = error as { code?: string; status?: number; message?: string }
+  return (
+    err.code === '23505' ||
+    err.status === 409 ||
+    /duplicate key value violates unique constraint/i.test(err.message ?? '')
+  )
+}
+
 export const useCategoryRuleStore = create<CategoryRuleState>((set, get) => ({
   rules: [],
   loaded: false,
@@ -61,7 +70,22 @@ export const useCategoryRuleStore = create<CategoryRuleState>((set, get) => ({
       matchCount: 0,
     }
     const { error } = await supabase.from('category_rules').insert(toRow(rule, householdId))
-    if (error) { console.error('Failed to add category rule:', error); throw error }
+    if (error) {
+      if (isDuplicateRuleError(error)) {
+        console.warn('[categoryRuleStore] Category rule already exists, continuing import:', {
+          merchantPattern: rule.merchantPattern,
+          category: rule.category,
+          error,
+        })
+        const existing = get().rules.find(
+          (r) => r.merchantPattern === rule.merchantPattern,
+        )
+        if (existing) return existing
+        return rule
+      }
+      console.error('Failed to add category rule:', error)
+      throw error
+    }
     set((s) => ({ rules: [...s.rules, rule] }))
     return rule
   },
