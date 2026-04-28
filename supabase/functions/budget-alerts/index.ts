@@ -142,22 +142,25 @@ async function sendBudgetAlert(params: {
   apiKey: string
   to: string
   label: string
+  category: string | null
   period: string
   spend: number
   amount: number
   percent: number
-  threshold: number
 }): Promise<void> {
-  const { apiKey, to, label, period, spend, amount, percent, threshold } = params
-  const subject = `Budget alert: ${label} reached ${threshold}%`
+  const { apiKey, to, label, category, period, spend, amount, percent } = params
+  const categoryOrLabel = label || category || 'Budget'
+  const roundedPercent = Math.round(percent)
+  const subject = `🚨 ${categoryOrLabel} budget at ${roundedPercent}%`
   const text = [
-    `Budget alert: ${label} reached ${threshold}%`,
+    `You’ve spent ${formatCurrency(spend)} of your ${formatCurrency(amount)} ${period} budget.`,
     '',
-    `Budget: ${label}`,
-    `Period: ${period}`,
-    `Spend: ${formatCurrency(spend)}`,
-    `Budget amount: ${formatCurrency(amount)}`,
-    `Current usage: ${percent.toFixed(1)}%`,
+    `Category: ${categoryOrLabel}`,
+    `Usage: ${roundedPercent}%`,
+    '',
+    'You are approaching your limit. Consider reviewing your spending.',
+    '',
+    '— TribeSpend',
   ].join('\n')
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -195,12 +198,14 @@ async function sendTestBudgetAlert(params: {
     body: JSON.stringify({
       from: 'TribeSpend <alerts@tribespend.com>',
       to,
-      subject: 'Test Budget Alert',
+      subject: '✅ Test Budget Alert — TribeSpend',
       text: [
-        'This is a test budget alert from TribeSpend.',
+        'This is a test alert from TribeSpend.',
         '',
         `Budget: ${label}`,
-        'Your budget alert email settings are working.',
+        'Email notifications are working correctly.',
+        '',
+        'You will receive alerts when your spending crosses configured thresholds.',
       ].join('\n'),
     }),
   })
@@ -378,11 +383,11 @@ Deno.serve(async (req) => {
         apiKey: resendApiKey,
         to: email,
         label: budget.label,
+        category: budget.category,
         period: period.label,
         spend,
         amount,
         percent,
-        threshold: thresholdToNotify,
       })
 
       const { error: updateError } = await supabase
