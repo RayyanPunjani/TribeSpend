@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Sparkles, CreditCard, AlertCircle, TrendingUp, ExternalLink } from 'lucide-react'
+import { Sparkles, CreditCard, AlertCircle, TrendingUp, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -197,6 +197,11 @@ function isStatementCreditUsed(
   })
 }
 
+function formatCreditFrequency(frequency: CardCredit['frequency']): string {
+  if (frequency === 'semi-annual') return 'semi-annual'
+  return frequency
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function OptimizePage() {
@@ -206,6 +211,9 @@ export default function OptimizePage() {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
 
+  const [expandedMissedReward, setExpandedMissedReward] = useState<number | null>(null)
+  const [expandedCreditCards, setExpandedCreditCards] = useState<Set<string>>(new Set())
+
   // Portal credits manually toggled — key: `${creditId}_${periodKey}`
   const [portalUsed, setPortalUsed] = useState<Record<string, boolean>>({})
   const togglePortal = (creditId: string, periodKey: string) =>
@@ -213,6 +221,15 @@ export default function OptimizePage() {
       ...prev,
       [`${creditId}_${periodKey}`]: !prev[`${creditId}_${periodKey}`],
     }))
+
+  const toggleCreditCard = (cardId: string) => {
+    setExpandedCreditCards((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) next.delete(cardId)
+      else next.add(cardId)
+      return next
+    })
+  }
 
   const cardMap     = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap   = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
@@ -405,47 +422,69 @@ export default function OptimizePage() {
             Great job! You're using your best cards for all categories (or no transactions found in the last 90 days).
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500">Date</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500">Merchant</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500">Amount</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500">Card Used</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500">Earned</th>
-                  <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500">Best Card</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500">Potential</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-orange-500">Missed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {missedRewards.map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-50">
-                    <td className="py-2 px-3 text-xs text-slate-500">{r.date}</td>
-                    <td className="py-2 px-3 text-slate-800 font-medium truncate max-w-[140px]">{r.merchant}</td>
-                    <td className="py-2 px-3 text-right text-slate-700">{formatCurrency(r.amount)}</td>
-                    <td className="py-2 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.cardUsedColor }} />
-                        <span className="text-xs text-slate-600 truncate max-w-[80px]">{r.cardUsed?.name ?? '—'}</span>
-                        <span className="text-xs text-slate-400">({(r.earnedRate * 100).toFixed(1)}%)</span>
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
+            {missedRewards.map((r, i) => {
+              const expanded = expandedMissedReward === i
+              const rateDiff = r.bestRate - r.earnedRate
+              return (
+                <div key={`${r.date}-${r.merchant}-${i}`} className="bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedMissedReward(expanded ? null : i)}
+                    className="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    {expanded ? <ChevronDown size={15} className="text-slate-400 shrink-0" /> : <ChevronRight size={15} className="text-slate-400 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium text-slate-800 truncate">{r.merchant}</span>
+                        <span className="text-xs text-slate-400 shrink-0">{r.date}</span>
                       </div>
-                    </td>
-                    <td className="py-2 px-3 text-right text-xs text-slate-500">{formatCurrency(r.earned)}</td>
-                    <td className="py-2 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: r.bestCardColor }} />
-                        <span className="text-xs text-slate-600 truncate max-w-[80px]">{r.bestCard?.name ?? '—'}</span>
-                        <span className="text-xs text-slate-400">({(r.bestRate * 100).toFixed(1)}%)</span>
+                      <p className="text-xs text-slate-500 mt-0.5">{formatCurrency(r.amount)}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-orange-600 shrink-0">
+                      +{formatCurrency(r.diff)} potential
+                    </span>
+                  </button>
+
+                  {expanded && (
+                    <div className="px-9 pb-4 pt-1 bg-slate-50/70">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
+                          <p className="text-xs text-slate-400 mb-1">Original card used</p>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.cardUsedColor }} />
+                            <span className="font-medium text-slate-700">{r.cardUsed?.name ?? 'Unknown card'}</span>
+                            <span className="ml-auto text-xs text-slate-500">{(r.earnedRate * 100).toFixed(1)}%</span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
+                          <p className="text-xs text-slate-400 mb-1">Recommended card</p>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.bestCardColor }} />
+                            <span className="font-medium text-slate-700">{r.bestCard?.name ?? 'Unknown card'}</span>
+                            <span className="ml-auto text-xs text-accent-600 font-semibold">{(r.bestRate * 100).toFixed(1)}%</span>
+                          </div>
+                        </div>
                       </div>
-                    </td>
-                    <td className="py-2 px-3 text-right text-xs text-slate-500">{formatCurrency(r.potential)}</td>
-                    <td className="py-2 px-3 text-right text-xs font-semibold text-orange-600">+{formatCurrency(r.diff)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 text-xs">
+                        <span className="px-2 py-1 rounded-full bg-orange-100 text-orange-700 w-fit">
+                          +{(rateDiff * 100).toFixed(1)} pts reward difference
+                        </span>
+                        <span className="text-slate-500">
+                          {r.bestCard?.name ?? 'Recommended card'} gives {(r.bestRate * 100).toFixed(1)}% here, compared with {(r.earnedRate * 100).toFixed(1)}% on {r.cardUsed?.name ?? 'the card used'}.
+                        </span>
+                      </div>
+
+                      <div className="mt-2 text-xs text-slate-500">
+                        Earned {formatCurrency(r.earned)} · Potential {formatCurrency(r.potential)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
@@ -534,72 +573,94 @@ export default function OptimizePage() {
             Add credits in Settings → Card Rewards to track your statement and portal credits.
           </div>
         ) : (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3">
             {Array.from(creditsByCard.entries()).map(([cardId, entries]) => {
               const card = cardMap.get(cardId)
-              return (
-                <div key={cardId}>
-                  {/* Card header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    {card && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: card.color }} />}
-                    <span className="text-xs font-semibold text-slate-600">{card?.name ?? 'Unknown card'}</span>
-                  </div>
-                  <div className="flex flex-col gap-2 pl-4">
-                    {entries.map(({ credit, used, period }) => {
-                      const isStatement = credit.creditType === 'statement'
-                      const isInApp = credit.creditType === 'in-app'
-                      const isManual = !isStatement  // portal + in-app both need manual toggle
-                      const daysLabel = period.daysLeft === 1 ? '1 day left' : `${period.daysLeft} days left`
+              const expanded = expandedCreditCards.has(cardId)
+              const totalCreditValue = entries.reduce((sum, entry) => sum + entry.credit.amount, 0)
 
-                      return (
-                        <div key={credit.id} className="flex items-center gap-3 py-2.5 border-b border-slate-100 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-medium text-slate-800">{credit.name}</p>
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                isInApp ? 'bg-purple-100 text-purple-600'
-                                : isStatement ? 'bg-green-100 text-green-600'
-                                : 'bg-blue-100 text-blue-600'
-                              }`}>
-                                {credit.creditType}
-                              </span>
-                              {isInApp && (
-                                <span className="text-[10px] text-slate-400">Loaded into app, not on statement</span>
-                              )}
-                              {!isStatement && !isInApp && (
-                                <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                                  <ExternalLink size={9} /> Must use issuer portal
-                                </span>
-                              )}
+              return (
+                <div key={cardId} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleCreditCard(cardId)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    {expanded ? <ChevronDown size={15} className="text-slate-400 shrink-0" /> : <ChevronRight size={15} className="text-slate-400 shrink-0" />}
+                    {card && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: card.color }} />}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-semibold text-slate-700 truncate">{card?.name ?? 'Unknown card'}</span>
+                        <span className="text-xs text-slate-400 shrink-0">Credits & Offers</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {entries.length} credit{entries.length !== 1 ? 's' : ''} · {formatCurrency(totalCreditValue)} tracked
+                      </p>
+                    </div>
+                  </button>
+
+                  {expanded && (
+                    <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3">
+                      <div className="flex flex-col gap-2">
+                        {entries.map(({ credit, used, period }) => {
+                          const isStatement = credit.creditType === 'statement'
+                          const isInApp = credit.creditType === 'in-app'
+                          const isManual = !isStatement  // portal + in-app both need manual toggle
+                          const daysLabel = period.daysLeft === 1 ? '1 day left' : `${period.daysLeft} days left`
+
+                          return (
+                            <div key={credit.id} className="flex items-start gap-3 rounded-lg bg-white border border-slate-100 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-medium text-slate-800">{credit.name}</p>
+                                  <span className="text-xs text-slate-500">
+                                    {formatCurrency(credit.amount)}/{formatCreditFrequency(credit.frequency)}
+                                  </span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                    isInApp ? 'bg-purple-100 text-purple-600'
+                                    : isStatement ? 'bg-green-100 text-green-600'
+                                    : 'bg-blue-100 text-blue-600'
+                                  }`}>
+                                    {credit.creditType}
+                                  </span>
+                                  {isInApp && (
+                                    <span className="text-[10px] text-slate-400">Loaded into app, not on statement</span>
+                                  )}
+                                  {!isStatement && !isInApp && (
+                                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+                                      <ExternalLink size={9} /> Must use issuer portal
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {period.label} · {daysLabel}
+                                  {credit.notes && <span> · {credit.notes}</span>}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                {isManual ? (
+                                  <button
+                                    onClick={() => togglePortal(credit.id, period.key)}
+                                    className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                                      used
+                                        ? 'bg-green-100 text-green-700 border-green-200'
+                                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:border-green-300'
+                                    }`}
+                                  >
+                                    {used ? 'Used' : 'Mark used'}
+                                  </button>
+                                ) : (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${used ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                    {used ? 'Used' : 'Unused'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                              {period.label} · {daysLabel}
-                              {credit.notes && <span> · {credit.notes}</span>}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-slate-700">{formatCurrency(credit.amount)}</p>
-                            {isManual ? (
-                              <button
-                                onClick={() => togglePortal(credit.id, period.key)}
-                                className={`mt-0.5 text-xs px-2 py-0.5 rounded-full border transition-colors ${
-                                  used
-                                    ? 'bg-green-100 text-green-700 border-green-200'
-                                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:border-green-300'
-                                }`}
-                              >
-                                {used ? 'Used ✓' : 'Mark used'}
-                              </button>
-                            ) : (
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${used ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                {used ? 'Used' : 'Unused'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
