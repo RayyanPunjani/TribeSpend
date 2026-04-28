@@ -168,8 +168,12 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return json({ error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secret' }, 500)
+  if (!supabaseUrl) {
+    return json({ error: 'Missing SUPABASE_URL environment variable' }, 500)
+  }
+
+  if (!serviceRoleKey) {
+    return json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY environment variable; budget alerts require the service role key to bypass RLS' }, 500)
   }
 
   if (!resendApiKey) {
@@ -178,6 +182,12 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+      },
+    },
   })
 
   const summary = {

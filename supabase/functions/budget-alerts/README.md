@@ -2,17 +2,20 @@
 
 Sends budget threshold email alerts through Resend.
 
-## Required Secrets
+## Required Environment
 
-Set these secrets in Supabase before deploying:
+Supabase Edge Functions automatically provide:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Do not manually set `SUPABASE_SERVICE_ROLE_KEY` as a project secret, and never expose it to frontend code. The function uses it only server-side so budget reads and writes can bypass RLS.
+
+Set the Resend API key before deploying:
 
 ```sh
-supabase secrets set SUPABASE_URL=your-project-url
-supabase secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 supabase secrets set RESEND_API_KEY=your-resend-api-key
 ```
-
-`SUPABASE_SERVICE_ROLE_KEY` must never be exposed to frontend code. It belongs only in Supabase Edge Function secrets or other trusted server environments.
 
 ## Deploy
 
