@@ -38,6 +38,23 @@ export const defaultFilters: TransactionFilters = {
 
 // ── Row mappers (snake_case DB ↔ camelCase app) ───────────────
 
+function logSupabaseError(context: string, error: unknown) {
+  const err = error as {
+    message?: string
+    code?: string
+    details?: string
+    hint?: string
+  }
+
+  console.error(context, {
+    message: err?.message,
+    code: err?.code,
+    details: err?.details,
+    hint: err?.hint,
+    error,
+  })
+}
+
 function fromRow(r: Record<string, unknown>): Transaction {
   return {
     id: r.id as string,
@@ -57,6 +74,7 @@ function fromRow(r: Record<string, unknown>): Transaction {
     reimbursementAmount: r.reimbursement_amount as number | undefined,
     reimbursementPerson: r.reimbursement_to as string | undefined,
     reimbursementPaid: !!r.reimbursement_paid,
+    reimbursementNote: r.reimbursement_note as string | undefined,
     isRecurring: (r.is_recurring as boolean) || false,
     recurringAutoDetected: (r.recurring_auto_detected as boolean) || false,
     recurringDismissed: (r.recurring_dismissed as boolean) || false,
@@ -92,9 +110,10 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.isBalancePayment !== undefined) row.is_balance_payment = t.isBalancePayment
   if (t.statementId !== undefined) row.statement_id = t.statementId
   if (t.reimbursementStatus !== undefined) row.reimbursement_status = t.reimbursementStatus
-  if (t.reimbursementAmount !== undefined) row.reimbursement_amount = t.reimbursementAmount
-  if (t.reimbursementPerson !== undefined) row.reimbursement_to = t.reimbursementPerson
-  if (t.reimbursementPaid !== undefined) row.reimbursement_paid = t.reimbursementPaid ? 1 : 0
+  if ('reimbursementAmount' in t) row.reimbursement_amount = t.reimbursementAmount ?? null
+  if ('reimbursementPerson' in t) row.reimbursement_to = t.reimbursementPerson ?? null
+  if (t.reimbursementPaid !== undefined) row.reimbursement_paid = t.reimbursementPaid
+  if ('reimbursementNote' in t) row.reimbursement_note = t.reimbursementNote ?? null
   if (t.isRecurring !== undefined) row.is_recurring = t.isRecurring
   if (t.recurringAutoDetected !== undefined) row.recurring_auto_detected = t.recurringAutoDetected
   if (t.recurringDismissed !== undefined) row.recurring_dismissed = t.recurringDismissed
@@ -164,22 +183,32 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
   addMany: async (householdId, txns) => {
     const rows = txns.map((t) => toRow(t, householdId))
     const { error } = await supabase.from('transactions').insert(rows)
-    if (error) { console.error('Failed to add transactions:', error); throw error }
+    if (error) { logSupabaseError('Failed to add transactions:', error); throw error }
     triggerBudgetAlerts()
     await get().load(householdId)
   },
 
   update: async (id, patch) => {
-    const { error } = await supabase.from('transactions').update(toRow(patch)).eq('id', id)
-    if (error) { console.error('Failed to update transaction:', error); return }
+    const row = toRow(patch)
+    const { error } = await supabase.from('transactions').update(row).eq('id', id)
+    if (error) {
+      logSupabaseError('Failed to update transaction:', error)
+      console.warn('[transactionStore] Update payload:', { id, row })
+      return
+    }
     set((s) => ({
       transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     }))
   },
 
   updateMany: async (ids, patch) => {
-    const { error } = await supabase.from('transactions').update(toRow(patch)).in('id', ids)
-    if (error) { console.error('Failed to update transactions:', error); return }
+    const row = toRow(patch)
+    const { error } = await supabase.from('transactions').update(row).in('id', ids)
+    if (error) {
+      logSupabaseError('Failed to update transactions:', error)
+      console.warn('[transactionStore] Bulk update payload:', { ids, row })
+      return
+    }
     set((s) => ({
       transactions: s.transactions.map((t) => ids.includes(t.id) ? { ...t, ...patch } : t),
     }))
