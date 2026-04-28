@@ -3,6 +3,12 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const REFUND_CATEGORY = 'Refunds & Credits'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+}
+
 interface BudgetRow {
   id: string
   household_id: string
@@ -37,8 +43,24 @@ interface PeriodRange {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
+}
+
+async function getRequestBody(req: Request): Promise<Record<string, unknown>> {
+  if (req.method !== 'POST') return {}
+  const contentType = req.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) return {}
+
+  try {
+    return await req.json()
+  } catch {
+    return {}
+  }
+}
+
+function isTruthy(value: unknown): boolean {
+  return value === true || value === 'true' || value === '1'
 }
 
 function getPeriodRange(period: BudgetRow['period']): PeriodRange {
@@ -158,33 +180,68 @@ async function sendBudgetAlert(params: {
   }
 }
 
+async function sendTestBudgetAlert(params: {
+  apiKey: string
+  to: string
+  label: string
+}): Promise<void> {
+  const { apiKey, to, label } = params
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'TribeSpend <alerts@tribespend.com>',
+      to,
+      subject: 'Test Budget Alert',
+      text: [
+        'This is a test budget alert from TribeSpend.',
+        '',
+        `Budget: ${label}`,
+        'Your budget alert email settings are working.',
+      ].join('\n'),
+    }),
+  })
+
+  if (!response.ok) {
+    const details = await response.text()
+    throw new Error(`Resend error ${response.status}: ${details}`)
+  }
+}
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204 })
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders })
   if (req.method !== 'POST' && req.method !== 'GET') {
     return json({ error: 'Method not allowed' }, 405)
   }
 
+  const body = await getRequestBody(req)
+  const url = new URL(req.url)
+  const testMode = isTruthy(body.test) || isTruthy(url.searchParams.get('test'))
+  const budgetId = typeof body.budgetId === 'string'
+    ? body.budgetId
+    : url.searchParams.get('budgetId')
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
-
-const serviceRoleKey =
-
-  Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-const resendApiKey = Deno.env.get('RESEND_API_KEY')
+  const serviceRoleKey =
+    Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  const resendApiKey = Deno.env.get('RESEND_API_KEY')
 
   if (!supabaseUrl) {
     return json({ error: 'Missing SUPABASE_URL environment variable' }, 500)
   }
 
   if (!serviceRoleKey) {
-  return json(
-    {
-      error:
-        'Missing SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY) environment variable; budget alerts require the service role key to bypass RLS',
-    },
-    500
-  )
-}
+    return json(
+      {
+        error:
+          'Missing SERVICE_ROLE_KEY (or SUPABASE_SERVICE_ROLE_KEY) environment variable; budget alerts require the service role key to bypass RLS',
+      },
+      500,
+    )
+  }
 
   if (!resendApiKey) {
     return json({ error: 'Missing RESEND_API_KEY secret; budget alert emails were not sent' }, 500)
@@ -207,21 +264,47 @@ const resendApiKey = Deno.env.get('RESEND_API_KEY')
     errors: [] as string[],
   }
 
-// 🔍 DEBUG TEST — check if service role can read budgets
+  let budgetsQuery = supabase
+    .from('budgets')
+    .select('*')
+    .not('notify_email', 'is', null)
 
-const { data: budgets, error: budgetsError } = await supabase
+  if (budgetId) budgetsQuery = budgetsQuery.eq('id', budgetId)
 
-  .from('budgets')
+  const { data: budgets, error: budgetsError } = await budgetsQuery
+  if (budgetsError) {
+    return json({ error: 'Failed to fetch budgets', details: budgetsError.message }, 500)
+  }
 
-  .select('*')
+  if (testMode) {
+    for (const budget of (budgets ?? []) as BudgetRow[]) {
+      summary.checked += 1
 
-  .not('notify_email', 'is', null)
+      try {
+        const email = budget.notify_email?.trim()
+        if (!email) {
+          summary.skipped += 1
+          continue
+        }
 
-if (budgetsError) {
+        await sendTestBudgetAlert({
+          apiKey: resendApiKey,
+          to: email,
+          label: budget.label,
+        })
 
-  return json({ error: 'Failed to fetch budgets', details: budgetsError.message }, 500)
+        summary.sent += 1
+        console.log(`[budget-alerts] Sent test alert for budget ${budget.id}`)
+      } catch (error) {
+        summary.skipped += 1
+        const message = error instanceof Error ? error.message : String(error)
+        summary.errors.push(`Budget ${budget.id}: ${message}`)
+        console.error(`[budget-alerts] Test alert for budget ${budget.id} failed:`, error)
+      }
+    }
 
-}
+    return json(summary)
+  }
 
   for (const budget of (budgets ?? []) as BudgetRow[]) {
     summary.checked += 1
