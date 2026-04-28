@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import type { Transaction, TransactionFilters } from '@/types'
 import { supabase } from '@/lib/supabase'
 
+const BUDGET_ALERTS_URL = 'https://okqniovbcybhtfjexnay.functions.supabase.co/budget-alerts'
+
 interface TransactionState {
   transactions: Transaction[]
   loaded: boolean
@@ -111,6 +113,34 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   return row
 }
 
+function triggerBudgetAlerts() {
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  if (!anonKey) {
+    console.warn('[transactionStore] Skipping budget alert trigger: missing VITE_SUPABASE_ANON_KEY')
+    return
+  }
+
+  fetch(BUDGET_ALERTS_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${anonKey}`,
+      apikey: anonKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ source: 'transaction-insert' }),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const details = await response.text().catch(() => '')
+        console.warn('[transactionStore] Budget alert trigger failed:', response.status, details)
+      }
+    })
+    .catch((error) => {
+      console.warn('[transactionStore] Budget alert trigger failed:', error)
+    })
+}
+
 export const useTransactionStore = create<TransactionState>((set, get) => ({
   transactions: [],
   loaded: false,
@@ -134,6 +164,7 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     const rows = txns.map((t) => toRow(t, householdId))
     const { error } = await supabase.from('transactions').insert(rows)
     if (error) { console.error('Failed to add transactions:', error); throw error }
+    triggerBudgetAlerts()
     await get().load(householdId)
   },
 
