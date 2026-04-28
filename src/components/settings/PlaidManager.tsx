@@ -3,7 +3,7 @@ import { usePlaidLink } from 'react-plaid-link'
 import { Link } from 'react-router-dom'
 import {
   Link2, RefreshCw, Trash2, CheckCircle, AlertCircle,
-  Loader2, Building2, CreditCard, ChevronDown, ChevronUp, UserPlus,
+  Loader2, Building2, CreditCard, ChevronDown, ChevronUp, UserPlus, Sparkles,
 } from 'lucide-react'
 import {
   createLinkToken,
@@ -22,6 +22,7 @@ import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
 import { runRecurringDetector } from '@/services/recurringDetector'
 import {
   PRESETS_BY_BRAND,
@@ -346,8 +347,9 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
 
 export default function PlaidManager() {
   const { addMany: addTransactions, transactions: existingTxns, updateMany } = useTransactionStore()
-  const { householdId } = useAuth()
+  const { householdId, profile, session } = useAuth()
   const { cards } = useCardStore()
+  const hasPlaidAccess = profile?.plaid_access_enabled === true
 
   const [serverOnline, setServerOnline] = useState<boolean | null>(null)
   const [items, setItems] = useState<PlaidItem[]>([])
@@ -361,15 +363,18 @@ export default function PlaidManager() {
   const [syncingItems, setSyncingItems] = useState<Set<string>>(new Set())
   const [syncStatus, setSyncStatus] = useState<Record<string, string>>({})
   const [loadingLink, setLoadingLink] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Check server health on mount
   useEffect(() => {
+    if (!hasPlaidAccess) return
     checkServerHealth().then(setServerOnline)
-  }, [])
+  }, [hasPlaidAccess])
 
   // Load linked items
   const loadItems = useCallback(async () => {
+    if (!hasPlaidAccess) return
     if (!serverOnline) return
     try {
       const data = await getItems()
@@ -377,7 +382,7 @@ export default function PlaidManager() {
     } catch (err) {
       console.error('[PlaidManager] loadItems:', err)
     }
-  }, [serverOnline])
+  }, [hasPlaidAccess, serverOnline])
 
   useEffect(() => {
     loadItems()
@@ -427,6 +432,39 @@ export default function PlaidManager() {
 
   const handleLinkAccount = async () => {
     await fetchLinkToken()
+  }
+
+  const handleUpgrade = async () => {
+    setCheckoutLoading(true)
+    setError(null)
+    try {
+      const accessToken = session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token
+      if (!accessToken) throw new Error('Please sign in again before upgrading.')
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Checkout is not configured. Missing Supabase settings.')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json().catch(() => ({})) as { url?: string; error?: string }
+      if (!response.ok) throw new Error(data.error || `Checkout failed (${response.status})`)
+      if (!data.url) throw new Error('Checkout session did not return a Stripe URL.')
+
+      window.location.href = data.url
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start checkout.')
+      setCheckoutLoading(false)
+    }
   }
 
   const handleSetupDone = async () => {
@@ -490,6 +528,43 @@ export default function PlaidManager() {
     } catch (err: any) {
       setError(err.message)
     }
+  }
+
+  if (!hasPlaidAccess) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-accent-200 bg-accent-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white border border-accent-100 flex items-center justify-center shrink-0">
+              <Sparkles size={17} className="text-accent-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                Unlock automatic bank syncing with Premium — $4.99/month
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                Connect bank accounts through Plaid for automatic transaction syncing and spending insights.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleUpgrade}
+            disabled={checkoutLoading}
+            className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-60"
+          >
+            {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {checkoutLoading ? 'Opening Checkout...' : 'Upgrade to Premium'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <AlertCircle size={14} className="shrink-0" />
+            {error}
+          </div>
+        )}
+      </div>
+    )
   }
 
   // ── Server offline state ──────────────────────────────────────────────────
