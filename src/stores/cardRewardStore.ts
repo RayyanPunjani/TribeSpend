@@ -14,10 +14,18 @@ interface CardRewardState {
 }
 
 function fromRow(r: Record<string, unknown>): CardRewardRule {
+  const rawKeywords = r.merchant_keywords
+  const merchantKeywords = Array.isArray(rawKeywords)
+    ? rawKeywords.map(String)
+    : typeof rawKeywords === 'string'
+      ? rawKeywords.split(',').map((k) => k.trim()).filter(Boolean)
+      : undefined
+
   return {
     id: r.id as string,
     cardId: r.card_id as string,
     category: r.category as string,
+    merchantKeywords,
     rewardType: r.reward_type as 'cashback' | 'points',
     rewardRate: Number(r.reward_rate),
     isRotating: (r.is_rotating as boolean) || false,
@@ -33,6 +41,7 @@ function toRow(rule: Partial<CardRewardRule>, householdId?: string): Record<stri
   if (rule.id !== undefined) row.id = rule.id
   if (rule.cardId !== undefined) row.card_id = rule.cardId
   if (rule.category !== undefined) row.category = rule.category
+  if (rule.merchantKeywords !== undefined) row.merchant_keywords = rule.merchantKeywords.length > 0 ? rule.merchantKeywords : null
   if (rule.rewardType !== undefined) row.reward_type = rule.rewardType
   if (rule.rewardRate !== undefined) row.reward_rate = rule.rewardRate
   if (rule.isRotating !== undefined) row.is_rotating = rule.isRotating

@@ -14,28 +14,111 @@ function getEffectiveCashbackRate(rule: CardRewardRule): number {
   return rule.rewardRate * POINT_VALUE_CENTS
 }
 
-function getBestCardForCategory(
-  category: string,
+type RewardMatch = {
+  card: CreditCardType
+  rule: CardRewardRule
+  effectiveRate: number
+  merchantLabel?: string
+}
+
+function titleKeyword(keyword: string): string {
+  return keyword
+    .toLowerCase()
+    .split(/\s+/)
+    .map((part) => {
+      if (part === 'amzn') return 'Amazon'
+      return part.charAt(0).toUpperCase() + part.slice(1)
+    })
+    .join(' ')
+}
+
+function merchantLabelFromKeywords(keywords: string[]): string | undefined {
+  if (keywords.length === 0) return undefined
+  const unique = Array.from(new Set(
+    keywords
+      .map((keyword) => {
+        const normalized = keyword.toUpperCase()
+        if (['AMAZON', 'AMZN'].includes(normalized)) return 'Amazon'
+        if (['WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'].includes(normalized)) return 'Whole Foods'
+        return titleKeyword(keyword)
+      }),
+  ))
+  return `${unique.slice(0, 3).join(' / ')} only`
+}
+
+function inferredMerchantKeywords(rule: CardRewardRule, card: CreditCardType): string[] {
+  const explicit = rule.merchantKeywords?.map((keyword) => keyword.trim().toUpperCase()).filter(Boolean) ?? []
+  if (explicit.length > 0) return explicit
+
+  const cardText = `${card.name} ${card.issuer} ${card.cardType} ${rule.notes ?? ''}`.toUpperCase()
+  if (rule.category === 'Shopping' && cardText.includes('AMAZON')) return ['AMAZON', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS']
+  if (rule.category === 'Shopping' && cardText.includes('TARGET')) return ['TARGET']
+  if (rule.category === 'Shopping' && cardText.includes('APPLE')) return ['APPLE', 'APPLE.COM', 'APP STORE', 'ICLOUD']
+  if ((rule.category === 'Groceries' || rule.category === 'Shopping') && cardText.includes('COSTCO')) return ['COSTCO']
+  if ((rule.category === 'Groceries' || rule.category === 'Shopping') && cardText.includes('WALMART')) return ['WALMART', 'WAL-MART']
+  return []
+}
+
+function transactionMerchantText(transaction: Transaction): string {
+  return `${transaction.cleanDescription ?? ''} ${transaction.description ?? ''}`.toUpperCase()
+}
+
+function ruleIsActive(rule: CardRewardRule, today: string): boolean {
+  if (!rule.isRotating) return true
+  if (rule.activeStartDate && today < rule.activeStartDate) return false
+  if (rule.activeEndDate && today > rule.activeEndDate) return false
+  return true
+}
+
+function ruleMatchesTransaction(
+  rule: CardRewardRule,
+  card: CreditCardType,
+  transaction: Transaction,
+  today: string,
+): boolean {
+  if (rule.category !== transaction.category) return false
+  if (!ruleIsActive(rule, today)) return false
+
+  const keywords = inferredMerchantKeywords(rule, card)
+  if (keywords.length === 0) return true
+
+  const merchantText = transactionMerchantText(transaction)
+  return keywords.some((keyword) => merchantText.includes(keyword))
+}
+
+function getRewardForTransaction(
+  card: CreditCardType,
+  transaction: Transaction,
+  rules: CardRewardRule[],
+  today: string,
+): RewardMatch | null {
+  const cardRules = rules.filter((r) => r.cardId === card.id)
+  const matchingRules = cardRules
+    .filter((rule) => rule.category !== 'base' && ruleMatchesTransaction(rule, card, transaction, today))
+    .sort((a, b) => getEffectiveCashbackRate(b) - getEffectiveCashbackRate(a))
+  const rule = matchingRules[0] ?? cardRules.find((r) => r.category === 'base')
+  if (!rule) return null
+
+  const keywords = rule.category === 'base' ? [] : inferredMerchantKeywords(rule, card)
+  return {
+    card,
+    rule,
+    effectiveRate: getEffectiveCashbackRate(rule),
+    merchantLabel: merchantLabelFromKeywords(keywords),
+  }
+}
+
+function getBestCardForTransaction(
+  transaction: Transaction,
   cards: CreditCardType[],
   rules: CardRewardRule[],
-): { card: CreditCardType; rule: CardRewardRule; effectiveRate: number } | null {
-  const today = new Date().toISOString().slice(0, 10)
-  let best: { card: CreditCardType; rule: CardRewardRule; effectiveRate: number } | null = null
+  today: string,
+): RewardMatch | null {
+  let best: RewardMatch | null = null
   for (const card of cards) {
-    const cardRules = rules.filter((r) => r.cardId === card.id)
-    const catRule = cardRules.find((r) => {
-      if (r.category !== category) return false
-      if (r.isRotating) {
-        if (r.activeStartDate && today < r.activeStartDate) return false
-        if (r.activeEndDate && today > r.activeEndDate) return false
-      }
-      return true
-    })
-    const baseRule = cardRules.find((r) => r.category === 'base')
-    const rule = catRule ?? baseRule
-    if (!rule) continue
-    const rate = getEffectiveCashbackRate(rule)
-    if (!best || rate > best.effectiveRate) best = { card, rule, effectiveRate: rate }
+    const match = getRewardForTransaction(card, transaction, rules, today)
+    if (!match) continue
+    if (!best || match.effectiveRate > best.effectiveRate) best = match
   }
   return best
 }
@@ -147,6 +230,7 @@ export default function OptimizePage() {
     const spendTxns = transactions.filter(
       (t) => !t.deleted && !t.isPayment && !t.isCredit && !t.isBalancePayment && !EXCLUDED_FROM_SPEND.includes(t.category) && t.transDate >= cutoffStr,
     )
+    const today = new Date().toISOString().slice(0, 10)
 
     const result: {
       date: string; merchant: string; amount: number
@@ -156,13 +240,10 @@ export default function OptimizePage() {
 
     for (const t of spendTxns) {
       const usedCard = cardMap.get(t.cardId)
-      const usedCardRules = rules.filter((r) => r.cardId === t.cardId)
-      const catRule = usedCardRules.find((r) => r.category === t.category)
-      const baseRule = usedCardRules.find((r) => r.category === 'base')
-      const usedRule = catRule ?? baseRule
-      const earnedRate = usedRule ? getEffectiveCashbackRate(usedRule) : 0
+      const usedReward = usedCard ? getRewardForTransaction(usedCard, t, rules, today) : null
+      const earnedRate = usedReward?.effectiveRate ?? 0
       const earned = t.amount * earnedRate
-      const best = getBestCardForCategory(t.category, creditCards, rules)
+      const best = getBestCardForTransaction(t, creditCards, rules, today)
       const bestRate = best?.effectiveRate ?? 0
       const potential = t.amount * bestRate
       const diff = potential - earned
@@ -183,14 +264,16 @@ export default function OptimizePage() {
   const cardRecommendations = useMemo(() => {
     if (!hasRules) return []
     const spendTxns = transactions.filter((t) => !t.deleted && !t.isPayment && !t.isCredit && !t.isBalancePayment && !EXCLUDED_FROM_SPEND.includes(t.category))
-    const catSpend = new Map<string, { total: number; topPersonName: string; personTotals: Map<string, number> }>()
+    const today = new Date().toISOString().slice(0, 10)
+    const catSpend = new Map<string, { total: number; topPersonName: string; personTotals: Map<string, number>; transactions: Transaction[] }>()
     for (const t of spendTxns) {
       const card = cardMap.get(t.cardId)
       const person = card ? personMap.get(card.owner) : undefined
       const name = person?.name ?? t.cardholderName ?? 'Unknown'
-      if (!catSpend.has(t.category)) catSpend.set(t.category, { total: 0, topPersonName: name, personTotals: new Map() })
+      if (!catSpend.has(t.category)) catSpend.set(t.category, { total: 0, topPersonName: name, personTotals: new Map(), transactions: [] })
       const entry = catSpend.get(t.category)!
       entry.total += t.amount
+      entry.transactions.push(t)
       entry.personTotals.set(name, (entry.personTotals.get(name) ?? 0) + t.amount)
     }
     for (const entry of catSpend.values()) {
@@ -199,11 +282,49 @@ export default function OptimizePage() {
         if (amt > maxAmt) { maxAmt = amt; entry.topPersonName = name }
       }
     }
-    const recs: { category: string; topPerson: string; total: number; bestCard: CreditCardType | null; effectiveRate: number }[] = []
+    const recs: {
+      category: string
+      topPerson: string
+      total: number
+      bestCard: CreditCardType | null
+      effectiveRate: number
+      merchantLabels: string[]
+    }[] = []
     for (const [cat, data] of catSpend) {
-      const best = getBestCardForCategory(cat, creditCards, rules)
-      if (!best) continue
-      recs.push({ category: cat, topPerson: data.topPersonName, total: data.total, bestCard: best.card, effectiveRate: best.effectiveRate })
+      let bestCard: CreditCardType | null = null
+      let bestRewards = 0
+      let bestLabels: string[] = []
+
+      for (const card of creditCards) {
+        let rewards = 0
+        let hasMatchingRule = false
+        const labels = new Set<string>()
+
+        for (const transaction of data.transactions) {
+          const match = getRewardForTransaction(card, transaction, rules, today)
+          if (!match) continue
+          hasMatchingRule = true
+          rewards += transaction.amount * match.effectiveRate
+          if (match.merchantLabel) labels.add(match.merchantLabel)
+        }
+
+        if (!hasMatchingRule) continue
+        if (!bestCard || rewards > bestRewards) {
+          bestCard = card
+          bestRewards = rewards
+          bestLabels = Array.from(labels)
+        }
+      }
+
+      if (!bestCard) continue
+      recs.push({
+        category: cat,
+        topPerson: data.topPersonName,
+        total: data.total,
+        bestCard,
+        effectiveRate: data.total > 0 ? bestRewards / data.total : 0,
+        merchantLabels: bestLabels,
+      })
     }
     return recs.sort((a, b) => b.total - a.total).slice(0, 8)
   }, [transactions, rules, cardMap, personMap, creditCards, hasRules])
@@ -215,16 +336,14 @@ export default function OptimizePage() {
     if (cardsWithFees.length === 0) return []
     const cutoff = new Date(); cutoff.setFullYear(cutoff.getFullYear() - 1)
     const cutoffStr = cutoff.toISOString().slice(0, 10)
+    const today = new Date().toISOString().slice(0, 10)
     const spendTxns = transactions.filter((t) => !t.deleted && !t.isPayment && !t.isCredit && !t.isBalancePayment && !EXCLUDED_FROM_SPEND.includes(t.category) && t.transDate >= cutoffStr)
     return cardsWithFees.map((card) => {
       const cardTxns = spendTxns.filter((t) => t.cardId === card.id)
-      const cardRules = rules.filter((r) => r.cardId === card.id)
       let totalRewards = 0
       for (const t of cardTxns) {
-        const catRule = cardRules.find((r) => r.category === t.category)
-        const baseRule = cardRules.find((r) => r.category === 'base')
-        const rule = catRule ?? baseRule
-        if (rule) totalRewards += t.amount * getEffectiveCashbackRate(rule)
+        const match = getRewardForTransaction(card, t, rules, today)
+        if (match) totalRewards += t.amount * match.effectiveRate
       }
       const annualFee = card.annualFee ?? 0
       return { card, annualFee, totalRewards, netValue: totalRewards - annualFee }
@@ -349,8 +468,11 @@ export default function OptimizePage() {
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: rec.bestCard.color }} />
                     <span className="text-sm font-medium text-slate-800">{rec.bestCard.name}</span>
-                    <span className="ml-auto text-xs text-accent-600 font-semibold">{(rec.effectiveRate * 100).toFixed(1)}% back</span>
+                    <span className="ml-auto text-xs text-accent-600 font-semibold">{(rec.effectiveRate * 100).toFixed(1)}% avg</span>
                   </div>
+                )}
+                {rec.merchantLabels.length > 0 && (
+                  <p className="text-xs text-amber-600 mt-1.5">{rec.merchantLabels.slice(0, 2).join(', ')}</p>
                 )}
                 <p className="text-xs text-slate-400 mt-1.5">Top spender: <span className="text-slate-600">{rec.topPerson}</span></p>
               </div>

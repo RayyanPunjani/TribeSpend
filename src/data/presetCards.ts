@@ -3,6 +3,7 @@ import type { CardRewardRule, CardCredit } from '@/types'
 
 export interface PresetReward {
   category: string       // TribeSpend taxonomy category, or 'base' for the default rate
+  merchantKeywords?: string[]
   rate: number           // decimal for cashback (0.03), multiplier for points (3)
   isRotating?: boolean
   cap?: string           // display-only, e.g. "$6,000/year"
@@ -88,7 +89,7 @@ export const PRESET_CARDS: PresetCardTemplate[] = [
     issuer: 'Chase', brand: 'Amazon', cardName: 'Amazon Prime Visa', cardType: 'Amazon Prime Visa',
     annualFee: 0, rewardType: 'cashback', group: 'fintech',
     rewards: [
-      { category: 'Shopping',         rate: 0.05, notes: 'Amazon.com + Whole Foods (Prime members)' },
+      { category: 'Shopping',         merchantKeywords: ['AMAZON', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'], rate: 0.05, notes: 'Amazon / Whole Foods only (Prime members)' },
       { category: 'Dining',           rate: 0.02 },
       { category: 'Gas & EV Charging', rate: 0.02 },
       { category: 'Transportation',   rate: 0.02, notes: 'Local transit & rideshare' },
@@ -226,7 +227,7 @@ export const PRESET_CARDS: PresetCardTemplate[] = [
       { category: 'Gas & EV Charging', rate: 0.04, cap: '$7,000/year on gas' },
       { category: 'Dining',            rate: 0.03 },
       { category: 'Travel',            rate: 0.03 },
-      { category: 'Groceries',         rate: 0.02, notes: 'Costco purchases' },
+      { category: 'Groceries',         merchantKeywords: ['COSTCO'], rate: 0.02, notes: 'Costco only' },
       { category: 'base',              rate: 0.01 },
     ],
   },
@@ -470,7 +471,7 @@ export const PRESET_CARDS: PresetCardTemplate[] = [
     issuer: 'Apple', brand: 'Apple', cardName: 'Apple Card', cardType: 'Apple Card',
     annualFee: 0, rewardType: 'cashback', group: 'fintech',
     rewards: [
-      { category: 'Shopping', rate: 0.03, notes: 'Apple purchases (apple.com, App Store, Apple services)' },
+      { category: 'Shopping', merchantKeywords: ['APPLE', 'APPLE.COM', 'APP STORE', 'ICLOUD'], rate: 0.03, notes: 'Apple purchases only' },
       { category: 'base',     rate: 0.02, notes: '2% via Apple Pay; 1% with physical card' },
     ],
   },
@@ -511,7 +512,7 @@ export const PRESET_CARDS: PresetCardTemplate[] = [
     issuer: 'TD Bank', brand: 'Target', cardName: 'Target RedCard', cardType: 'Target RedCard',
     annualFee: 0, rewardType: 'cashback', group: 'fintech',
     rewards: [
-      { category: 'Shopping', rate: 0.05, notes: '5% discount at Target (applied as savings, not traditional rewards)' },
+      { category: 'Shopping', merchantKeywords: ['TARGET'], rate: 0.05, notes: 'Target only (applied as savings, not traditional rewards)' },
       { category: 'base',     rate: 0.01 },
     ],
   },
@@ -592,6 +593,7 @@ export function buildRulesFromPreset(
   const rules: Omit<CardRewardRule, 'id'>[] = template.rewards.map((reward) => ({
     cardId,
     category: reward.category,
+    merchantKeywords: reward.merchantKeywords,
     rewardType: template.rewardType,
     rewardRate: reward.rate,
     isRotating: reward.isRotating,

@@ -211,6 +211,7 @@ export interface CardRewardRule {
   id: string
   cardId: string
   category: string   // spending category OR 'base' for default rate
+  merchantKeywords?: string[] // optional uppercase keywords; rule applies only to matching merchants/descriptions
   rewardType: 'cashback' | 'points'
   rewardRate: number // e.g. 0.03 for 3% cashback, or 3 for 3x points
   isRotating?: boolean

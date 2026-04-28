@@ -10,6 +10,7 @@ import type { CardRewardRule, CardCredit } from '@/types'
 
 type RewardForm = {
   category: string
+  merchantKeywords: string
   rewardType: 'cashback' | 'points'
   rewardRate: string
   isRotating: boolean
@@ -30,6 +31,7 @@ type CreditForm = {
 
 const EMPTY_REWARD_FORM: RewardForm = {
   category: 'base',
+  merchantKeywords: '',
   rewardType: 'cashback',
   rewardRate: '',
   isRotating: false,
@@ -58,6 +60,20 @@ const FREQ_LABELS: Record<string, string> = {
   quarterly: 'Quarterly',
   'semi-annual': 'Semi-Annual',
   annual: 'Annual',
+}
+
+function formatMerchantKeywords(keywords: string[]): string {
+  const labels = keywords.map((keyword) => {
+    const normalized = keyword.toUpperCase()
+    if (['AMAZON', 'AMZN'].includes(normalized)) return 'Amazon'
+    if (['WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'].includes(normalized)) return 'Whole Foods'
+    return keyword
+      .toLowerCase()
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
+  })
+  return Array.from(new Set(labels)).join(' / ')
 }
 
 export default function CardRewardsManager() {
@@ -100,6 +116,7 @@ export default function CardRewardsManager() {
     setAddingRuleFor(null)
     setRewardForm({
       category: rule.category,
+      merchantKeywords: rule.merchantKeywords?.join(', ') ?? '',
       rewardType: rule.rewardType,
       rewardRate: String(rule.rewardRate),
       isRotating: rule.isRotating ?? false,
@@ -121,6 +138,10 @@ export default function CardRewardsManager() {
     const data: Omit<CardRewardRule, 'id'> = {
       cardId,
       category: rewardForm.category,
+      merchantKeywords: rewardForm.merchantKeywords
+        .split(',')
+        .map((keyword) => keyword.trim().toUpperCase())
+        .filter(Boolean),
       rewardType: rewardForm.rewardType,
       rewardRate: rate,
       isRotating: rewardForm.isRotating,
@@ -278,6 +299,11 @@ export default function CardRewardsManager() {
                                     : `${rule.rewardRate}x points`}
                                 </span>
                                 {rule.isRotating && <span className="text-xs text-blue-500 ml-2">Rotating</span>}
+                                {rule.merchantKeywords && rule.merchantKeywords.length > 0 && (
+                                  <span className="text-xs text-amber-600 ml-2">
+                                    {formatMerchantKeywords(rule.merchantKeywords)} only
+                                  </span>
+                                )}
                               </div>
                               <div className="flex gap-1.5">
                                 <button onClick={() => startEditRule(rule)} className="text-slate-400 hover:text-slate-600"><Edit2 size={12} /></button>
@@ -385,6 +411,14 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
             onChange={(e) => onChange({ ...form, rewardRate: e.target.value })}
             placeholder={form.rewardType === 'cashback' ? '0.03' : '3'}
             className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-slate-500">Merchant Keywords (optional)</label>
+          <input type="text" value={form.merchantKeywords}
+            onChange={(e) => onChange({ ...form, merchantKeywords: e.target.value.toUpperCase() })}
+            placeholder="AMAZON, WHOLE FOODS"
+            className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500" />
+          <p className="text-[10px] text-slate-400">Leave blank for category-wide rewards</p>
         </div>
       </div>
       <label className="flex items-center gap-2 text-xs cursor-pointer">
