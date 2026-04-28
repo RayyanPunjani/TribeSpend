@@ -21,6 +21,10 @@ export interface Profile {
   color: string
   role: string
   subscription_status: string
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  subscription_current_period_end?: string | null
+  plaid_access_enabled?: boolean | null
 }
 
 export interface AuthContextType {
