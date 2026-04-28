@@ -2,39 +2,56 @@ import { useMemo, useState } from 'react'
 import { CheckCircle, PackageOpen, RotateCcw } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { useCardStore } from '@/stores/cardStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import EmptyState from '@/components/shared/EmptyState'
 import type { Transaction } from '@/types'
+import type { CreditCard } from '@/types'
+import { normalizeMerchantName, merchantSearchText } from '@/lib/merchantNormalize'
+import { getRefundMatchCandidates, type RankedRefundCandidate } from '@/services/refundMatcher'
 
 type Tab = 'expected' | 'review' | 'completed'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
-
-function dateMs(date: string): number {
-  const [year, month, day] = date.split('-').map(Number)
-  const ms = Date.UTC(year, month - 1, day)
-  return Number.isFinite(ms) ? ms : 0
+interface RefundFilters {
+  sameMerchant: boolean
+  exactAmount: boolean
+  last90Days: boolean
 }
 
-function getRecentPurchaseCandidates(refund: Transaction, transactions: Transaction[]): Transaction[] {
-  const refundDate = dateMs(refund.transDate)
-  return transactions
-    .filter((t) => {
-      if (t.id === refund.id || t.deleted) return false
-      if (t.isPayment || t.isCredit || t.isBalancePayment) return false
-      if (t.amount <= 0) return false
-      const txDate = dateMs(t.transDate)
-      if (!refundDate || !txDate || txDate > refundDate) return false
-      return refundDate - txDate <= 90 * MS_PER_DAY
-    })
-    .sort((a, b) => dateMs(b.transDate) - dateMs(a.transDate))
+const DEFAULT_REFUND_FILTERS: RefundFilters = {
+  sameMerchant: false,
+  exactAmount: true,
+  last90Days: true,
+}
+
+function getTransactionMerchant(t: Transaction): string {
+  return normalizeMerchantName(t.cleanDescription || t.description)
+}
+
+function getCardPersonLabel(t: Transaction, cardMap: Map<string, CreditCard>): string {
+  const card = cardMap.get(t.cardId)
+  const parts = [
+    card ? `${card.name}${card.lastFour ? ` …${card.lastFour}` : ''}` : '',
+    t.cardholderName,
+  ].filter(Boolean)
+
+  return [...new Set(parts)].join(' / ')
+}
+
+function getConfidenceLabel(candidate: RankedRefundCandidate): string {
+  if (candidate.confidence === 'high') return 'High match'
+  if (candidate.confidence === 'medium') return 'Possible match'
+  return 'Low match'
 }
 
 export default function ReturnsPage() {
   const { transactions, update } = useTransactionStore()
+  const { cards } = useCardStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const [refundSelections, setRefundSelections] = useState<Record<string, string>>({})
   const [refundSearches, setRefundSearches] = useState<Record<string, string>>({})
+  const [refundFilters, setRefundFilters] = useState<Record<string, RefundFilters>>({})
+  const cardMap = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards])
 
   const requestedTab = searchParams.get('tab')
   const tab: Tab = requestedTab === 'review' || requestedTab === 'completed'
@@ -87,6 +104,16 @@ export default function ReturnsPage() {
 
   const keepAsRefund = async (refundId: string) => {
     await update(refundId, { refundReviewPending: false })
+  }
+
+  const toggleRefundFilter = (refundId: string, key: keyof RefundFilters) => {
+    setRefundFilters((prev) => {
+      const current = prev[refundId] ?? DEFAULT_REFUND_FILTERS
+      return {
+        ...prev,
+        [refundId]: { ...current, [key]: !current[key] },
+      }
+    })
   }
 
   if (transactions.length === 0) {
@@ -262,11 +289,27 @@ export default function ReturnsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pendingRefundReviews.map((refund) => {
-                    const candidates = getRecentPurchaseCandidates(refund, transactions)
+                    const filters = refundFilters[refund.id] ?? DEFAULT_REFUND_FILTERS
+                    const refundMerchant = getTransactionMerchant(refund)
+                    const candidates = getRefundMatchCandidates(refund, transactions, {
+                      lookbackDays: filters.last90Days ? 90 : 3650,
+                    }).filter((candidate) => {
+                      if (filters.sameMerchant && !candidate.merchantMatch) return false
+                      if (filters.exactAmount && !candidate.amountExact) return false
+                      return true
+                    })
                     const query = refundSearches[refund.id]?.toLowerCase() ?? ''
                     const filteredCandidates = query
                       ? candidates.filter((candidate) => {
-                          const haystack = `${candidate.cleanDescription} ${candidate.description} ${formatCurrency(candidate.amount)} ${formatDate(candidate.transDate, 'MMM d, yyyy')}`.toLowerCase()
+                          const t = candidate.transaction
+                          const haystack = merchantSearchText(
+                            candidate.canonicalMerchant,
+                            t.cleanDescription,
+                            t.description,
+                            getCardPersonLabel(t, cardMap),
+                            formatCurrency(t.amount),
+                            formatDate(t.transDate, 'MMM d, yyyy'),
+                          )
                           return haystack.includes(query)
                         })
                       : candidates
@@ -278,14 +321,41 @@ export default function ReturnsPage() {
                           {formatDate(refund.transDate, 'MMM d, yyyy')}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-medium text-slate-800">{refund.cleanDescription}</p>
-                          <p className="text-xs text-slate-400 truncate max-w-[220px]">{refund.description}</p>
+                          <p className="text-sm font-medium text-slate-800">{refundMerchant}</p>
+                          <p className="text-xs text-slate-400 truncate max-w-[220px]" title={refund.description}>
+                            {refund.cleanDescription !== refundMerchant
+                              ? `${refund.cleanDescription} · ${refund.description}`
+                              : refund.description}
+                          </p>
                         </td>
                         <td className="px-4 py-3 text-right text-sm font-semibold text-green-600 whitespace-nowrap">
                           {formatCurrency(Math.abs(refund.amount))}
                         </td>
                         <td className="px-4 py-3 min-w-[280px]">
                           <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {([
+                                ['sameMerchant', 'Same merchant'],
+                                ['exactAmount', 'Exact amount'],
+                                ['last90Days', 'Last 90 days'],
+                              ] as Array<[keyof RefundFilters, string]>).map(([key, label]) => {
+                                const active = filters[key]
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => toggleRefundFilter(refund.id, key)}
+                                    className={`px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors ${
+                                      active
+                                        ? 'bg-accent-50 border-accent-200 text-accent-700'
+                                        : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                )
+                              })}
+                            </div>
                             <input
                               type="search"
                               value={refundSearches[refund.id] ?? ''}
@@ -303,12 +373,21 @@ export default function ReturnsPage() {
                               className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-accent-500"
                             >
                               <option value="">Select a purchase</option>
-                              {filteredCandidates.map((candidate) => (
-                                <option key={candidate.id} value={candidate.id}>
-                                  {formatDate(candidate.transDate, 'MMM d')} · {candidate.cleanDescription} · {formatCurrency(candidate.amount)}
-                                </option>
-                              ))}
+                              {filteredCandidates.slice(0, 40).map((candidate) => {
+                                const t = candidate.transaction
+                                const cardPerson = getCardPersonLabel(t, cardMap)
+                                return (
+                                  <option key={t.id} value={t.id}>
+                                    {formatDate(t.transDate, 'MMM d')} · {candidate.canonicalMerchant} · {formatCurrency(t.amount)}
+                                    {cardPerson ? ` · ${cardPerson}` : ''} · {getConfidenceLabel(candidate)}
+                                  </option>
+                                )
+                              })}
                             </select>
+                            <p className="text-[11px] text-slate-400">
+                              {filteredCandidates.length} ranked candidate{filteredCandidates.length === 1 ? '' : 's'}
+                              {filteredCandidates.length === 0 ? ' · Try turning off a filter' : ''}
+                            </p>
                           </div>
                         </td>
                         <td className="px-4 py-3">
