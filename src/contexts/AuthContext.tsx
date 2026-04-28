@@ -4,6 +4,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
 import { supabase } from '@/lib/supabase'
@@ -38,53 +39,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const profileRequestId = useRef(0)
 
   const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
     try {
-      console.log('[Auth] Fetching profile for user:', userId)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
       if (error) {
-        console.error('[Auth] Profile fetch error:', error.message, error.details, error.hint)
+        console.warn('[Auth] Profile fetch error:', error.message, error.details, error.hint)
         return null
       }
-      console.log('[Auth] Profile loaded:', data?.name, 'household:', data?.household_id)
-      return data as Profile
+      return data as Profile | null
     } catch (err) {
-      console.error('[Auth] Profile fetch exception:', err)
+      console.warn('[Auth] Profile fetch exception:', err)
       return null
     }
   }, [])
 
+  const fetchProfileWithRetry = useCallback(async (userId: string): Promise<Profile | null> => {
+    const delays = [0, 300, 800]
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i] > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delays[i]))
+      }
+      const p = await fetchProfile(userId)
+      if (p?.household_id) return p
+    }
+    console.warn('[Auth] Profile could not be loaded after retry for user:', userId)
+    return null
+  }, [fetchProfile])
+
   const refreshProfile = useCallback(async () => {
-    if (!user) return
-    const p = await fetchProfile(user.id)
+    if (!session?.user?.id) return
+    const p = await fetchProfileWithRetry(session.user.id)
     if (p) setProfile(p)
-  }, [user, fetchProfile])
+  }, [session, fetchProfileWithRetry])
 
   useEffect(() => {
     let mounted = true
-    console.log('[Auth] Initializing...')
 
     supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       if (!mounted) return
-      console.log('[Auth] Session:', s ? 'found' : 'none')
+      const requestId = ++profileRequestId.current
       setSession(s)
       setUser(s?.user ?? null)
 
-      if (s?.user) {
-        const p = await fetchProfile(s.user.id)
-        if (mounted) {
+      if (s?.user?.id) {
+        const p = await fetchProfileWithRetry(s.user.id)
+        if (mounted && requestId === profileRequestId.current) {
           setProfile(p)
-          console.log('[Auth] Profile set:', p ? p.name : 'null')
         }
+      } else {
+        setProfile(null)
       }
       if (mounted) {
         setLoading(false)
-        console.log('[Auth] Loading complete')
       }
     }).catch((err) => {
       console.error('[Auth] getSession error:', err)
@@ -93,23 +105,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (!mounted) return
-      console.log('[Auth] State change:', _event)
+      const requestId = ++profileRequestId.current
       setSession(s)
       setUser(s?.user ?? null)
 
-      if (s?.user) {
-        const p = await fetchProfile(s.user.id)
-        if (mounted) setProfile(p)
+      if (s?.user?.id) {
+        setLoading(true)
+        const p = await fetchProfileWithRetry(s.user.id)
+        if (mounted && requestId === profileRequestId.current) setProfile(p)
       } else {
         setProfile(null)
       }
+      if (mounted && requestId === profileRequestId.current) setLoading(false)
     })
 
     return () => {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [fetchProfile])
+  }, [fetchProfileWithRetry])
 
   const signUp = async (email: string, password: string, name?: string) => {
     const { error } = await supabase.auth.signUp({
