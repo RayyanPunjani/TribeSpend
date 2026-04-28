@@ -438,9 +438,15 @@ export default function PlaidManager() {
     setCheckoutLoading(true)
     setError(null)
     try {
-      const accessToken = session?.access_token ?? (await supabase.auth.getSession()).data.session?.access_token
-      if (!accessToken) throw new Error('Please sign in again before upgrading.')
+      const {
+  data: { session },
+} = await supabase.auth.getSession()
 
+const accessToken = session?.access_token
+
+if (!accessToken) {
+  throw new Error('Please sign in again before upgrading.')
+}
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
       if (!supabaseUrl || !supabaseAnonKey) {
