@@ -250,7 +250,7 @@ export default function OptimizePage() {
     const today = new Date().toISOString().slice(0, 10)
 
     const result: {
-      date: string; merchant: string; amount: number
+      date: string; merchant: string; category: string; amount: number
       cardUsed: CreditCardType | undefined; cardUsedColor: string; earned: number; earnedRate: number
       bestCard: CreditCardType | undefined; bestCardColor: string; potential: number; bestRate: number; diff: number
     }[] = []
@@ -266,7 +266,7 @@ export default function OptimizePage() {
       const diff = potential - earned
       if (diff > 0.01 && best && best.card.id !== t.cardId) {
         result.push({
-          date: t.transDate, merchant: t.cleanDescription || t.description, amount: t.amount,
+          date: t.transDate, merchant: t.cleanDescription || t.description, category: t.category, amount: t.amount,
           cardUsed: usedCard, cardUsedColor: usedCard?.color ?? '#94a3b8', earned, earnedRate,
           bestCard: best.card, bestCardColor: best.card.color, potential, bestRate, diff,
         })
@@ -276,6 +276,29 @@ export default function OptimizePage() {
   }, [transactions, rules, cardMap, creditCards, hasRules])
 
   const totalMissed = useMemo(() => missedRewards.reduce((s, r) => s + r.diff, 0), [missedRewards])
+  const missedRewardsSummary = useMemo(() => {
+    if (missedRewards.length === 0) return null
+
+    const dates = missedRewards.map((reward) => new Date(`${reward.date}T00:00:00`).getTime()).filter(Number.isFinite)
+    const minDate = Math.min(...dates)
+    const maxDate = Math.max(...dates)
+    const dateRangeDays = dates.length > 0 ? Math.max(1, Math.round((maxDate - minDate) / 86_400_000) + 1) : 90
+    const months = Math.max(1, dateRangeDays / 30.4375)
+    const monthlyAverage = totalMissed / months
+
+    const categoryTotals = new Map<string, number>()
+    const cardTotals = new Map<string, number>()
+    for (const reward of missedRewards) {
+      categoryTotals.set(reward.category, (categoryTotals.get(reward.category) ?? 0) + reward.diff)
+      if (reward.bestCard?.name) cardTotals.set(reward.bestCard.name, (cardTotals.get(reward.bestCard.name) ?? 0) + reward.diff)
+    }
+
+    const topCategory = Array.from(categoryTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const topCard = Array.from(cardTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0]
+    const topHint = [topCategory, topCard].filter(Boolean).join(' · ')
+
+    return { monthlyAverage, topHint }
+  }, [missedRewards, totalMissed])
 
   // ── Section 2: Card Recommendations ───────────────────────────────────────
   const cardRecommendations = useMemo(() => {
@@ -411,8 +434,16 @@ export default function OptimizePage() {
             <h2 className="text-sm font-semibold text-slate-700">Missed Rewards</h2>
             <span className="text-xs text-slate-400 ml-1">— last 90 days</span>
           </div>
-          {missedRewards.length > 0 && (
-            <span className="text-sm font-semibold text-orange-600">{formatCurrency(totalMissed)} left on the table</span>
+          {missedRewardsSummary && (
+            <div className="text-right">
+              <p className="text-sm font-semibold text-orange-600">
+                {formatCurrency(totalMissed)} left on the table
+                <span className="text-orange-500 font-medium"> (≈ {formatCurrency(missedRewardsSummary.monthlyAverage)}/month)</span>
+              </p>
+              {missedRewardsSummary.topHint && (
+                <p className="text-xs text-slate-400 mt-0.5">Mostly from {missedRewardsSummary.topHint}</p>
+              )}
+            </div>
           )}
         </div>
         {!hasRules ? (
