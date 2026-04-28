@@ -271,7 +271,8 @@ Deno.serve(async (req) => {
         break
 
       case 'invoice.payment_succeeded':
-        updated = await handleInvoiceEvent(stripe, supabase, event.data.object as Stripe.Invoice, 'active')
+        console.log('[stripe-webhook] invoice.payment_succeeded received; not overwriting subscription details')
+        updated = false
         break
 
       case 'invoice.payment_failed':
