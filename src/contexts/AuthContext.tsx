@@ -10,6 +10,8 @@ import {
 import { supabase } from '@/lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
 
+const INITIAL_SESSION_TIMEOUT_MS = 3500
+
 export interface Profile {
   id: string
   household_id: string
@@ -33,6 +35,21 @@ export interface AuthContextType {
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  const timeout = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[Auth] ${label} timed out after ${ms}ms; continuing without blocking render`)
+      resolve(null)
+    }, ms)
+  })
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId)
+  })
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -81,42 +98,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true
 
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      if (!mounted) return
+    const initializeAuth = async () => {
       const requestId = ++profileRequestId.current
-      setSession(s)
-      setUser(s?.user ?? null)
 
-      if (s?.user?.id) {
-        const p = await fetchProfileWithRetry(s.user.id)
-        if (mounted && requestId === profileRequestId.current) {
-          setProfile(p)
+      try {
+        const result = await withTimeout(
+          supabase.auth.getSession(),
+          INITIAL_SESSION_TIMEOUT_MS,
+          'Initial session fetch',
+        )
+
+        if (!mounted || requestId !== profileRequestId.current) return
+
+        const s = result?.data.session ?? null
+        setSession(s)
+        setUser(s?.user ?? null)
+
+        if (s?.user?.id) {
+          const p = await fetchProfileWithRetry(s.user.id)
+          if (mounted && requestId === profileRequestId.current) {
+            setProfile(p)
+          }
+        } else {
+          setProfile(null)
         }
-      } else {
-        setProfile(null)
+      } catch (err) {
+        console.error('[Auth] getSession error:', err)
+      } finally {
+        if (mounted && requestId === profileRequestId.current) {
+          setLoading(false)
+        }
       }
-      if (mounted) {
-        setLoading(false)
-      }
-    }).catch((err) => {
-      console.error('[Auth] getSession error:', err)
-      if (mounted) setLoading(false)
-    })
+    }
+
+    initializeAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (!mounted) return
       const requestId = ++profileRequestId.current
-      setSession(s)
-      setUser(s?.user ?? null)
 
-      if (s?.user?.id) {
+      try {
         setLoading(true)
-        const p = await fetchProfileWithRetry(s.user.id)
-        if (mounted && requestId === profileRequestId.current) setProfile(p)
-      } else {
-        setProfile(null)
+        setSession(s)
+        setUser(s?.user ?? null)
+
+        if (s?.user?.id) {
+          const p = await fetchProfileWithRetry(s.user.id)
+          if (mounted && requestId === profileRequestId.current) setProfile(p)
+        } else {
+          setProfile(null)
+        }
+      } finally {
+        if (mounted && requestId === profileRequestId.current) setLoading(false)
       }
-      if (mounted && requestId === profileRequestId.current) setLoading(false)
     })
 
     return () => {
