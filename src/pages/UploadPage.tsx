@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { Loader2, AlertCircle, CheckCircle, Plus, Sheet } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/utils/formatters'
@@ -49,6 +50,7 @@ const BANK_HINTS = [
 ]
 
 export default function UploadPage() {
+  const navigate = useNavigate()
   const [step, setStep] = useState<Step>('upload')
   const [items, setItems] = useState<UploadItem[]>([])
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
@@ -260,17 +262,21 @@ export default function UploadPage() {
     setImportedCount(transactions.length)
 
     const refundMatches = matchRefunds(transactions, existingTransactions)
-    await Promise.all([
-      ...refundMatches.updatedRefunds.map((refund) =>
-        updateTransaction(refund.id, {
-          refundForId: refund.refundForId,
-          refundReviewPending: refund.refundReviewPending,
-        }),
-      ),
-      ...refundMatches.updatedOriginals.map((original) =>
-        updateTransaction(original.id, { hasRefund: true }),
-      ),
-    ])
+    try {
+      await Promise.all([
+        ...refundMatches.updatedRefunds.map((refund) =>
+          updateTransaction(refund.id, {
+            refundForId: refund.refundForId,
+            refundReviewPending: refund.refundReviewPending,
+          }),
+        ),
+        ...refundMatches.updatedOriginals.map((original) =>
+          updateTransaction(original.id, { hasRefund: true }),
+        ),
+      ])
+    } catch (err) {
+      console.warn('[UploadPage] Non-critical refund matching updates failed:', err)
+    }
 
     if (refundMatches.autoMatched > 0 || refundMatches.pendingReview > 0) {
       addSummaryToast(`${refundMatches.autoMatched} refunds auto-matched, ${refundMatches.pendingReview} need review`)
@@ -304,6 +310,7 @@ export default function UploadPage() {
     }
 
     setStep('done')
+    navigate('/app/transactions')
   }
 
   const handleConfirmReturnMatch = async (pendingId: string, creditId: string) => {
@@ -368,12 +375,12 @@ export default function UploadPage() {
             >
               Upload More
             </button>
-            <a
-              href="/app/transactions"
+            <Link
+              to="/app/transactions"
               className="px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors"
             >
               View Transactions
-            </a>
+            </Link>
           </div>
         </div>
 

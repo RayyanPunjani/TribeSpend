@@ -122,14 +122,18 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
       .select('*')
       .eq('household_id', householdId)
       .order('trans_date', { ascending: false })
-    if (error) { console.error('Failed to load transactions:', error); return }
+    if (error) {
+      console.error('Failed to load transactions:', error)
+      set({ loaded: true })
+      return
+    }
     set({ transactions: (data || []).map(fromRow), loaded: true })
   },
 
   addMany: async (householdId, txns) => {
     const rows = txns.map((t) => toRow(t, householdId))
     const { error } = await supabase.from('transactions').insert(rows)
-    if (error) { console.error('Failed to add transactions:', error); return }
+    if (error) { console.error('Failed to add transactions:', error); throw error }
     await get().load(householdId)
   },
 

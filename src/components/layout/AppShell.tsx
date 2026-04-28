@@ -38,16 +38,26 @@ export default function AppShell() {
     if (!householdId) return
 
     setDataLoaded(false)
-    Promise.all([
-      loadSettings(),
-      loadTransactions(householdId),
-      loadCards(householdId),
-      loadPersons(householdId),
-      loadRules(householdId),
-      loadRewards(householdId),
-      loadCredits(householdId),
-      loadBudgets(householdId),
-    ]).then(() => setDataLoaded(true))
+    const loaders = [
+      ['settings', () => loadSettings()],
+      ['transactions', () => loadTransactions(householdId)],
+      ['cards', () => loadCards(householdId)],
+      ['people', () => loadPersons(householdId)],
+      ['category rules', () => loadRules(householdId)],
+      ['reward rules', () => loadRewards(householdId)],
+      ['card credits', () => loadCredits(householdId)],
+      ['budgets', () => loadBudgets(householdId)],
+    ] as const
+
+    Promise.allSettled(loaders.map(([, load]) => load()))
+      .then((results) => {
+        results.forEach((result, i) => {
+          if (result.status === 'rejected') {
+            console.warn(`[AppShell] Failed to load ${loaders[i][0]}:`, result.reason)
+          }
+        })
+      })
+      .finally(() => setDataLoaded(true))
   }, [householdId])
 
   if (!householdId) {

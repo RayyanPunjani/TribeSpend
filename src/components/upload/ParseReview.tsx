@@ -12,7 +12,7 @@ import { suggestMerchantPattern, matchesRule } from '@/services/categoryMatcher'
 
 interface Props {
   transactions: Transaction[]
-  onConfirm: (transactions: Transaction[]) => void
+  onConfirm: (transactions: Transaction[]) => void | Promise<void>
   onBack: () => void
 }
 
@@ -133,79 +133,85 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
 
   const handleSave = async () => {
     setIsSaving(true)
+    try {
+      // Build final transaction list
+      const final = transactions.map((t) => {
+        // Apply overrides to auto-categorized
+        const override = overrides.get(t.id)
+        if (override) return { ...t, category: override }
+        // Apply merchant assignments to needs-review
+        if (t.category === 'Needs Review') {
+          const cat = merchantAssignments.get(t.cleanDescription)
+          if (cat) return { ...t, category: cat, ruleMatched: true }
+        }
+        return t
+      })
 
-    // Build final transaction list
-    const final = transactions.map((t) => {
-      // Apply overrides to auto-categorized
-      const override = overrides.get(t.id)
-      if (override) return { ...t, category: override }
-      // Apply merchant assignments to needs-review
-      if (t.category === 'Needs Review') {
-        const cat = merchantAssignments.get(t.cleanDescription)
-        if (cat) return { ...t, category: cat, ruleMatched: true }
+      // Create rules for each newly assigned merchant group
+      const newRules: Array<{ merchant: string; category: string; rawExample: string }> = []
+      for (const [merchant, category] of merchantAssignments) {
+        const group = merchantGroups.find((g) => g.merchant === merchant)
+        if (!group) continue
+        // Skip if an existing rule already covers this merchant
+        const alreadyCovered = rules.some((r) => matchesRule(group.rawExample, r))
+        if (!alreadyCovered) {
+          newRules.push({ merchant, category, rawExample: group.rawExample })
+        }
       }
-      return t
-    })
 
-    // Create rules for each newly assigned merchant group
-    const newRules: Array<{ merchant: string; category: string; rawExample: string }> = []
-    for (const [merchant, category] of merchantAssignments) {
-      const group = merchantGroups.find((g) => g.merchant === merchant)
-      if (!group) continue
-      // Skip if an existing rule already covers this merchant
-      const alreadyCovered = rules.some((r) => matchesRule(group.rawExample, r))
-      if (!alreadyCovered) {
-        newRules.push({ merchant, category, rawExample: group.rawExample })
-      }
-    }
-
-    const createdRules = await Promise.all(
-      newRules.map((nr) =>
-        addRule(
-          householdId!,
-          {
-            merchantPattern: suggestMerchantPattern(nr.merchant),
-            rawDescriptionExample: nr.rawExample,
-            cleanDescription: nr.merchant,
-            category: nr.category,
-            source: 'user_correction',
-          },
+      const createdRules = await Promise.all(
+        newRules.map((nr) =>
+          addRule(
+            householdId!,
+            {
+              merchantPattern: suggestMerchantPattern(nr.merchant),
+              rawDescriptionExample: nr.rawExample,
+              cleanDescription: nr.merchant,
+              category: nr.category,
+              source: 'user_correction',
+            },
+          ),
         ),
-      ),
-    )
-
-    // Apply rules retroactively to existing uncategorized transactions
-    let retroCount = 0
-    for (const rule of createdRules) {
-      const matching = existingTxns.filter(
-        (t) =>
-          !t.deleted &&
-          t.category === 'Needs Review' &&
-          matchesRule(t.description, rule),
       )
-      if (matching.length > 0) {
-        await updateMany(
-          matching.map((t) => t.id),
-          { category: rule.category, ruleMatched: true },
+
+      // Apply rules retroactively to existing uncategorized transactions
+      let retroCount = 0
+      for (const rule of createdRules) {
+        const matching = existingTxns.filter(
+          (t) =>
+            !t.deleted &&
+            t.category === 'Needs Review' &&
+            matchesRule(t.description, rule),
         )
-        retroCount += matching.length
+        if (matching.length > 0) {
+          await updateMany(
+            matching.map((t) => t.id),
+            { category: rule.category, ruleMatched: true },
+          )
+          retroCount += matching.length
+        }
       }
+
+      // Show toast(s)
+      if (createdRules.length === 1) {
+        const r = createdRules[0]
+        const extra = retroCount > 0 ? ` · applied to ${retroCount} existing` : ''
+        addToast(`Rule saved: ${r.cleanDescription} → ${r.category}${extra}`)
+      } else if (createdRules.length > 1) {
+        const extra = retroCount > 0 ? ` · ${retroCount} existing transactions updated` : ''
+        addToast(`${createdRules.length} rules saved${extra}`)
+      }
+
+      // Small delay so toasts are visible before transitioning
+      await new Promise((r) => setTimeout(r, createdRules.length > 0 ? 800 : 0))
+
+      await onConfirm(final)
+    } catch (err) {
+      console.error('[ParseReview] Failed to save imported transactions:', err)
+      addToast('Import save failed. Please try again.')
+    } finally {
+      setIsSaving(false)
     }
-
-    // Show toast(s)
-    if (createdRules.length === 1) {
-      const r = createdRules[0]
-      const extra = retroCount > 0 ? ` · applied to ${retroCount} existing` : ''
-      addToast(`Rule saved: ${r.cleanDescription} → ${r.category}${extra}`)
-    } else if (createdRules.length > 1) {
-      const extra = retroCount > 0 ? ` · ${retroCount} existing transactions updated` : ''
-      addToast(`${createdRules.length} rules saved${extra}`)
-    }
-
-    // Small delay so toasts are visible before transitioning
-    await new Promise((r) => setTimeout(r, createdRules.length > 0 ? 800 : 0))
-
-    onConfirm(final)
   }
 
   const unassignedCount = merchantGroups.length - merchantAssignments.size
