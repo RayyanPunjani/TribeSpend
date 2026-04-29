@@ -35,6 +35,7 @@ const NAV_SECTIONS = [
   {
     label: 'Insights',
     items: [
+      { to: '/app/insights', icon: BarChart3, label: 'Insights' },
       { to: '/app/budgets', icon: Target, label: 'Budgets' },
       { to: '/app/optimize', icon: BarChart3, label: 'Optimize' },
       { to: '/app/export', icon: Download, label: 'Export' },

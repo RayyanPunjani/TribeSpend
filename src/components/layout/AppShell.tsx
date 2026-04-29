@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/layout/Layout'
 import DashboardPage from '@/pages/DashboardPage'
+import InsightsPage from '@/pages/InsightsPage'
 import TransactionsPage from '@/pages/TransactionsPage'
 import UploadPage from '@/pages/UploadPage'
 import RecurringPage from '@/pages/RecurringPage'
@@ -124,6 +125,7 @@ export default function AppShell() {
     <Layout>
       <Routes>
         <Route index element={<DashboardPage />} />
+        <Route path="insights" element={<InsightsPage />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="upload" element={<UploadPage />} />
         <Route path="recurring" element={<RecurringPage />} />

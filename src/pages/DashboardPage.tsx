@@ -1,443 +1,178 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
+import { addMonths, format, parseISO } from 'date-fns'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, CartesianGrid, Legend,
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
-import { TrendingUp, CreditCard, Users, DollarSign, Upload, AlertTriangle, X, ChevronDown, ChevronUp } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
+import { Building2, CreditCard, DollarSign, List, TrendingUp, Upload } from 'lucide-react'
+import { getItems, type PlaidItem } from '@/api/plaid'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
-import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { CATEGORY_COLORS } from '@/utils/categories'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
 import EmptyState from '@/components/shared/EmptyState'
-import DashboardFilters, {
-  DEFAULT_DASHBOARD_FILTERS,
-  type DashboardFilterState,
-} from '@/components/dashboard/DashboardFilters'
-import CategoryDetailPanel from '@/components/dashboard/CategoryDetailPanel'
-import BudgetAlerts from '@/components/dashboard/BudgetAlerts'
-import { getPresetRange, type DateRange } from '@/utils/dateRanges'
-import type { CardCredit, Transaction } from '@/types'
+import type { Transaction } from '@/types'
 
-type MonthlyMode = 'total' | 'byCategory' | 'byPerson'
-
-const EXPIRY_THRESHOLD: Record<CardCredit['frequency'], number> = {
-  monthly: 7,
-  quarterly: 14,
-  'semi-annual': 21,
-  annual: 30,
-}
-
-function getPeriodInfo(frequency: CardCredit['frequency'], now: Date) {
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  let start: Date, end: Date, key: string, label: string
-
-  if (frequency === 'monthly') {
-    start = new Date(y, m, 1)
-    end = new Date(y, m + 1, 0)
-    key = `${y}-${String(m + 1).padStart(2, '0')}`
-    label = format(start, 'MMM yyyy')
-  } else if (frequency === 'quarterly') {
-    const q = Math.floor(m / 3)
-    start = new Date(y, q * 3, 1)
-    end = new Date(y, q * 3 + 3, 0)
-    key = `${y}-Q${q + 1}`
-    label = `Q${q + 1} ${y}`
-  } else if (frequency === 'semi-annual') {
-    const half = m < 6 ? 0 : 1
-    start = new Date(y, half * 6, 1)
-    end = new Date(y, half * 6 + 6, 0)
-    key = `${y}-H${half + 1}`
-    label = `H${half + 1} ${y}`
-  } else {
-    start = new Date(y, 0, 1)
-    end = new Date(y + 1, 0, 0)
-    key = `${y}`
-    label = `${y}`
-  }
-
-  const msPerDay = 86_400_000
-  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / msPerDay)
-  const startStr = format(start, 'yyyy-MM-dd')
-  const endStr = format(end, 'yyyy-MM-dd')
-  return { startStr, endStr, key, label, daysLeft }
-}
+const ACCOUNT_LOAD_TIMEOUT_MS = 2500
 
 function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
-  includeReimb: boolean,
 ): number {
-  // Already paid back — money returned, always reduce
   if (t.reimbursementPaid) {
-    const reimbAmt = t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)
-    return Math.max(0, t.amount - reimbAmt)
-  }
-  // Toggle off = show adjusted/net spend
-  if (!includeReimb) {
-    if (t.reimbursementStatus === 'full') return 0
-    if (t.reimbursementStatus === 'partial') return Math.max(0, t.amount - (t.reimbursementAmount ?? 0))
+    const reimbursed = t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)
+    return Math.max(0, t.amount - reimbursed)
   }
   return t.amount
 }
 
+function isSpendTransaction(t: Transaction): boolean {
+  return !t.deleted
+    && !t.isPayment
+    && !t.isCredit
+    && !t.isBalancePayment
+    && !EXCLUDED_FROM_SPEND.includes(t.category)
+}
+
+function shortMoney(value: number): string {
+  if (value >= 1000) return `$${Math.round(value / 1000)}k`
+  return `$${Math.round(value)}`
+}
+
+async function loadPlaidItemsWithTimeout(): Promise<PlaidItem[]> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<PlaidItem[]>((resolve) => {
+    timeoutId = setTimeout(() => resolve([]), ACCOUNT_LOAD_TIMEOUT_MS)
+  })
+
+  try {
+    return await Promise.race([getItems(), timeout])
+  } catch {
+    return []
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
+
 export default function DashboardPage() {
-  const { transactions, setFilters: setTxnFilters } = useTransactionStore()
+  const { transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
-  const { credits } = useCardCreditStore()
-  const navigate = useNavigate()
+  const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([])
+  const [accountsLoaded, setAccountsLoaded] = useState(false)
 
-  const [filters, setFilters] = useState<DashboardFilterState>(DEFAULT_DASHBOARD_FILTERS)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [monthlyMode, setMonthlyMode] = useState<MonthlyMode>('total')
-  const [dismissedCredits, setDismissedCredits] = useState<Set<string>>(new Set())
-  const [creditsExpanded, setCreditsExpanded] = useState(false)
+  useEffect(() => {
+    let cancelled = false
 
-  const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
-  const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
+    loadPlaidItemsWithTimeout()
+      .then((items) => {
+        if (!cancelled) setPlaidItems(items)
+      })
+      .finally(() => {
+        if (!cancelled) setAccountsLoaded(true)
+      })
 
-  const expiringCredits = useMemo(() => {
-    const now = new Date()
-    return credits.flatMap((credit) => {
-      const card = cardMap.get(credit.cardId)
-      if (!card) return []
-      const period = getPeriodInfo(credit.frequency, now)
-      if (period.daysLeft > EXPIRY_THRESHOLD[credit.frequency] || period.daysLeft < 0) return []
-      const dismissKey = `${credit.id}_${period.key}`
-      if (dismissedCredits.has(dismissKey)) return []
-      return [{ credit, card, period, dismissKey }]
-    })
-  }, [credits, cardMap, dismissedCredits])
-
-  // Resolved date range
-  const dateRange: DateRange = useMemo(() => {
-    if (filters.datePreset === 'custom') {
-      return { start: filters.customStart, end: filters.customEnd }
+    return () => {
+      cancelled = true
     }
-    if (filters.datePreset === 'allTime') {
-      return { start: '', end: '' }
-    }
-    return getPresetRange(filters.datePreset)
-  }, [filters.datePreset, filters.customStart, filters.customEnd])
+  }, [])
 
-  // Helper: does a transaction pass person/card/toggle filters (but not date)?
-  const passesBaseFilters = useMemo(() => {
-    const { selectedPersonIds, selectedCardIds, includeExpectedReturns, includePayments } = filters
-    return (t: (typeof transactions)[number]) => {
-      if (t.deleted) return false
-      if (t.isBalancePayment) return false
-      if (t.isPayment && !includePayments) return false
-      if (t.isCredit && !includePayments) return false
-      if (!includeExpectedReturns && t.expectingReturn) return false
+  const cardMap = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards])
+  const personMap = useMemo(() => new Map(persons.map((person) => [person.id, person])), [persons])
 
-      // Person filter
-      if (selectedPersonIds.length > 0) {
-        const card = cardMap.get(t.cardId)
-        if (!card || !selectedPersonIds.includes(card.owner)) return false
+  const spendTransactions = useMemo(
+    () => transactions.filter(isSpendTransaction),
+    [transactions],
+  )
+
+  const latestSpendDate = useMemo(() => {
+    const latest = spendTransactions.reduce<string | null>((max, transaction) => {
+      if (!max || transaction.transDate > max) return transaction.transDate
+      return max
+    }, null)
+    return latest ? parseISO(latest) : new Date()
+  }, [spendTransactions])
+
+  const monthKeys = useMemo(() => {
+    const start = addMonths(new Date(latestSpendDate.getFullYear(), latestSpendDate.getMonth(), 1), -5)
+    return Array.from({ length: 6 }, (_, index) => {
+      const month = addMonths(start, index)
+      return {
+        key: format(month, 'yyyy-MM'),
+        label: format(month, 'MMM'),
       }
-      // Card filter
-      if (selectedCardIds.length > 0 && !selectedCardIds.includes(t.cardId)) return false
-
-      return true
-    }
-  }, [filters, cardMap])
-
-  // baseCharges: person/card/toggle filters, NO date filter (for trends & prev-period)
-  const baseCharges = useMemo(
-    () => transactions.filter(passesBaseFilters),
-    [transactions, passesBaseFilters],
-  )
-
-  // displayCharges: all filters including date
-  const displayCharges = useMemo(() => {
-    const { start, end } = dateRange
-    return baseCharges.filter((t) => {
-      if (start && t.transDate < start) return false
-      if (end && t.transDate > end) return false
-      return true
     })
-  }, [baseCharges, dateRange])
+  }, [latestSpendDate])
 
-  // Charges only (no payments/credits/excluded categories) for spending stats
-  const displaySpendCharges = useMemo(
-    () => displayCharges.filter((t) => !t.isPayment && !t.isCredit && !EXCLUDED_FROM_SPEND.includes(t.category)),
-    [displayCharges],
-  )
+  const overviewTransactions = useMemo(() => {
+    const allowedMonths = new Set(monthKeys.map((month) => month.key))
+    return spendTransactions.filter((transaction) => allowedMonths.has(transaction.transDate.slice(0, 7)))
+  }, [spendTransactions, monthKeys])
 
   const totalSpend = useMemo(
-    () => displaySpendCharges.reduce((s, t) => s + getEffectiveAmount(t, filters.includeReimb), 0),
-    [displaySpendCharges, filters.includeReimb],
+    () => overviewTransactions.reduce((sum, transaction) => sum + getEffectiveAmount(transaction), 0),
+    [overviewTransactions],
   )
 
-  const avgTransaction = useMemo(
-    () => (displaySpendCharges.length > 0 ? totalSpend / displaySpendCharges.length : 0),
-    [totalSpend, displaySpendCharges],
+  const activeCards = useMemo(
+    () => new Set(overviewTransactions.map((transaction) => transaction.cardId)).size,
+    [overviewTransactions],
   )
 
-  const pendingReturnsTotal = useMemo(
-    () =>
-      displaySpendCharges
-        .filter((t) => t.expectingReturn && t.returnStatus === 'pending')
-        .reduce((s, t) => s + (t.expectedReturnAmount ?? t.amount), 0),
-    [displaySpendCharges],
-  )
-
-  const netSpend = totalSpend - pendingReturnsTotal
-
-  // Reimbursement stats
-  const reimbOwed = useMemo(
-    () =>
-      displaySpendCharges
-        .filter((t) => t.reimbursementStatus !== 'none' && !t.reimbursementPaid)
-        .reduce((s, t) => s + (t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
-    [displaySpendCharges],
-  )
-
-  const reimbReceived = useMemo(
-    () =>
-      displaySpendCharges
-        .filter((t) => t.reimbursementPaid)
-        .reduce((s, t) => s + (t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
-    [displaySpendCharges],
-  )
-
-  // Spend by category
-  const categoryData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const t of displaySpendCharges) {
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      if (amt <= 0) continue
-      map.set(t.category, (map.get(t.category) ?? 0) + amt)
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
-  }, [displaySpendCharges, filters.includeReimb])
-
-  // Monthly data (simple total)
   const monthlyData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const t of displaySpendCharges) {
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      const key = t.transDate.slice(0, 7) // yyyy-MM
-      map.set(key, (map.get(key) ?? 0) + amt)
+    const totals = new Map(monthKeys.map((month) => [month.key, 0]))
+    for (const transaction of overviewTransactions) {
+      const month = transaction.transDate.slice(0, 7)
+      totals.set(month, (totals.get(month) ?? 0) + getEffectiveAmount(transaction))
     }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-12)
-      .map(([key, value]) => ({
-        month: format(parseISO(key + '-01'), 'MMM yy'),
-        amount: parseFloat(value.toFixed(2)),
-      }))
-  }, [displaySpendCharges, filters.includeReimb])
 
-  // Monthly by category (stacked)
-  const { monthlyCategoryData, topCategoryKeys } = useMemo(() => {
-    // Determine top 7 categories by total in this period
-    const catTotals = new Map<string, number>()
-    for (const t of displaySpendCharges) {
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      catTotals.set(t.category, (catTotals.get(t.category) ?? 0) + amt)
+    return monthKeys.map((month) => ({
+      month: month.label,
+      amount: Number((totals.get(month.key) ?? 0).toFixed(2)),
+    }))
+  }, [monthKeys, overviewTransactions])
+
+  const categoryData = useMemo(() => {
+    const totals = new Map<string, number>()
+    for (const transaction of overviewTransactions) {
+      const amount = getEffectiveAmount(transaction)
+      if (amount <= 0) continue
+      totals.set(transaction.category, (totals.get(transaction.category) ?? 0) + amount)
     }
-    const topCats = Array.from(catTotals.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 7)
-      .map(([cat]) => cat)
 
-    // Build monthly rows
-    const monthSet = new Set(displaySpendCharges.map((t) => t.transDate.slice(0, 7)))
-    const months = Array.from(monthSet).sort().slice(-12)
+    const sorted = Array.from(totals.entries()).sort((a, b) => b[1] - a[1])
+    const top = sorted.slice(0, 5)
+    const other = sorted.slice(5).reduce((sum, [, value]) => sum + value, 0)
+    const rows = top.map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+    if (other > 0.005) rows.push({ name: 'Other', value: Number(other.toFixed(2)) })
+    return rows
+  }, [overviewTransactions])
 
-    const data = months.map((key) => {
-      const row: Record<string, string | number> = {
-        month: format(parseISO(key + '-01'), 'MMM yy'),
-      }
-      let other = 0
-      for (const t of displaySpendCharges) {
-        if (!t.transDate.startsWith(key)) continue
-        const amt = getEffectiveAmount(t, filters.includeReimb)
-        if (topCats.includes(t.category)) {
-          row[t.category] = parseFloat(
-            (((row[t.category] as number) ?? 0) + amt).toFixed(2),
-          )
-        } else {
-          other += amt
-        }
-      }
-      if (other > 0.005) row['Other'] = parseFloat(other.toFixed(2))
-      return row
-    })
+  const recentTransactions = useMemo(
+    () => [...spendTransactions]
+      .sort((a, b) => b.transDate.localeCompare(a.transDate))
+      .slice(0, 6),
+    [spendTransactions],
+  )
 
-    const hasOther = data.some((r) => 'Other' in r)
-    return {
-      monthlyCategoryData: data,
-      topCategoryKeys: hasOther ? [...topCats, 'Other'] : topCats,
-    }
-  }, [displaySpendCharges, filters.includeReimb])
-
-  // Monthly by person (stacked)
-  const { monthlyPersonData, personKeys } = useMemo(() => {
-    const monthSet = new Set(displaySpendCharges.map((t) => t.transDate.slice(0, 7)))
-    const months = Array.from(monthSet).sort().slice(-12)
-
-    const data = months.map((key) => {
-      const row: Record<string, string | number> = {
-        month: format(parseISO(key + '-01'), 'MMM yy'),
-      }
-      for (const t of displaySpendCharges) {
-        if (!t.transDate.startsWith(key)) continue
-        const card = cardMap.get(t.cardId)
-        const person = card ? personMap.get(card.owner) : undefined
-        const name = person?.name ?? t.cardholderName ?? 'Unknown'
-        const amt = getEffectiveAmount(t, filters.includeReimb)
-        row[name] = parseFloat((((row[name] as number) ?? 0) + amt).toFixed(2))
-      }
-      return row
-    })
-
-    // Collect all person keys that appear in data
-    const keys = new Set<string>()
-    for (const row of data) {
-      for (const k of Object.keys(row)) {
-        if (k !== 'month') keys.add(k)
-      }
-    }
-    // Sort by total desc
-    const sortedKeys = Array.from(keys).sort((a, b) => {
-      const aTotal = data.reduce((s, r) => s + ((r[a] as number) ?? 0), 0)
-      const bTotal = data.reduce((s, r) => s + ((r[b] as number) ?? 0), 0)
-      return bTotal - aTotal
-    })
-
-    return { monthlyPersonData: data, personKeys: sortedKeys }
-  }, [displaySpendCharges, cardMap, personMap, filters.includeReimb])
-
-  // Spend by person (pie)
-  const personData = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const t of displaySpendCharges) {
-      const card = cardMap.get(t.cardId)
-      const person = card ? personMap.get(card.owner) : undefined
-      const name = person?.name ?? t.cardholderName ?? 'Unknown'
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      map.set(name, (map.get(name) ?? 0) + amt)
-    }
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value: parseFloat(value.toFixed(2)) }))
-      .sort((a, b) => b.value - a.value)
-  }, [displaySpendCharges, cardMap, personMap, filters.includeReimb])
-
-  // Spend by card
-  const cardData = useMemo(() => {
-    const map = new Map<string, { name: string; color: string; amount: number }>()
-    for (const t of displaySpendCharges) {
-      const card = cardMap.get(t.cardId)
-      if (!card) continue
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      const ex = map.get(card.id)
-      if (ex) ex.amount += amt
-      else map.set(card.id, { name: card.name, color: card.color, amount: amt })
-    }
-    return Array.from(map.values())
-      .map((c) => ({ ...c, amount: parseFloat(c.amount.toFixed(2)) }))
-      .sort((a, b) => b.amount - a.amount)
-  }, [displaySpendCharges, cardMap, filters.includeReimb])
-
-  // Top merchants
-  const topMerchants = useMemo(() => {
-    const map = new Map<string, { total: number; count: number; category: string }>()
-    for (const t of displaySpendCharges) {
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      if (amt <= 0) continue
-      const key = t.cleanDescription || t.description
-      const ex = map.get(key)
-      if (ex) {
-        ex.total += amt
-        ex.count++
-      } else {
-        map.set(key, { total: amt, count: 1, category: t.category })
-      }
-    }
-    return Array.from(map.entries())
-      .map(([name, d]) => ({ name, ...d, total: parseFloat(d.total.toFixed(2)) }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-  }, [displaySpendCharges, filters.includeReimb])
-
-  // Person comparison data
-  const personComparisonData = useMemo(() => {
-    if (persons.length < 2) return null
-    const byPersonCat = new Map<string, Map<string, number>>()
-    for (const t of displaySpendCharges) {
-      const card = cardMap.get(t.cardId)
-      const person = card ? personMap.get(card.owner) : undefined
-      const name = person?.name ?? t.cardholderName ?? 'Unknown'
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      if (amt <= 0) continue
-      if (!byPersonCat.has(name)) byPersonCat.set(name, new Map())
-      const catMap = byPersonCat.get(name)!
-      catMap.set(t.category, (catMap.get(t.category) ?? 0) + amt)
-    }
-    const catTotals = new Map<string, number>()
-    for (const catMap of byPersonCat.values())
-      for (const [cat, amt] of catMap)
-        catTotals.set(cat, (catTotals.get(cat) ?? 0) + amt)
-    const topCats = Array.from(catTotals.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([c]) => c)
-    const personNames = Array.from(byPersonCat.keys())
-    const data = topCats.map((cat) => {
-      const row: Record<string, number | string> = { category: cat.length > 12 ? cat.slice(0, 12) + '\u2026' : cat }
-      for (const name of personNames)
-        row[name] = parseFloat((byPersonCat.get(name)?.get(cat) ?? 0).toFixed(2))
-      return row
-    })
-    return { data, personNames }
-  }, [displaySpendCharges, cardMap, personMap, persons, filters.includeReimb])
-
-  // Shared vs personal data
-  const sharedPersonalData = useMemo(() => {
-    const sharedByPerson = new Map<string, number>()
-    const personalByPerson = new Map<string, number>()
-    let totalShared = 0
-    for (const t of displaySpendCharges) {
-      const card = cardMap.get(t.cardId)
-      const person = card ? personMap.get(card.owner) : undefined
-      const name = person?.name ?? t.cardholderName ?? 'Unknown'
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      if (t.spendType === 'shared') {
-        totalShared += amt
-        sharedByPerson.set(name, (sharedByPerson.get(name) ?? 0) + amt)
-      } else if (t.spendType === 'personal') {
-        personalByPerson.set(name, (personalByPerson.get(name) ?? 0) + amt)
-      }
-    }
-    const eachShare = persons.length > 0 ? totalShared / persons.length : 0
-    const balances = persons.map((p) => {
-      const paid = sharedByPerson.get(p.name) ?? 0
-      const net = paid - eachShare
-      return { name: p.name, color: p.color, paid, personal: personalByPerson.get(p.name) ?? 0, net }
-    })
-    return { totalShared, eachShare, balances }
-  }, [displaySpendCharges, cardMap, personMap, persons, filters.includeReimb])
-
-  const hasSpendTypes = displaySpendCharges.some((t) => t.spendType)
-
-  const handleViewInTransactions = (category: string) => {
-    setTxnFilters({ categories: [category] })
-    navigate('/transactions')
-  }
+  const connectedAccountCount = plaidItems.reduce((sum, item) => sum + item.accounts.length, 0)
 
   if (transactions.length === 0) {
     return (
       <EmptyState
         icon={TrendingUp}
         title="No data yet"
-        description="Upload your first statement to see spending analytics and insights."
+        description="Upload your first statement to see your spending overview."
         action={
           <Link
             to="/app/upload"
@@ -450,448 +185,225 @@ export default function DashboardPage() {
     )
   }
 
-  const monthlyChartData =
-    monthlyMode === 'byCategory'
-      ? monthlyCategoryData
-      : monthlyMode === 'byPerson'
-        ? monthlyPersonData
-        : monthlyData
-
   return (
-    <div className="flex flex-col gap-5 max-w-6xl mx-auto">
-      {/* Header */}
-      <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+    <div className="max-w-6xl mx-auto flex flex-col gap-5">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <p className="text-sm text-slate-500">A quick view of recent spending, categories, transactions, and accounts.</p>
+      </div>
 
-      {/* Filters */}
-      <DashboardFilters
-        filters={filters}
-        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-        persons={persons}
-        cards={cards}
-      />
-
-      {/* Budget threshold alerts — collapsible, person-filter-aware */}
-      <BudgetAlerts selectedPersonIds={filters.selectedPersonIds} />
-
-      {/* Credit expiry reminders — collapsible */}
-      {expiringCredits.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCreditsExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={15} className="text-amber-600 shrink-0" />
-              <p className="text-sm font-semibold text-amber-800">
-                {expiringCredits.length} credit{expiringCredits.length !== 1 ? 's' : ''} expiring soon —{' '}
-                {formatCurrency(expiringCredits.reduce((s, e) => s + e.credit.amount, 0))} unused
-              </p>
-            </div>
-            {creditsExpanded
-              ? <ChevronUp size={15} className="text-amber-500 shrink-0" />
-              : <ChevronDown size={15} className="text-amber-500 shrink-0" />}
-          </button>
-          {creditsExpanded && (
-            <div className="border-t border-amber-200 px-4 py-3 flex flex-col gap-2">
-              {expiringCredits.map(({ credit, card, period, dismissKey }) => (
-                <div key={dismissKey} className="flex items-center gap-3 bg-amber-100/70 rounded-lg px-3 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-amber-900 truncate">
-                      {credit.name} <span className="font-normal text-amber-700">· {card.name}</span>
-                    </p>
-                    <p className="text-xs text-amber-600">
-                      ${credit.amount} {period.label} · {period.daysLeft} day{period.daysLeft !== 1 ? 's' : ''} left
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDismissedCredits((prev) => new Set([...prev, dismissKey])) }}
-                    className="text-amber-400 hover:text-amber-600 shrink-0 transition-colors"
-                    aria-label="Dismiss"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Spend"
+          label="Last 6 Months"
           value={formatCurrency(totalSpend)}
           icon={<DollarSign size={18} className="text-accent-600" />}
           color="bg-accent-50"
         />
         <StatCard
           label="Transactions"
-          value={String(displaySpendCharges.length)}
-          icon={<TrendingUp size={18} className="text-blue-600" />}
+          value={String(overviewTransactions.length)}
+          icon={<List size={18} className="text-blue-600" />}
           color="bg-blue-50"
         />
         <StatCard
           label="Avg. Transaction"
-          value={formatCurrency(avgTransaction)}
-          icon={<CreditCard size={18} className="text-purple-600" />}
+          value={formatCurrency(overviewTransactions.length ? totalSpend / overviewTransactions.length : 0)}
+          icon={<TrendingUp size={18} className="text-purple-600" />}
           color="bg-purple-50"
         />
         <StatCard
-          label="Cards Active"
-          value={String(cardData.length)}
-          icon={<Users size={18} className="text-green-600" />}
+          label="Active Cards"
+          value={String(activeCards)}
+          icon={<CreditCard size={18} className="text-green-600" />}
           color="bg-green-50"
         />
       </div>
 
-      {/* Refund exclusion note */}
-      <p className="text-xs text-slate-400 -mt-2">Refunds & credits are excluded from totals.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <ChartCard title="Spending Over Time" subtitle="Last 6 months">
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={monthlyData} margin={{ left: 8, right: 12, top: 10, bottom: 0 }}>
+              <defs>
+                <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0d9488" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(value: number) => shortMoney(value)} tick={{ fontSize: 11 }} width={44} />
+              <Tooltip formatter={(value: unknown) => formatCurrency(Number(value))} />
+              <Area
+                type="monotone"
+                dataKey="amount"
+                stroke="#0d9488"
+                strokeWidth={2}
+                fill="url(#spendGradient)"
+                dot={{ r: 3, strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartCard>
 
-      {/* Pending returns row */}
-      {pendingReturnsTotal > 0 && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
-              <DollarSign size={18} className="text-purple-600" />
-            </div>
-            <div>
-              <p className="text-xs text-purple-600">Pending Returns</p>
-              <p className="text-lg font-bold text-purple-800">{formatCurrency(pendingReturnsTotal)}</p>
-              <p className="text-xs text-purple-400">Expected refunds not yet received</p>
-            </div>
-          </div>
-          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center shrink-0">
-              <DollarSign size={18} className="text-teal-600" />
-            </div>
-            <div>
-              <p className="text-xs text-teal-600">Net Spend</p>
-              <p className="text-lg font-bold text-teal-800">{formatCurrency(netSpend)}</p>
-              <p className="text-xs text-teal-400">Total spend minus pending returns</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reimbursement info cards */}
-      {(reimbOwed > 0 || reimbReceived > 0) && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
-              <DollarSign size={18} className="text-orange-600" />
-            </div>
-            <div>
-              <p className="text-xs text-orange-600">Reimbursements Owed</p>
-              <p className="text-lg font-bold text-orange-800">{formatCurrency(reimbOwed)}</p>
-              <p className="text-xs text-orange-400">Awaiting payment from others</p>
-            </div>
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-              <DollarSign size={18} className="text-green-600" />
-            </div>
-            <div>
-              <p className="text-xs text-green-600">Reimbursements Received</p>
-              <p className="text-lg font-bold text-green-800">{formatCurrency(reimbReceived)}</p>
-              <p className="text-xs text-green-400">Already paid back to you</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Charts row 1: Category + Monthly */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Spend by Category — clickable bars */}
-        <ChartCard title="Spend by Category">
+        <ChartCard title="Spending by Category" subtitle="Top categories">
           {categoryData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No spending data for this period.</p>
+            <p className="text-sm text-slate-400 py-12 text-center">No spending data for this period.</p>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={categoryData}
-                layout="vertical"
-                margin={{ left: 16, right: 24, top: 4, bottom: 4 }}
-                onClick={(e: any) => {
-                  if (e?.activePayload?.[0]) {
-                    const name = e.activePayload[0].payload?.name as string
-                    setSelectedCategory((prev) => (prev === name ? null : name))
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <XAxis type="number" tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {categoryData.map((entry) => (
-                    <Cell
-                      key={entry.name}
-                      fill={CATEGORY_COLORS[entry.name] ?? '#94a3b8'}
-                      opacity={selectedCategory && selectedCategory !== entry.name ? 0.4 : 1}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        {/* Monthly Spending — with mode toggle */}
-        <ChartCard
-          title="Monthly Spending"
-          right={
-            <div className="flex items-center gap-1">
-              {(['total', 'byCategory', 'byPerson'] as MonthlyMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setMonthlyMode(mode)}
-                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                    monthlyMode === mode
-                      ? 'bg-accent-600 text-white'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {mode === 'total' ? 'Total' : mode === 'byCategory' ? 'By Cat.' : 'By Person'}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          {monthlyChartData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No spending data for this period.</p>
-          ) : monthlyMode === 'total' ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyData} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="amount" fill="#0d9488" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : monthlyMode === 'byCategory' ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyCategoryData} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 10 }} />
-                {topCategoryKeys.map((cat) => (
-                  <Bar
-                    key={cat}
-                    dataKey={cat}
-                    stackId="cat"
-                    fill={cat === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[cat] ?? '#94a3b8')}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyPersonData} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 10 }} />
-                {personKeys.map((name) => {
-                  const person = persons.find((p) => p.name === name)
-                  return (
-                    <Bar
-                      key={name}
-                      dataKey={name}
-                      stackId="person"
-                      fill={person?.color ?? '#64748b'}
-                    />
-                  )
-                })}
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Category Detail Panel */}
-      {selectedCategory && (
-        <CategoryDetailPanel
-          category={selectedCategory}
-          displayCharges={displaySpendCharges}
-          baseCharges={baseCharges.filter((t) => !t.isPayment && !t.isCredit)}
-          datePreset={filters.datePreset}
-          dateRange={dateRange}
-          onClose={() => setSelectedCategory(null)}
-          onViewInTransactions={() => handleViewInTransactions(selectedCategory)}
-        />
-      )}
-
-      {/* Charts row 2: By Person + By Card */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {personData.length > 1 && (
-          <ChartCard title="Spend by Person">
-            <ResponsiveContainer width="100%" height={240}>
-              <PieChart>
-                <Pie
-                  data={personData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={90}
-                  dataKey="value"
-                  nameKey="name"
-                  label={({ name, percent }) =>
-                    `${name ?? ''} ${(((percent as number | undefined) ?? 0) * 100).toFixed(0)}%`
-                  }
-                  labelLine={false}
-                >
-                  {personData.map((entry, i) => {
-                    const person = persons.find((p) => p.name === entry.name)
-                    return <Cell key={i} fill={person?.color ?? '#64748b'} />
-                  })}
-                </Pie>
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-              </PieChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        )}
-
-        <ChartCard title="Spend by Card">
-          {cardData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No card data for this period.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={cardData} layout="vertical" margin={{ left: 16, right: 24, top: 4, bottom: 4 }}>
-                <XAxis type="number" tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={130} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
-                  {cardData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </ChartCard>
-      </div>
-
-      {/* Top Merchants */}
-      <ChartCard title="Top Merchants">
-        {topMerchants.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4 text-center">No merchant data for this period.</p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {topMerchants.map((m, i) => (
-              <div key={i} className="flex items-center gap-3 py-2.5">
-                <span className="text-xs font-bold text-slate-400 w-5 text-right shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{m.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {m.count} transaction{m.count > 1 ? 's' : ''}
+            <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-4 items-center">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={58}
+                    outerRadius={88}
+                    paddingAngle={2}
+                  >
+                    {categoryData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={entry.name === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[entry.name] ?? '#64748b')}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: unknown) => formatCurrency(Number(value))} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2">
+                {categoryData.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-2 text-sm">
                     <span
-                      className="ml-2 inline-block px-1.5 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: (CATEGORY_COLORS[m.category] ?? '#94a3b8') + '22',
-                        color: CATEGORY_COLORS[m.category] ?? '#64748b',
-                      }}
-                    >
-                      {m.category}
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: entry.name === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[entry.name] ?? '#64748b') }}
+                    />
+                    <span className="flex-1 min-w-0 truncate text-slate-700">{entry.name}</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(entry.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-5">
+        <section className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700">Recent Transactions</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Latest spending activity</p>
+            </div>
+            <Link to="/app/transactions" className="text-xs font-medium text-accent-700 hover:text-accent-800">
+              View all
+            </Link>
+          </div>
+
+          {recentTransactions.length === 0 ? (
+            <p className="text-sm text-slate-400 py-8 text-center">No recent spending transactions.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {recentTransactions.map((transaction) => {
+                const card = cardMap.get(transaction.cardId)
+                const person = card ? personMap.get(card.owner) : undefined
+                return (
+                  <div key={transaction.id} className="flex items-center gap-3 py-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                      <CreditCard size={15} className="text-slate-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">
+                        {transaction.cleanDescription || transaction.description}
+                      </p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {format(parseISO(transaction.transDate), 'MMM d')} · {transaction.category}
+                        {card ? ` · ${card.name}` : ''}
+                        {person ? ` · ${person.name}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800 shrink-0">
+                      {formatCurrency(getEffectiveAmount(transaction))}
                     </span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+              <Building2 size={16} className="text-teal-600" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700">Connected Accounts</h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {accountsLoaded ? `${connectedAccountCount} synced account${connectedAccountCount === 1 ? '' : 's'}` : 'Checking connections...'}
+              </p>
+            </div>
+          </div>
+
+          {plaidItems.length > 0 ? (
+            <div className="space-y-2">
+              {plaidItems.slice(0, 4).map((item) => (
+                <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {item.institutionName || 'Connected institution'}
+                    </p>
+                    <span className="text-[11px] font-medium text-teal-700 bg-teal-50 rounded-full px-2 py-0.5">
+                      {item.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {item.accounts.length} account{item.accounts.length === 1 ? '' : 's'}
+                    {item.lastSyncedAt ? ` · synced ${format(parseISO(item.lastSyncedAt), 'MMM d')}` : ''}
                   </p>
                 </div>
-                <span className="text-sm font-semibold text-slate-700 shrink-0">
-                  {formatCurrency(m.total)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </ChartCard>
-
-      {/* Person Comparison */}
-      {personComparisonData && (
-        <ChartCard title="Spending Comparison">
-          {personComparisonData.data.length === 0 ? (
-            <p className="text-sm text-slate-400 py-4 text-center">No spending data for this period.</p>
+              ))}
+              {plaidItems.length > 4 && (
+                <p className="text-xs text-slate-400 px-1">+{plaidItems.length - 4} more institutions</p>
+              )}
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart
-                data={personComparisonData.data}
-                layout="vertical"
-                margin={{ left: 16, right: 24, top: 4, bottom: 4 }}
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center">
+              <p className="text-sm font-medium text-slate-700">No connected bank accounts</p>
+              <p className="text-xs text-slate-400 mt-1">Premium bank sync connections will appear here.</p>
+              <Link
+                to="/app/settings"
+                className="inline-flex mt-3 text-xs font-medium text-accent-700 hover:text-accent-800"
               >
-                <XAxis type="number" tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={100} />
-                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 10 }} />
-                {personComparisonData.personNames.map((name) => {
-                  const person = persons.find((p) => p.name === name)
-                  return (
-                    <Bar
-                      key={name}
-                      dataKey={name}
-                      fill={person?.color ?? '#64748b'}
-                      radius={[0, 3, 3, 0]}
-                    />
-                  )
-                })}
-              </BarChart>
-            </ResponsiveContainer>
+                Manage accounts
+              </Link>
+            </div>
           )}
-        </ChartCard>
-      )}
+        </section>
+      </div>
 
-      {/* Shared vs Personal */}
-      {hasSpendTypes && (
-        <ChartCard title="Shared vs Personal">
-          <div className="flex items-center justify-between mb-4 text-sm">
-            <div>
-              <span className="text-slate-500">Total shared: </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.totalShared)}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Each share: </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.eachShare)}</span>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-100">
-            <div className="grid grid-cols-4 gap-2 py-2 text-xs font-semibold text-slate-500">
-              <span>Person</span>
-              <span className="text-right">Shared Paid</span>
-              <span className="text-right">Personal</span>
-              <span className="text-right">Net Balance</span>
-            </div>
-            {sharedPersonalData.balances.map((b) => (
-              <div key={b.name} className="grid grid-cols-4 gap-2 py-2.5 items-center">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
-                  <span className="text-sm font-medium text-slate-800">{b.name}</span>
-                </div>
-                <span className="text-sm text-right text-slate-700">{formatCurrency(b.paid)}</span>
-                <span className="text-sm text-right text-slate-700">{formatCurrency(b.personal)}</span>
-                <span className={`text-sm font-semibold text-right ${b.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {b.net >= 0 ? '+' : ''}{formatCurrency(b.net)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </ChartCard>
-      )}
+      <div className="text-right">
+        <Link to="/app/insights" className="text-sm font-medium text-accent-700 hover:text-accent-800">
+          Open detailed Insights
+        </Link>
+      </div>
     </div>
   )
 }
 
 function StatCard({ label, value, icon, color }: {
-  label: string; value: string; icon: React.ReactNode; color: string
+  label: string
+  value: string
+  icon: ReactNode
+  color: string
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
       <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center shrink-0`}>
         {icon}
       </div>
-      <div>
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-lg font-bold text-slate-800">{value}</p>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-500 truncate">{label}</p>
+        <p className="text-lg font-bold text-slate-800 truncate">{value}</p>
       </div>
     </div>
   )
@@ -899,20 +411,20 @@ function StatCard({ label, value, icon, color }: {
 
 function ChartCard({
   title,
+  subtitle,
   children,
-  right,
 }: {
   title: string
-  children: React.ReactNode
-  right?: React.ReactNode
+  subtitle: string
+  children: ReactNode
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-        {right}
+    <section className="bg-white rounded-xl border border-slate-200 p-5 min-w-0">
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+        <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>
       </div>
       {children}
-    </div>
+    </section>
   )
 }
