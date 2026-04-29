@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS public.household_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   household_id uuid NOT NULL,
   name text NOT NULL,
+  parent_category text,
   color text,
   icon text,
   archived boolean NOT NULL DEFAULT false,

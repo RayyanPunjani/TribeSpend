@@ -5,6 +5,7 @@ import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
+import { resolveRewardCategory, useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { POINT_VALUE_CENTS, EXCLUDED_FROM_SPEND } from '@/lib/constants'
 import type { CardRewardRule, CardCredit, CreditCard as CreditCardType, Transaction } from '@/types'
@@ -75,9 +76,12 @@ function ruleMatchesTransaction(
   card: CreditCardType,
   transaction: Transaction,
   today: string,
+  categoryParentMap: Record<string, string>,
 ): boolean {
-  if (rule.category !== transaction.category) return false
   if (!ruleIsActive(rule, today)) return false
+
+  const rewardCategory = resolveRewardCategory(transaction.category, categoryParentMap)
+  if (rule.category !== rewardCategory) return false
 
   const keywords = inferredMerchantKeywords(rule, card)
   if (keywords.length === 0) return true
@@ -91,12 +95,18 @@ function getRewardForTransaction(
   transaction: Transaction,
   rules: CardRewardRule[],
   today: string,
+  categoryParentMap: Record<string, string>,
 ): RewardMatch | null {
   const cardRules = rules.filter((r) => r.cardId === card.id)
-  const matchingRules = cardRules
-    .filter((rule) => rule.category !== 'base' && ruleMatchesTransaction(rule, card, transaction, today))
+  const matchingMerchantRules = cardRules
+    .filter((rule) => rule.category !== 'base' && inferredMerchantKeywords(rule, card).length > 0)
+    .filter((rule) => ruleMatchesTransaction(rule, card, transaction, today, categoryParentMap))
     .sort((a, b) => getEffectiveCashbackRate(b) - getEffectiveCashbackRate(a))
-  const rule = matchingRules[0] ?? cardRules.find((r) => r.category === 'base')
+  const matchingCategoryRules = cardRules
+    .filter((rule) => rule.category !== 'base' && inferredMerchantKeywords(rule, card).length === 0)
+    .filter((rule) => ruleMatchesTransaction(rule, card, transaction, today, categoryParentMap))
+    .sort((a, b) => getEffectiveCashbackRate(b) - getEffectiveCashbackRate(a))
+  const rule = matchingMerchantRules[0] ?? matchingCategoryRules[0] ?? cardRules.find((r) => r.category === 'base')
   if (!rule) return null
 
   const keywords = rule.category === 'base' ? [] : inferredMerchantKeywords(rule, card)
@@ -113,10 +123,11 @@ function getBestCardForTransaction(
   cards: CreditCardType[],
   rules: CardRewardRule[],
   today: string,
+  categoryParentMap: Record<string, string>,
 ): RewardMatch | null {
   let best: RewardMatch | null = null
   for (const card of cards) {
-    const match = getRewardForTransaction(card, transaction, rules, today)
+    const match = getRewardForTransaction(card, transaction, rules, today, categoryParentMap)
     if (!match) continue
     if (!best || match.effectiveRate > best.effectiveRate) best = match
   }
@@ -183,6 +194,7 @@ function isStatementCreditUsed(
   credit: CardCredit,
   period: PeriodInfo,
   transactions: Transaction[],
+  categoryParentMap: Record<string, string>,
 ): boolean {
   return transactions.some((t) => {
     if (t.cardId !== credit.cardId) return false
@@ -192,7 +204,9 @@ function isStatementCreditUsed(
       const desc = `${t.description ?? ''} ${t.cleanDescription ?? ''}`.toUpperCase()
       return desc.includes(credit.merchantMatch)
     }
-    if (credit.category) return t.category === credit.category
+    if (credit.category) {
+      return resolveRewardCategory(t.category, categoryParentMap) === credit.category || t.category === credit.category
+    }
     return true
   })
 }
@@ -210,6 +224,7 @@ export default function OptimizePage() {
   const { transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+  const categoryParentMap = useCategoryStore((s) => s.categoryParentMap)
 
   const [missedRewardsExpanded, setMissedRewardsExpanded] = useState(false)
   const [expandedCreditCards, setExpandedCreditCards] = useState<Set<string>>(new Set())
@@ -257,10 +272,10 @@ export default function OptimizePage() {
 
     for (const t of spendTxns) {
       const usedCard = cardMap.get(t.cardId)
-      const usedReward = usedCard ? getRewardForTransaction(usedCard, t, rules, today) : null
+      const usedReward = usedCard ? getRewardForTransaction(usedCard, t, rules, today, categoryParentMap) : null
       const earnedRate = usedReward?.effectiveRate ?? 0
       const earned = t.amount * earnedRate
-      const best = getBestCardForTransaction(t, creditCards, rules, today)
+      const best = getBestCardForTransaction(t, creditCards, rules, today, categoryParentMap)
       const bestRate = best?.effectiveRate ?? 0
       const potential = t.amount * bestRate
       const diff = potential - earned
@@ -273,7 +288,7 @@ export default function OptimizePage() {
       }
     }
     return result.sort((a, b) => b.diff - a.diff).slice(0, 20)
-  }, [transactions, rules, cardMap, creditCards, hasRules])
+  }, [transactions, rules, cardMap, creditCards, hasRules, categoryParentMap])
 
   const totalMissed = useMemo(() => missedRewards.reduce((s, r) => s + r.diff, 0), [missedRewards])
   const missedRewardsSummary = useMemo(() => {
@@ -343,7 +358,7 @@ export default function OptimizePage() {
         const labels = new Set<string>()
 
         for (const transaction of data.transactions) {
-          const match = getRewardForTransaction(card, transaction, rules, today)
+          const match = getRewardForTransaction(card, transaction, rules, today, categoryParentMap)
           if (!match) continue
           hasMatchingRule = true
           rewards += transaction.amount * match.effectiveRate
@@ -369,7 +384,7 @@ export default function OptimizePage() {
       })
     }
     return recs.sort((a, b) => b.total - a.total).slice(0, 8)
-  }, [transactions, rules, cardMap, personMap, creditCards, hasRules])
+  }, [transactions, rules, cardMap, personMap, creditCards, hasRules, categoryParentMap])
 
   // ── Section 3: Annual Fee ROI ──────────────────────────────────────────────
   const feeRoi = useMemo(() => {
@@ -384,13 +399,13 @@ export default function OptimizePage() {
       const cardTxns = spendTxns.filter((t) => t.cardId === card.id)
       let totalRewards = 0
       for (const t of cardTxns) {
-        const match = getRewardForTransaction(card, t, rules, today)
+        const match = getRewardForTransaction(card, t, rules, today, categoryParentMap)
         if (match) totalRewards += t.amount * match.effectiveRate
       }
       const annualFee = card.annualFee ?? 0
       return { card, annualFee, totalRewards, netValue: totalRewards - annualFee }
     })
-  }, [creditCards, transactions, rules])
+  }, [creditCards, transactions, rules, categoryParentMap])
 
   // ── Section 4: Card Credits ────────────────────────────────────────────────
   const creditUsage = useMemo(() => {
@@ -401,11 +416,11 @@ export default function OptimizePage() {
       const card = cardMap.get(credit.cardId)
       const period = getPeriodInfo(credit.frequency, now)
       const used = credit.creditType === 'statement'
-        ? isStatementCreditUsed(credit, period, transactions)
+        ? isStatementCreditUsed(credit, period, transactions, categoryParentMap)
         : (portalUsed[`${credit.id}_${period.key}`] ?? false)  // portal + in-app: manual toggle
       return { credit, card, used, period }
     })
-  }, [credits, cardMap, transactions, now, portalUsed])
+  }, [credits, cardMap, transactions, now, portalUsed, categoryParentMap])
 
   // Group credits by card
   const creditsByCard = useMemo(() => {

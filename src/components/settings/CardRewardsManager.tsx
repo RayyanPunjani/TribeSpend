@@ -6,6 +6,7 @@ import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { CATEGORIES } from '@/utils/categories'
 import type { CardRewardRule, CardCredit } from '@/types'
 
 type RewardForm = {
@@ -375,10 +376,13 @@ export default function CardRewardsManager() {
 function RuleForm({ form, onChange, onSave, onCancel }: {
   form: RewardForm; onChange: (f: RewardForm) => void; onSave: () => void; onCancel: () => void
 }) {
-  const categoryOptions = useCategoryStore((s) => [
+  const rewardCategories = CATEGORIES.filter(
+    (category) => !['Needs Review', 'Refunds & Credits'].includes(category),
+  )
+  const categoryOptions = [
     { value: 'base', label: 'Everything Else (Base Rate)' },
-    ...s.categoryNames.map((category) => ({ value: category, label: category })),
-  ])
+    ...rewardCategories.map((category) => ({ value: category, label: category })),
+  ]
   const options = form.category && !categoryOptions.some((option) => option.value === form.category)
     ? [{ value: form.category, label: form.category }, ...categoryOptions]
     : categoryOptions

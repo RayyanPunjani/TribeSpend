@@ -7,6 +7,7 @@ export interface HouseholdCategory {
   id: string
   householdId: string
   name: string
+  parentCategory?: string
   color?: string
   icon?: string
   archived: boolean
@@ -17,10 +18,11 @@ interface CategoryState {
   categories: HouseholdCategory[]
   categoryNames: string[]
   categoryColors: Record<string, string>
+  categoryParentMap: Record<string, string>
   loaded: boolean
   load: (householdId: string) => Promise<void>
-  add: (householdId: string, category: { name: string; color?: string; icon?: string }) => Promise<HouseholdCategory>
-  update: (id: string, patch: Partial<Pick<HouseholdCategory, 'name' | 'color' | 'icon' | 'archived'>>) => Promise<boolean>
+  add: (householdId: string, category: { name: string; parentCategory?: string; color?: string; icon?: string }) => Promise<HouseholdCategory>
+  update: (id: string, patch: Partial<Pick<HouseholdCategory, 'name' | 'parentCategory' | 'color' | 'icon' | 'archived'>>) => Promise<boolean>
   archive: (id: string) => Promise<boolean>
   archiveName: (householdId: string, name: string) => Promise<boolean>
 }
@@ -58,11 +60,25 @@ function buildCategoryColors(categories: HouseholdCategory[]): Record<string, st
   return colors
 }
 
+function buildCategoryParentMap(categories: HouseholdCategory[]): Record<string, string> {
+  const parentMap: Record<string, string> = {}
+  for (const category of CATEGORIES) parentMap[category] = category
+  for (const category of categories) {
+    if (category.parentCategory) parentMap[category.name] = category.parentCategory
+  }
+  return parentMap
+}
+
+export function resolveRewardCategory(category: string, parentMap: Record<string, string>): string {
+  return parentMap[category] || category
+}
+
 function fromRow(row: Record<string, unknown>): HouseholdCategory {
   return {
     id: row.id as string,
     householdId: row.household_id as string,
     name: row.name as string,
+    parentCategory: row.parent_category as string | undefined,
     color: row.color as string | undefined,
     icon: row.icon as string | undefined,
     archived: (row.archived as boolean) || false,
@@ -75,6 +91,7 @@ function toRow(category: Partial<HouseholdCategory>, householdId?: string): Reco
   if (householdId) row.household_id = householdId
   if (category.id !== undefined) row.id = category.id
   if (category.name !== undefined) row.name = category.name
+  if (category.parentCategory !== undefined) row.parent_category = category.parentCategory || null
   if (category.color !== undefined) row.color = category.color || null
   if (category.icon !== undefined) row.icon = category.icon || null
   if (category.archived !== undefined) row.archived = category.archived
@@ -88,6 +105,7 @@ function nextState(categories: HouseholdCategory[]) {
     categories,
     categoryNames: buildCategoryNames(categories),
     categoryColors: buildCategoryColors(categories),
+    categoryParentMap: buildCategoryParentMap(categories),
     loaded: true,
   }
 }
@@ -96,6 +114,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
   categories: [],
   categoryNames: buildCategoryNames([]),
   categoryColors: buildCategoryColors([]),
+  categoryParentMap: buildCategoryParentMap([]),
   loaded: false,
 
   load: async (householdId) => {
@@ -122,6 +141,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       id: uuidv4(),
       householdId,
       name,
+      parentCategory: category.parentCategory || undefined,
       color: category.color || '#94a3b8',
       icon: category.icon || undefined,
       archived: false,
@@ -169,6 +189,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       id: uuidv4(),
       householdId,
       name,
+      parentCategory: CATEGORIES.includes(name as (typeof CATEGORIES)[number]) ? name : undefined,
       color: CATEGORY_COLORS[name] || '#94a3b8',
       archived: true,
       createdAt: new Date().toISOString(),

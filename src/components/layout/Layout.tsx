@@ -5,14 +5,14 @@ import TopBar from './TopBar'
 
 export default function Layout({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
-  const useDocumentScroll = pathname === '/app/transactions'
+  const useDocumentScroll = pathname.startsWith('/app/transactions')
 
   return (
     <div className={`flex bg-slate-50 ${useDocumentScroll ? 'min-h-screen' : 'h-screen overflow-hidden'}`}>
       <Sidebar />
       <div className={`flex-1 flex flex-col min-w-0 ${useDocumentScroll ? '' : 'overflow-hidden'}`}>
         <TopBar />
-        <main className={`flex-1 p-6 ${useDocumentScroll ? '' : 'overflow-auto'}`}>
+        <main className={`flex-1 p-6 ${useDocumentScroll ? 'overflow-visible' : 'overflow-auto'}`}>
           {children}
         </main>
       </div>
