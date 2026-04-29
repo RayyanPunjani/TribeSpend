@@ -13,18 +13,63 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Building2, CreditCard, DollarSign, List, TrendingUp, Upload } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronDown, ChevronUp, CreditCard, DollarSign, List, TrendingUp, Upload, X } from 'lucide-react'
 import { getItems, type PlaidItem } from '@/api/plaid'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
+import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { CATEGORY_COLORS } from '@/utils/categories'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
 import EmptyState from '@/components/shared/EmptyState'
-import type { Transaction } from '@/types'
+import BudgetAlerts from '@/components/dashboard/BudgetAlerts'
+import type { CardCredit, Transaction } from '@/types'
 
 const ACCOUNT_LOAD_TIMEOUT_MS = 2500
+
+const EXPIRY_THRESHOLD: Record<CardCredit['frequency'], number> = {
+  monthly: 7,
+  quarterly: 14,
+  'semi-annual': 21,
+  annual: 30,
+}
+
+function getPeriodInfo(frequency: CardCredit['frequency'], now: Date) {
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  let start: Date, end: Date, key: string, label: string
+
+  if (frequency === 'monthly') {
+    start = new Date(y, m, 1)
+    end = new Date(y, m + 1, 0)
+    key = `${y}-${String(m + 1).padStart(2, '0')}`
+    label = format(start, 'MMM yyyy')
+  } else if (frequency === 'quarterly') {
+    const q = Math.floor(m / 3)
+    start = new Date(y, q * 3, 1)
+    end = new Date(y, q * 3 + 3, 0)
+    key = `${y}-Q${q + 1}`
+    label = `Q${q + 1} ${y}`
+  } else if (frequency === 'semi-annual') {
+    const half = m < 6 ? 0 : 1
+    start = new Date(y, half * 6, 1)
+    end = new Date(y, half * 6 + 6, 0)
+    key = `${y}-H${half + 1}`
+    label = `H${half + 1} ${y}`
+  } else {
+    start = new Date(y, 0, 1)
+    end = new Date(y + 1, 0, 0)
+    key = `${y}`
+    label = `${y}`
+  }
+
+  const msPerDay = 86_400_000
+  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / msPerDay)
+  const startStr = format(start, 'yyyy-MM-dd')
+  const endStr = format(end, 'yyyy-MM-dd')
+  return { startStr, endStr, key, label, daysLeft }
+}
 
 function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
@@ -68,8 +113,11 @@ export default function DashboardPage() {
   const { transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+  const { credits } = useCardCreditStore()
   const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
+  const [dismissedCredits, setDismissedCredits] = useState<Set<string>>(new Set())
+  const [creditsExpanded, setCreditsExpanded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -167,6 +215,19 @@ export default function DashboardPage() {
 
   const connectedAccountCount = plaidItems.reduce((sum, item) => sum + item.accounts.length, 0)
 
+  const expiringCredits = useMemo(() => {
+    const now = new Date()
+    return credits.flatMap((credit) => {
+      const card = cardMap.get(credit.cardId)
+      if (!card) return []
+      const period = getPeriodInfo(credit.frequency, now)
+      if (period.daysLeft > EXPIRY_THRESHOLD[credit.frequency] || period.daysLeft < 0) return []
+      const dismissKey = `${credit.id}_${period.key}`
+      if (dismissedCredits.has(dismissKey)) return []
+      return [{ credit, card, period, dismissKey }]
+    })
+  }, [credits, cardMap, dismissedCredits])
+
   if (transactions.length === 0) {
     return (
       <EmptyState
@@ -218,6 +279,51 @@ export default function DashboardPage() {
           color="bg-green-50"
         />
       </div>
+
+      <BudgetAlerts selectedPersonIds={[]} />
+
+      {expiringCredits.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCreditsExpanded((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+              <p className="text-sm font-semibold text-amber-800">
+                {expiringCredits.length} credit{expiringCredits.length !== 1 ? 's' : ''} expiring soon —{' '}
+                {formatCurrency(expiringCredits.reduce((s, e) => s + e.credit.amount, 0))} unused
+              </p>
+            </div>
+            {creditsExpanded
+              ? <ChevronUp size={15} className="text-amber-500 shrink-0" />
+              : <ChevronDown size={15} className="text-amber-500 shrink-0" />}
+          </button>
+          {creditsExpanded && (
+            <div className="border-t border-amber-200 px-4 py-3 flex flex-col gap-2">
+              {expiringCredits.map(({ credit, card, period, dismissKey }) => (
+                <div key={dismissKey} className="flex items-center gap-3 bg-amber-100/70 rounded-lg px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-amber-900 truncate">
+                      {credit.name} <span className="font-normal text-amber-700">· {card.name}</span>
+                    </p>
+                    <p className="text-xs text-amber-600">
+                      ${credit.amount} {period.label} · {period.daysLeft} day{period.daysLeft !== 1 ? 's' : ''} left
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDismissedCredits((prev) => new Set([...prev, dismissKey])) }}
+                    className="text-amber-400 hover:text-amber-600 shrink-0 transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard title="Spending Over Time" subtitle="Last 6 months">

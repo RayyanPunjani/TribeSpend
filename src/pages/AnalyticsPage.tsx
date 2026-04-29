@@ -3,13 +3,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid, Legend,
 } from 'recharts'
-import { TrendingUp, CreditCard, Users, DollarSign, Upload, AlertTriangle, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { TrendingUp, CreditCard, Users, DollarSign, Upload } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
-import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { CATEGORY_COLORS } from '@/utils/categories'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
@@ -19,54 +18,10 @@ import DashboardFilters, {
   type DashboardFilterState,
 } from '@/components/dashboard/DashboardFilters'
 import CategoryDetailPanel from '@/components/dashboard/CategoryDetailPanel'
-import BudgetAlerts from '@/components/dashboard/BudgetAlerts'
 import { getPresetRange, type DateRange } from '@/utils/dateRanges'
-import type { CardCredit, Transaction } from '@/types'
+import type { Transaction } from '@/types'
 
 type MonthlyMode = 'total' | 'byCategory' | 'byPerson'
-
-const EXPIRY_THRESHOLD: Record<CardCredit['frequency'], number> = {
-  monthly: 7,
-  quarterly: 14,
-  'semi-annual': 21,
-  annual: 30,
-}
-
-function getPeriodInfo(frequency: CardCredit['frequency'], now: Date) {
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  let start: Date, end: Date, key: string, label: string
-
-  if (frequency === 'monthly') {
-    start = new Date(y, m, 1)
-    end = new Date(y, m + 1, 0)
-    key = `${y}-${String(m + 1).padStart(2, '0')}`
-    label = format(start, 'MMM yyyy')
-  } else if (frequency === 'quarterly') {
-    const q = Math.floor(m / 3)
-    start = new Date(y, q * 3, 1)
-    end = new Date(y, q * 3 + 3, 0)
-    key = `${y}-Q${q + 1}`
-    label = `Q${q + 1} ${y}`
-  } else if (frequency === 'semi-annual') {
-    const half = m < 6 ? 0 : 1
-    start = new Date(y, half * 6, 1)
-    end = new Date(y, half * 6 + 6, 0)
-    key = `${y}-H${half + 1}`
-    label = `H${half + 1} ${y}`
-  } else {
-    start = new Date(y, 0, 1)
-    end = new Date(y + 1, 0, 0)
-    key = `${y}`
-    label = `${y}`
-  }
-
-  const msPerDay = 86_400_000
-  const daysLeft = Math.ceil((end.getTime() - now.getTime()) / msPerDay)
-  const startStr = format(start, 'yyyy-MM-dd')
-  const endStr = format(end, 'yyyy-MM-dd')
-  return { startStr, endStr, key, label, daysLeft }
-}
 
 function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
@@ -89,30 +44,14 @@ export default function AnalyticsPage() {
   const { transactions, setFilters: setTxnFilters } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
-  const { credits } = useCardCreditStore()
   const navigate = useNavigate()
 
   const [filters, setFilters] = useState<DashboardFilterState>(DEFAULT_DASHBOARD_FILTERS)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [monthlyMode, setMonthlyMode] = useState<MonthlyMode>('total')
-  const [dismissedCredits, setDismissedCredits] = useState<Set<string>>(new Set())
-  const [creditsExpanded, setCreditsExpanded] = useState(false)
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
-
-  const expiringCredits = useMemo(() => {
-    const now = new Date()
-    return credits.flatMap((credit) => {
-      const card = cardMap.get(credit.cardId)
-      if (!card) return []
-      const period = getPeriodInfo(credit.frequency, now)
-      if (period.daysLeft > EXPIRY_THRESHOLD[credit.frequency] || period.daysLeft < 0) return []
-      const dismissKey = `${credit.id}_${period.key}`
-      if (dismissedCredits.has(dismissKey)) return []
-      return [{ credit, card, period, dismissKey }]
-    })
-  }, [credits, cardMap, dismissedCredits])
 
   // Resolved date range
   const dateRange: DateRange = useMemo(() => {
@@ -472,53 +411,6 @@ export default function AnalyticsPage() {
         persons={persons}
         cards={cards}
       />
-
-      {/* Budget threshold alerts — collapsible, person-filter-aware */}
-      <BudgetAlerts selectedPersonIds={filters.selectedPersonIds} />
-
-      {/* Credit expiry reminders — collapsible */}
-      {expiringCredits.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setCreditsExpanded((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={15} className="text-amber-600 shrink-0" />
-              <p className="text-sm font-semibold text-amber-800">
-                {expiringCredits.length} credit{expiringCredits.length !== 1 ? 's' : ''} expiring soon —{' '}
-                {formatCurrency(expiringCredits.reduce((s, e) => s + e.credit.amount, 0))} unused
-              </p>
-            </div>
-            {creditsExpanded
-              ? <ChevronUp size={15} className="text-amber-500 shrink-0" />
-              : <ChevronDown size={15} className="text-amber-500 shrink-0" />}
-          </button>
-          {creditsExpanded && (
-            <div className="border-t border-amber-200 px-4 py-3 flex flex-col gap-2">
-              {expiringCredits.map(({ credit, card, period, dismissKey }) => (
-                <div key={dismissKey} className="flex items-center gap-3 bg-amber-100/70 rounded-lg px-3 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-amber-900 truncate">
-                      {credit.name} <span className="font-normal text-amber-700">· {card.name}</span>
-                    </p>
-                    <p className="text-xs text-amber-600">
-                      ${credit.amount} {period.label} · {period.daysLeft} day{period.daysLeft !== 1 ? 's' : ''} left
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDismissedCredits((prev) => new Set([...prev, dismissKey])) }}
-                    className="text-amber-400 hover:text-amber-600 shrink-0 transition-colors"
-                    aria-label="Dismiss"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
