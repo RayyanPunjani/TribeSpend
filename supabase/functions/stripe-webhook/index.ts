@@ -145,7 +145,10 @@ async function updateFromSubscription(params: {
       stripe_customer_id: customerId,
       stripe_subscription_id: subscription.id,
       subscription_status: status,
-      subscription_current_period_end: periodEndToIso(subscription.current_period_end),
+      subscription_current_period_end: periodEndToIso(
+        subscription.current_period_end ??
+          subscription.items?.data?.[0]?.current_period_end
+),
       plaid_access_enabled: profileAccessForStatus(status),
     },
   })
