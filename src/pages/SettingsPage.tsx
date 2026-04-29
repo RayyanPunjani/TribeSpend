@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, SlidersHorizontal, DollarSign } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, DollarSign } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import AIProviderSetup from '@/components/settings/AIProviderSetup'
 import { exportAllData, importAllData } from '@/services/db'
 import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
 import { supabase } from '@/lib/supabase'
@@ -14,17 +13,16 @@ import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
-type Tab = 'profile' | 'preferences' | 'billing' | 'export'
+type Tab = 'profile' | 'billing' | 'export'
 
 const TABS = [
   { id: 'profile' as Tab,     label: 'Profile',     icon: UserCircle },
-  { id: 'preferences' as Tab, label: 'Preferences', icon: SlidersHorizontal },
   { id: 'billing' as Tab,     label: 'Billing',     icon: Crown },
   { id: 'export' as Tab,      label: 'Export',      icon: Database },
 ]
 
 function isTab(value: string | null): value is Tab {
-  return value === 'profile' || value === 'preferences' || value === 'billing' || value === 'export'
+  return value === 'profile' || value === 'billing' || value === 'export'
 }
 
 export default function SettingsPage() {
@@ -93,7 +91,6 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
-        {tab === 'preferences' && <AIProviderSetup />}
         {tab === 'billing' && <BillingSettings />}
         {tab === 'export' && <ExportSettings />}
       </div>
