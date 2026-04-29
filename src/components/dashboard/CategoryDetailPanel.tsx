@@ -6,7 +6,7 @@ import { X, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { subMonths, format } from 'date-fns'
 import { Link } from 'react-router-dom'
 import type { Transaction } from '@/types'
-import { CATEGORY_COLORS } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import { getPreviousPeriodRange, type DatePreset, type DateRange } from '@/utils/dateRanges'
 
@@ -31,7 +31,8 @@ export default function CategoryDetailPanel({
   onClose,
   onViewInTransactions,
 }: Props) {
-  const color = CATEGORY_COLORS[category] ?? '#94a3b8'
+  const categoryColors = useCategoryStore((s) => s.categoryColors)
+  const color = categoryColors[category] ?? '#94a3b8'
 
   // Transactions in this category for the current period
   const catCharges = useMemo(

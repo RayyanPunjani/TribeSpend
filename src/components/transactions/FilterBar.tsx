@@ -3,13 +3,19 @@ import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTransactionStore, defaultFilters } from '@/stores/transactionStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCardStore } from '@/stores/cardStore'
-import { CATEGORIES } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 
 export default function FilterBar() {
   const { filters, setFilters, resetFilters } = useTransactionStore()
+  const { transactions } = useTransactionStore()
   const { persons } = usePersonStore()
   const { cards } = useCardStore()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const filterCategories = Array.from(new Set([
+    ...categoryNames,
+    ...transactions.map((transaction) => transaction.category),
+  ])).filter(Boolean)
 
   const hasActiveFilters =
     filters.cardIds.length > 0 ||
@@ -174,7 +180,7 @@ export default function FilterBar() {
               Categories
             </p>
             <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map((cat) => (
+              {filterCategories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => toggleCategory(cat)}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, DollarSign } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, DollarSign, Tags } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { exportAllData, importAllData } from '@/services/db'
 import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
@@ -12,17 +12,19 @@ import { usePersonStore } from '@/stores/personStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
+import CategoriesManager from '@/components/settings/CategoriesManager'
 
-type Tab = 'profile' | 'billing' | 'export'
+type Tab = 'profile' | 'categories' | 'billing' | 'export'
 
 const TABS = [
   { id: 'profile' as Tab,     label: 'Profile',     icon: UserCircle },
+  { id: 'categories' as Tab,  label: 'Categories',  icon: Tags },
   { id: 'billing' as Tab,     label: 'Billing',     icon: Crown },
   { id: 'export' as Tab,      label: 'Export',      icon: Database },
 ]
 
 function isTab(value: string | null): value is Tab {
-  return value === 'profile' || value === 'billing' || value === 'export'
+  return value === 'profile' || value === 'categories' || value === 'billing' || value === 'export'
 }
 
 export default function SettingsPage() {
@@ -92,6 +94,7 @@ export default function SettingsPage() {
             <DangerZone />
           </div>
         )}
+        {tab === 'categories' && <CategoriesManager />}
         {tab === 'billing' && <BillingSettings />}
         {tab === 'export' && <ExportSettings />}
       </div>

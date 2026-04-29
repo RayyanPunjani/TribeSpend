@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { CATEGORIES, CATEGORY_COLORS } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 
 interface Props {
   value: string
@@ -10,6 +10,8 @@ interface Props {
 export default function CategoryDropdown({ value, onChange, compact }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const categoryColors = useCategoryStore((s) => s.categoryColors)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -19,7 +21,8 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const color = CATEGORY_COLORS[value] ?? '#94a3b8'
+  const color = categoryColors[value] ?? '#94a3b8'
+  const options = categoryNames.includes(value) ? categoryNames : [value, ...categoryNames]
 
   return (
     <div ref={ref} className="relative inline-block">
@@ -45,8 +48,8 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
 
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-card-md p-1 min-w-48 max-h-64 overflow-y-auto animate-slide-in">
-          {CATEGORIES.map((cat) => {
-            const c = CATEGORY_COLORS[cat] ?? '#94a3b8'
+          {options.map((cat) => {
+            const c = categoryColors[cat] ?? '#94a3b8'
             return (
               <button
                 key={cat}

@@ -3,13 +3,14 @@ import { Trash2, Edit2, Check, X, Upload, Download, BookMarked } from 'lucide-re
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
-import { CATEGORIES } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { formatDate } from '@/utils/formatters'
 
 export default function CategoryRulesManager() {
   const { rules, update, remove, importRules } = useCategoryRuleStore()
   const { transactions, updateMany } = useTransactionStore()
   const { householdId } = useAuth()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPattern, setEditPattern] = useState('')
   const [editClean, setEditClean] = useState('')
@@ -114,7 +115,11 @@ export default function CategoryRulesManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rules.map((rule) => (
+              {rules.map((rule) => {
+                const categoryOptions = rule.category && !categoryNames.includes(rule.category)
+                  ? [rule.category, ...categoryNames]
+                  : categoryNames
+                return (
                 <tr key={rule.id} className="hover:bg-slate-50">
                   {editingId === rule.id ? (
                     <>
@@ -129,7 +134,7 @@ export default function CategoryRulesManager() {
                       <td className="py-2 pr-3">
                         <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
                           className="border border-slate-300 rounded px-2 py-1 text-xs w-full focus:outline-none focus:ring-1 focus:ring-accent-500">
-                          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </td>
                       <td className="py-2 pr-3 text-slate-400">{rule.matchCount ?? 0}</td>
@@ -176,7 +181,7 @@ export default function CategoryRulesManager() {
                     </>
                   )}
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

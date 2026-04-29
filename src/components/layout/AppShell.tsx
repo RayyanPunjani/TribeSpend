@@ -19,6 +19,7 @@ import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
@@ -48,6 +49,7 @@ export default function AppShell() {
   const { load: loadCards } = useCardStore()
   const { load: loadPersons } = usePersonStore()
   const { load: loadRules } = useCategoryRuleStore()
+  const { load: loadCategories } = useCategoryStore()
   const { load: loadRewards } = useCardRewardStore()
   const { load: loadCredits } = useCardCreditStore()
   const { load: loadBudgets } = useBudgetStore()
@@ -62,6 +64,7 @@ export default function AppShell() {
       ['transactions', () => loadTransactions(householdId)],
       ['cards', () => loadCards(householdId)],
       ['people', () => loadPersons(householdId)],
+      ['categories', () => loadCategories(householdId)],
       ['category rules', () => loadRules(householdId)],
       ['reward rules', () => loadRewards(householdId)],
       ['card credits', () => loadCredits(householdId)],

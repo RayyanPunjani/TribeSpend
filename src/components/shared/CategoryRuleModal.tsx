@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, BookMarked } from 'lucide-react'
-import { CATEGORIES } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,6 +25,10 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
   const { add: addRule } = useCategoryRuleStore()
   const { transactions, updateMany, update } = useTransactionStore()
   const { householdId } = useAuth()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const categoryOptions = category && !categoryNames.includes(category)
+    ? [category, ...categoryNames]
+    : categoryNames
 
   const handleSaveRule = async () => {
     setApplying(true)
@@ -125,7 +129,7 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
               onChange={(e) => setCategory(e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
             >
-              {CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>

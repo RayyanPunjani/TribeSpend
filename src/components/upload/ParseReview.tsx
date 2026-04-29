@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { CheckCircle, AlertCircle, ChevronDown, ChevronUp, Save, Zap, Sparkles } from 'lucide-react'
 import type { Transaction } from '@/types'
-import { CATEGORIES, CATEGORY_COLORS, CATEGORY_ICONS } from '@/utils/categories'
+import { CATEGORY_ICONS } from '@/utils/categories'
 import { formatDate, formatCurrency } from '@/utils/formatters'
 import { useCardStore } from '@/stores/cardStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { suggestCategory } from '@/services/keywordCategorizer'
 import { suggestMerchantPattern, matchesRule } from '@/services/categoryMatcher'
@@ -29,18 +30,18 @@ interface Toast {
   message: string
 }
 
-// Category display (no "Needs Review" or "Refunds & Credits" in the assignment list)
-const ASSIGNABLE_CATS = CATEGORIES.filter(
-  (c) => c !== 'Needs Review' && c !== 'Refunds & Credits',
-)
-
 export default function ParseReview({ transactions, onConfirm, onBack }: Props) {
   const { cards } = useCardStore()
   const { rules, add: addRule } = useCategoryRuleStore()
   const { transactions: existingTxns, updateMany } = useTransactionStore()
+  const { categoryNames, categoryColors } = useCategoryStore()
   const { householdId } = useAuth()
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
+  const assignableCategories = useMemo(
+    () => categoryNames.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits'),
+    [categoryNames],
+  )
 
   // Map of id → category for the auto-categorized section (user can override)
   const [overrides, setOverrides] = useState<Map<string, string>>(new Map())
@@ -294,9 +295,9 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
           <div className="divide-y divide-slate-100">
             {merchantGroups.map((group) => {
               const assigned = merchantAssignments.get(group.merchant)
-              const assignedColor = assigned ? (CATEGORY_COLORS[assigned] ?? '#94a3b8') : null
+              const assignedColor = assigned ? (categoryColors[assigned] ?? '#94a3b8') : null
               const suggestedColor = group.suggested
-                ? (CATEGORY_COLORS[group.suggested] ?? '#94a3b8')
+                ? (categoryColors[group.suggested] ?? '#94a3b8')
                 : null
 
               return (
@@ -342,7 +343,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
                           onChange={(e) => assign(group.merchant, e.target.value)}
                           className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-500 bg-white text-slate-500"
                         >
-                          {ASSIGNABLE_CATS.map((c) => (
+                          {assignableCategories.map((c) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
@@ -371,7 +372,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
                           className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent-500 bg-white text-slate-400"
                         >
                           <option value="">Override…</option>
-                          {ASSIGNABLE_CATS.map((c) => (
+                          {assignableCategories.map((c) => (
                             <option key={c} value={c}>{c}</option>
                           ))}
                         </select>
@@ -386,7 +387,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
                         className="text-xs border border-amber-300 bg-amber-50 text-amber-700 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 min-w-[160px]"
                       >
                         <option value="">Select category…</option>
-                        {ASSIGNABLE_CATS.map((c) => (
+                        {assignableCategories.map((c) => (
                           <option key={c} value={c}>{c}</option>
                         ))}
                       </select>
@@ -466,7 +467,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
                             }}
                             className="w-full text-xs rounded-lg px-2 py-1 border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-500"
                           >
-                            {CATEGORIES.filter((c) => c !== 'Needs Review').map((c) => (
+                            {categoryNames.filter((c) => c !== 'Needs Review').map((c) => (
                               <option key={c} value={c}>{c}</option>
                             ))}
                           </select>

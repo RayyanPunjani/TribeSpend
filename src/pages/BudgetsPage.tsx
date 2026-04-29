@@ -4,9 +4,9 @@ import {
 } from 'lucide-react'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { usePersonStore } from '@/stores/personStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBudgetStatus, type BudgetStatus } from '@/hooks/useBudgetStatus'
-import { CATEGORIES } from '@/utils/categories'
 import { formatCurrency } from '@/utils/formatters'
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -121,6 +121,7 @@ interface BudgetFormPanelProps {
   form: BudgetForm
   setForm: React.Dispatch<React.SetStateAction<BudgetForm>>
   persons: { id: string; name: string }[]
+  categoryNames: string[]
   submitLabel: string
   onSubmit: () => void
   onCancel: () => void
@@ -128,10 +129,13 @@ interface BudgetFormPanelProps {
 }
 
 function BudgetFormPanel({
-  form, setForm, persons, submitLabel, onSubmit, onCancel, disableSubmit,
+  form, setForm, persons, categoryNames, submitLabel, onSubmit, onCancel, disableSubmit,
 }: BudgetFormPanelProps) {
   const [emailError, setEmailError] = useState('')
   const [customPct, setCustomPct] = useState('')
+  const categoryOptions = form.category && !categoryNames.includes(form.category)
+    ? [form.category, ...categoryNames]
+    : categoryNames
 
   const sf = (k: keyof Pick<BudgetForm, 'label' | 'personId' | 'category' | 'amount' | 'notifyEmail'>) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -243,7 +247,7 @@ function BudgetFormPanel({
           <div className="relative">
             <select value={form.category} onChange={sf('category')} className={`${inputCls} appearance-none pr-8`}>
               <option value="">All Spending</option>
-              {CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -476,6 +480,7 @@ export default function BudgetsPage() {
   const hid = householdId!
   const { add: addBudget, update: updateBudget, remove: removeBudget } = useBudgetStore()
   const { persons } = usePersonStore()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
   const statuses = useBudgetStatus()
 
   const [showAddForm, setShowAddForm] = useState(false)
@@ -620,6 +625,7 @@ export default function BudgetsPage() {
             form={addForm}
             setForm={setAddForm}
             persons={persons}
+            categoryNames={categoryNames}
             submitLabel="Create Budget"
             onSubmit={handleAdd}
             onCancel={() => { setShowAddForm(false); setAddForm({ ...emptyForm }) }}
@@ -654,6 +660,7 @@ export default function BudgetsPage() {
                     form={editForm}
                     setForm={setEditForm}
                     persons={persons}
+                    categoryNames={categoryNames}
                     submitLabel="Save"
                     onSubmit={handleSaveEdit}
                     onCancel={() => setEditingId(null)}

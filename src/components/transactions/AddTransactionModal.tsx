@@ -8,10 +8,7 @@ import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { findMatchingRule } from '@/services/categoryMatcher'
-import { CATEGORIES as BASE_CATEGORIES } from '@/utils/categories'
-
-// For manual entry include meta-categories the AI wouldn't assign
-const CATEGORIES = [...BASE_CATEGORIES, 'Payment']
+import { useCategoryStore } from '@/stores/categoryStore'
 
 interface Props {
   onClose: () => void
@@ -23,6 +20,8 @@ export default function AddTransactionModal({ onClose }: Props) {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
   const { rules } = useCategoryRuleStore()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const categories = [...categoryNames, 'Payment']
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -182,7 +181,7 @@ export default function AddTransactionModal({ onClose }: Props) {
               onChange={(e) => set('category', e.target.value)}
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-accent-500"
             >
-              {CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>

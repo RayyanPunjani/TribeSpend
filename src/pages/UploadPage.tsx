@@ -23,6 +23,7 @@ import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
+import { useCategoryStore } from '@/stores/categoryStore'
 // Statement metadata is no longer persisted separately
 import type {
   Transaction,
@@ -79,6 +80,7 @@ export default function UploadPage() {
   const { householdId } = useAuth()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
 
   const addSummaryToast = (message: string) => {
     const id = Math.random().toString(36).slice(2)
@@ -156,6 +158,7 @@ export default function UploadPage() {
       rules,
       settings.anthropicApiKey,
       settings.anthropicModel || 'claude-sonnet-4-20250514',
+      categoryNames,
     )
 
     const dupeIndices = findDuplicates(

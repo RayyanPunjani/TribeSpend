@@ -19,7 +19,7 @@ import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
-import { CATEGORY_COLORS } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
 import EmptyState from '@/components/shared/EmptyState'
@@ -114,6 +114,7 @@ export default function DashboardPage() {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
   const { credits } = useCardCreditStore()
+  const categoryColors = useCategoryStore((s) => s.categoryColors)
   const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
   const [dismissedCredits, setDismissedCredits] = useState<Set<string>>(new Set())
@@ -390,7 +391,7 @@ export default function DashboardPage() {
                     {categoryData.map((entry) => (
                       <Cell
                         key={entry.name}
-                        fill={entry.name === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[entry.name] ?? '#64748b')}
+                        fill={entry.name === 'Other' ? '#94a3b8' : (categoryColors[entry.name] ?? '#64748b')}
                       />
                     ))}
                   </Pie>
@@ -402,7 +403,7 @@ export default function DashboardPage() {
                   <div key={entry.name} className="flex items-center gap-2 text-sm">
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: entry.name === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[entry.name] ?? '#64748b') }}
+                      style={{ backgroundColor: entry.name === 'Other' ? '#94a3b8' : (categoryColors[entry.name] ?? '#64748b') }}
                     />
                     <span className="flex-1 min-w-0 truncate text-slate-700">{entry.name}</span>
                     <span className="font-semibold text-slate-800">{formatCurrency(entry.value)}</span>
@@ -529,8 +530,8 @@ export default function DashboardPage() {
                     <span
                       className="ml-2 inline-block px-1.5 py-0.5 rounded text-xs font-medium"
                       style={{
-                        backgroundColor: (CATEGORY_COLORS[merchant.category] ?? '#94a3b8') + '22',
-                        color: CATEGORY_COLORS[merchant.category] ?? '#64748b',
+                        backgroundColor: (categoryColors[merchant.category] ?? '#94a3b8') + '22',
+                        color: categoryColors[merchant.category] ?? '#64748b',
                       }}
                     >
                       {merchant.category}

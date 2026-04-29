@@ -11,7 +11,7 @@ import { CATEGORIES as ALL_CATEGORIES } from '@/utils/categories'
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 // Exclude meta-categories from AI classification targets
-const CATEGORIES = ALL_CATEGORIES.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
+const DEFAULT_AI_CATEGORIES = ALL_CATEGORIES.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
 
 /**
  * Categorize a list of parsed CSV rows using:
@@ -23,8 +23,10 @@ export async function categorizeCsvRows(
   rules: CategoryRule[],
   apiKey: string,
   model: string,
+  categories: string[] = DEFAULT_AI_CATEGORIES,
 ): Promise<CsvParsedRow[]> {
   const result = rows.map((row) => ({ ...row }))
+  const aiCategories = categories.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
 
   // Step 1: Apply saved rules
   for (const row of result) {
@@ -71,14 +73,14 @@ export async function categorizeCsvRows(
 
   // Step 3: Batch Claude call with only merchant names
   try {
-    const aiCategories = await batchCategorizeMerchants(uniqueMerchants, apiKey, model)
+    const aiMatches = await batchCategorizeMerchants(uniqueMerchants, apiKey, model, aiCategories)
 
     // Apply AI results
     for (const row of result) {
       if (row.category !== 'Needs Review') continue
       const merchant = row.cleanDescription || row.description
-      const aiCat = aiCategories[merchant]
-      if (aiCat && (CATEGORIES as readonly string[]).includes(aiCat)) {
+      const aiCat = aiMatches[merchant]
+      if (aiCat && aiCategories.includes(aiCat)) {
         row.category = aiCat
       }
     }
@@ -93,9 +95,10 @@ async function batchCategorizeMerchants(
   merchants: string[],
   apiKey: string,
   model: string,
+  categories: string[],
 ): Promise<Record<string, string>> {
   const prompt = `Categorize these merchants/businesses into one of these categories:
-${CATEGORIES.join(', ')}
+${categories.join(', ')}
 
 Merchants:
 ${merchants.map((m, i) => `${i + 1}. ${m}`).join('\n')}

@@ -5,7 +5,7 @@ import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
-import { CATEGORIES } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import type { CardRewardRule, CardCredit } from '@/types'
 
 type RewardForm = {
@@ -49,11 +49,6 @@ const EMPTY_CREDIT_FORM: CreditForm = {
   merchantMatch: '',
   notes: '',
 }
-
-const CATEGORY_OPTIONS = [
-  { value: 'base', label: 'Everything Else (Base Rate)' },
-  ...CATEGORIES.map((c) => ({ value: c, label: c })),
-]
 
 const FREQ_LABELS: Record<string, string> = {
   monthly: 'Monthly',
@@ -380,6 +375,14 @@ export default function CardRewardsManager() {
 function RuleForm({ form, onChange, onSave, onCancel }: {
   form: RewardForm; onChange: (f: RewardForm) => void; onSave: () => void; onCancel: () => void
 }) {
+  const categoryOptions = useCategoryStore((s) => [
+    { value: 'base', label: 'Everything Else (Base Rate)' },
+    ...s.categoryNames.map((category) => ({ value: category, label: category })),
+  ])
+  const options = form.category && !categoryOptions.some((option) => option.value === form.category)
+    ? [{ value: form.category, label: form.category }, ...categoryOptions]
+    : categoryOptions
+
   return (
     <div className="border border-accent-200 bg-accent-50 rounded-xl p-3 flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
@@ -387,7 +390,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
           <label className="text-xs font-medium text-slate-500">Category</label>
           <select value={form.category} onChange={(e) => onChange({ ...form, category: e.target.value })}
             className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-accent-500">
-            {CATEGORY_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+            {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
@@ -456,6 +459,11 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
 function CreditFormComp({ form, onChange, onSave, onCancel }: {
   form: CreditForm; onChange: (f: CreditForm) => void; onSave: () => void; onCancel: () => void
 }) {
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const categoryOptions = form.category && !categoryNames.includes(form.category)
+    ? [form.category, ...categoryNames]
+    : categoryNames
+
   return (
     <div className="border border-green-200 bg-green-50 rounded-xl p-3 flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
@@ -508,7 +516,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
           <select value={form.category} onChange={(e) => onChange({ ...form, category: e.target.value })}
             className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-accent-500">
             <option value="">Any category</option>
-            {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            {categoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
           </select>
         </div>
         {form.creditType === 'statement' && (

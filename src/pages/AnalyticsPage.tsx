@@ -9,7 +9,7 @@ import { format, parseISO } from 'date-fns'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
-import { CATEGORY_COLORS } from '@/utils/categories'
+import { useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
 import EmptyState from '@/components/shared/EmptyState'
@@ -44,6 +44,7 @@ export default function AnalyticsPage() {
   const { transactions, setFilters: setTxnFilters } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+  const categoryColors = useCategoryStore((s) => s.categoryColors)
   const navigate = useNavigate()
 
   const [filters, setFilters] = useState<DashboardFilterState>(DEFAULT_DASHBOARD_FILTERS)
@@ -501,7 +502,7 @@ export default function AnalyticsPage() {
                   {categoryData.map((entry) => (
                     <Cell
                       key={entry.name}
-                      fill={CATEGORY_COLORS[entry.name] ?? '#94a3b8'}
+                      fill={categoryColors[entry.name] ?? '#94a3b8'}
                       opacity={selectedCategory && selectedCategory !== entry.name ? 0.4 : 1}
                     />
                   ))}
@@ -557,7 +558,7 @@ export default function AnalyticsPage() {
                     key={cat}
                     dataKey={cat}
                     stackId="cat"
-                    fill={cat === 'Other' ? '#94a3b8' : (CATEGORY_COLORS[cat] ?? '#94a3b8')}
+                    fill={cat === 'Other' ? '#94a3b8' : (categoryColors[cat] ?? '#94a3b8')}
                   />
                 ))}
               </BarChart>
