@@ -288,27 +288,6 @@ export default function AnalyticsPage() {
       .sort((a, b) => b.amount - a.amount)
   }, [displaySpendCharges, cardMap, filters.includeReimb])
 
-  // Top merchants
-  const topMerchants = useMemo(() => {
-    const map = new Map<string, { total: number; count: number; category: string }>()
-    for (const t of displaySpendCharges) {
-      const amt = getEffectiveAmount(t, filters.includeReimb)
-      if (amt <= 0) continue
-      const key = t.cleanDescription || t.description
-      const ex = map.get(key)
-      if (ex) {
-        ex.total += amt
-        ex.count++
-      } else {
-        map.set(key, { total: amt, count: 1, category: t.category })
-      }
-    }
-    return Array.from(map.entries())
-      .map(([name, d]) => ({ name, ...d, total: parseFloat(d.total.toFixed(2)) }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-  }, [displaySpendCharges, filters.includeReimb])
-
   // Person comparison data
   const personComparisonData = useMemo(() => {
     if (persons.length < 2) return null
@@ -669,39 +648,6 @@ export default function AnalyticsPage() {
           )}
         </ChartCard>
       </div>
-
-      {/* Top Merchants */}
-      <ChartCard title="Top Merchants">
-        {topMerchants.length === 0 ? (
-          <p className="text-sm text-slate-400 py-4 text-center">No merchant data for this period.</p>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {topMerchants.map((m, i) => (
-              <div key={i} className="flex items-center gap-3 py-2.5">
-                <span className="text-xs font-bold text-slate-400 w-5 text-right shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-800 truncate">{m.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {m.count} transaction{m.count > 1 ? 's' : ''}
-                    <span
-                      className="ml-2 inline-block px-1.5 py-0.5 rounded text-xs font-medium"
-                      style={{
-                        backgroundColor: (CATEGORY_COLORS[m.category] ?? '#94a3b8') + '22',
-                        color: CATEGORY_COLORS[m.category] ?? '#64748b',
-                      }}
-                    >
-                      {m.category}
-                    </span>
-                  </p>
-                </div>
-                <span className="text-sm font-semibold text-slate-700 shrink-0">
-                  {formatCurrency(m.total)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </ChartCard>
 
       {/* Person Comparison */}
       {personComparisonData && (

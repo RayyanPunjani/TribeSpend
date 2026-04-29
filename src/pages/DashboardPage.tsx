@@ -213,6 +213,27 @@ export default function DashboardPage() {
     [spendTransactions],
   )
 
+  const topMerchants = useMemo(() => {
+    const map = new Map<string, { total: number; count: number; category: string }>()
+    for (const transaction of overviewTransactions) {
+      const amount = getEffectiveAmount(transaction)
+      if (amount <= 0) continue
+      const key = transaction.cleanDescription || transaction.description
+      const existing = map.get(key)
+      if (existing) {
+        existing.total += amount
+        existing.count += 1
+      } else {
+        map.set(key, { total: amount, count: 1, category: transaction.category })
+      }
+    }
+
+    return Array.from(map.entries())
+      .map(([name, data]) => ({ name, ...data, total: Number(data.total.toFixed(2)) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+  }, [overviewTransactions])
+
   const connectedAccountCount = plaidItems.reduce((sum, item) => sum + item.accounts.length, 0)
 
   const expiringCredits = useMemo(() => {
@@ -492,6 +513,38 @@ export default function DashboardPage() {
           Open detailed Analytics
         </Link>
       </div>
+
+      <ChartCard title="Top Merchants" subtitle="Last 6 months">
+        {topMerchants.length === 0 ? (
+          <p className="text-sm text-slate-400 py-4 text-center">No merchant data for this period.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {topMerchants.map((merchant, index) => (
+              <div key={merchant.name} className="flex items-center gap-3 py-2.5">
+                <span className="text-xs font-bold text-slate-400 w-5 text-right shrink-0">{index + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 truncate">{merchant.name}</p>
+                  <p className="text-xs text-slate-400">
+                    {merchant.count} transaction{merchant.count > 1 ? 's' : ''}
+                    <span
+                      className="ml-2 inline-block px-1.5 py-0.5 rounded text-xs font-medium"
+                      style={{
+                        backgroundColor: (CATEGORY_COLORS[merchant.category] ?? '#94a3b8') + '22',
+                        color: CATEGORY_COLORS[merchant.category] ?? '#64748b',
+                      }}
+                    >
+                      {merchant.category}
+                    </span>
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-slate-700 shrink-0">
+                  {formatCurrency(merchant.total)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </ChartCard>
     </div>
   )
 }
