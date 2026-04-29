@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import Layout from '@/components/layout/Layout'
 import DashboardPage from '@/pages/DashboardPage'
-import InsightsPage from '@/pages/InsightsPage'
+import AnalyticsPage from '@/pages/AnalyticsPage'
 import TransactionsPage from '@/pages/TransactionsPage'
 import UploadPage from '@/pages/UploadPage'
 import RecurringPage from '@/pages/RecurringPage'
@@ -11,6 +11,9 @@ import ReimbursementsPage from '@/pages/ReimbursementsPage'
 import ReturnsPage from '@/pages/ReturnsPage'
 import ExportPage from '@/pages/ExportPage'
 import SettingsPage from '@/pages/SettingsPage'
+import AccountsPage from '@/pages/AccountsPage'
+import CardsPage from '@/pages/CardsPage'
+import BillingPage from '@/pages/BillingPage'
 import OptimizePage from '@/pages/OptimizePage'
 import BudgetsPage from '@/pages/BudgetsPage'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -125,7 +128,8 @@ export default function AppShell() {
     <Layout>
       <Routes>
         <Route index element={<DashboardPage />} />
-        <Route path="insights" element={<InsightsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="insights" element={<Navigate to="/app/analytics" replace />} />
         <Route path="transactions" element={<TransactionsPage />} />
         <Route path="upload" element={<UploadPage />} />
         <Route path="recurring" element={<RecurringPage />} />
@@ -134,6 +138,9 @@ export default function AppShell() {
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="optimize" element={<OptimizePage />} />
         <Route path="export" element={<ExportPage />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="cards" element={<CardsPage />} />
+        <Route path="billing" element={<BillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>

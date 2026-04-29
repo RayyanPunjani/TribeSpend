@@ -449,7 +449,7 @@ export default function OptimizePage() {
           )}
         </div>
         {!hasRules ? (
-          <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500">Configure card rewards in Settings → Card Rewards to see optimization tips.</div>
+          <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500">Configure card rewards on the Cards page to see optimization tips.</div>
         ) : missedRewards.length === 0 ? (
           <div className="p-4 bg-green-50 rounded-xl text-sm text-green-700">
             Great job! You're using your best cards for all categories (or no transactions found in the last 90 days).
@@ -587,7 +587,7 @@ export default function OptimizePage() {
 
         {credits.length === 0 ? (
           <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500">
-            Add credits in Settings → Card Rewards to track your statement and portal credits.
+            Add credits on the Cards page to track your statement and portal credits.
           </div>
         ) : (
           <div className="flex flex-col gap-3">

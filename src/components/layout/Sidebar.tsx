@@ -7,6 +7,8 @@ import {
   PackageOpen,
   Download,
   Settings,
+  Link2,
+  CreditCard,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -35,10 +37,19 @@ const NAV_SECTIONS = [
   {
     label: 'Insights',
     items: [
-      { to: '/app/insights', icon: BarChart3, label: 'Insights' },
+      { to: '/app/analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/app/budgets', icon: Target, label: 'Budgets' },
       { to: '/app/optimize', icon: BarChart3, label: 'Optimize' },
       { to: '/app/export', icon: Download, label: 'Export' },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { to: '/app/accounts', icon: Link2, label: 'Accounts' },
+      { to: '/app/cards', icon: CreditCard, label: 'Cards' },
+      { to: '/app/billing', icon: Crown, label: 'Billing' },
+      { to: '/app/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ]
@@ -71,7 +82,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-2 py-4 flex flex-col gap-5">
+      <nav className="flex-1 px-2 py-4 flex flex-col gap-5 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="flex flex-col gap-1">
             {!collapsed && (

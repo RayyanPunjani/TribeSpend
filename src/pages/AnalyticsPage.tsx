@@ -85,7 +85,7 @@ function getEffectiveAmount(
   return t.amount
 }
 
-export default function InsightsPage() {
+export default function AnalyticsPage() {
   const { transactions, setFilters: setTxnFilters } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
@@ -461,7 +461,7 @@ export default function InsightsPage() {
     <div className="flex flex-col gap-5 max-w-6xl mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Insights</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Analytics</h1>
         <p className="text-sm text-slate-500 mt-1">Explore spending trends, categories, people, cards, and filters.</p>
       </div>
 

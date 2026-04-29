@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { Users, CreditCard, Database, Download, Upload, Link2, Trash2, AlertTriangle, Sparkles } from 'lucide-react'
+import { Users, Database, Download, Upload, Trash2, AlertTriangle, UserCircle, SlidersHorizontal } from 'lucide-react'
 import PeopleManager from '@/components/settings/PeopleManager'
-import CardManager from '@/components/settings/CardManager'
-import PlaidManager from '@/components/settings/PlaidManager'
-import CardRewardsManager from '@/components/settings/CardRewardsManager'
+import AIProviderSetup from '@/components/settings/AIProviderSetup'
 import { exportAllData, importAllData } from '@/services/db'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -15,18 +13,18 @@ import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
-type Tab = 'people' | 'plaid' | 'cards' | 'rewards' | 'data'
+type Tab = 'profile' | 'people' | 'preferences' | 'data'
 
 const TABS = [
+  { id: 'profile' as Tab,     label: 'Profile',     icon: UserCircle },
   { id: 'people' as Tab,  label: 'People',             icon: Users },
-  { id: 'plaid' as Tab,   label: 'Connected Accounts', icon: Link2 },
-  { id: 'cards' as Tab,   label: 'Cards',              icon: CreditCard },
-  { id: 'rewards' as Tab, label: 'Card Rewards',       icon: Sparkles },
+  { id: 'preferences' as Tab, label: 'Preferences', icon: SlidersHorizontal },
   { id: 'data' as Tab,    label: 'Data & Backup',      icon: Database },
 ]
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('people')
+  const [tab, setTab] = useState<Tab>('profile')
+  const { user, profile, householdId } = useAuth()
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -50,15 +48,35 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6">
-        {tab === 'plaid' && (
-          <>
-            <h3 className="text-sm font-semibold text-slate-700 mb-4">Connected Bank Accounts</h3>
-            <PlaidManager />
-          </>
+        {tab === 'profile' && (
+          <div className="flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-slate-700">Profile</h3>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0"
+                style={{ backgroundColor: profile?.color || '#14b8a6' }}
+              >
+                {(profile?.name || user?.email || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate">{profile?.name || 'Account'}</p>
+                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-xl border border-slate-100 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</p>
+                <p className="text-sm font-medium text-slate-800 mt-1 capitalize">{profile?.role || 'member'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Household</p>
+                <p className="text-sm font-medium text-slate-800 mt-1 truncate">{householdId || 'Not loaded'}</p>
+              </div>
+            </div>
+          </div>
         )}
         {tab === 'people' && <PeopleManager />}
-        {tab === 'cards' && <CardManager />}
-        {tab === 'rewards' && <CardRewardsManager />}
+        {tab === 'preferences' && <AIProviderSetup />}
         {tab === 'data' && <DataBackup />}
       </div>
     </div>

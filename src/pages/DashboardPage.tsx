@@ -371,7 +371,7 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-slate-700">No connected bank accounts</p>
               <p className="text-xs text-slate-400 mt-1">Premium bank sync connections will appear here.</p>
               <Link
-                to="/app/settings"
+                to="/app/accounts"
                 className="inline-flex mt-3 text-xs font-medium text-accent-700 hover:text-accent-800"
               >
                 Manage accounts
@@ -382,8 +382,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="text-right">
-        <Link to="/app/insights" className="text-sm font-medium text-accent-700 hover:text-accent-800">
-          Open detailed Insights
+        <Link to="/app/analytics" className="text-sm font-medium text-accent-700 hover:text-accent-800">
+          Open detailed Analytics
         </Link>
       </div>
     </div>
