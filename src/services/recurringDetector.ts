@@ -123,7 +123,7 @@ export function detectRecurring(allTransactions: Transaction[]): string[] {
  */
 export async function runRecurringDetector(
   allTransactions: Transaction[],
-  updateMany: (ids: string[], patch: Partial<Transaction>) => Promise<void>,
+  updateMany: (ids: string[], patch: Partial<Transaction>) => Promise<unknown>,
 ): Promise<number> {
   const ids = detectRecurring(allTransactions)
   if (ids.length === 0) return 0

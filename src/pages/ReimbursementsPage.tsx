@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { DollarSign, CheckCircle } from 'lucide-react'
+import { AlertCircle, DollarSign, CheckCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
@@ -8,6 +8,7 @@ import EmptyState from '@/components/shared/EmptyState'
 export default function ReimbursementsPage() {
   const { transactions, update, updateMany } = useTransactionStore()
   const [settlingUp, setSettlingUp] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const reimbursable = useMemo(
     () => transactions.filter((t) => t.reimbursementStatus !== 'none' && !t.deleted),
@@ -28,19 +29,36 @@ export default function ReimbursementsPage() {
     return reimbursable
       .filter((t) => !t.reimbursementPaid)
       .reduce((s, t) => {
-        const amt = t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0
+        const amt = t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0
         return s + amt
       }, 0)
   }, [reimbursable])
 
   const settleUp = async (person: string) => {
     setSettlingUp(person)
-    const personTxns = byPerson.get(person) ?? []
-    const unpaidIds = personTxns.filter((t) => !t.reimbursementPaid).map((t) => t.id)
-    if (unpaidIds.length > 0) {
-      await updateMany(unpaidIds, { reimbursementPaid: true })
+    setError(null)
+    try {
+      const personTxns = byPerson.get(person) ?? []
+      const unpaidIds = personTxns.filter((t) => !t.reimbursementPaid).map((t) => t.id)
+      if (unpaidIds.length > 0) {
+        const success = await updateMany(unpaidIds, { reimbursementPaid: true })
+        if (!success) setError('Unable to settle reimbursements. Please try again.')
+      }
+    } catch {
+      setError('Unable to settle reimbursements. Please try again.')
+    } finally {
+      setSettlingUp(null)
     }
-    setSettlingUp(null)
+  }
+
+  const togglePaid = async (id: string, nextPaid: boolean) => {
+    setError(null)
+    try {
+      const success = await update(id, { reimbursementPaid: nextPaid })
+      if (!success) setError('Unable to update reimbursement status. Please try again.')
+    } catch {
+      setError('Unable to update reimbursement status. Please try again.')
+    }
   }
 
   if (transactions.length === 0) {
@@ -70,6 +88,13 @@ export default function ReimbursementsPage() {
         )}
       </div>
 
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={14} className="shrink-0" />
+          {error}
+        </div>
+      )}
+
       {byPerson.size === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
           <DollarSign size={32} className="mx-auto text-slate-300 mb-3" />
@@ -83,10 +108,10 @@ export default function ReimbursementsPage() {
           const unpaid = txns.filter((t) => !t.reimbursementPaid)
           const paid = txns.filter((t) => t.reimbursementPaid)
           const outstanding = unpaid.reduce((s, t) => {
-            return s + (t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0)
+            return s + (t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0)
           }, 0)
           const paidTotal = paid.reduce((s, t) => {
-            return s + (t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0)
+            return s + (t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0)
           }, 0)
 
           return (
@@ -128,7 +153,7 @@ export default function ReimbursementsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {txns.map((t) => {
-                    const reimb = t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0
+                    const reimb = t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0
                     return (
                       <tr key={t.id} className={`hover:bg-slate-50 ${t.reimbursementPaid ? 'opacity-60' : ''}`}>
                         <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
@@ -150,7 +175,7 @@ export default function ReimbursementsPage() {
                         </td>
                         <td className="px-4 py-2.5">
                           <button
-                            onClick={() => update(t.id, { reimbursementPaid: !t.reimbursementPaid })}
+                            onClick={() => togglePaid(t.id, !t.reimbursementPaid)}
                             className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 transition-colors ${
                               t.reimbursementPaid
                                 ? 'bg-green-100 text-green-700 hover:bg-green-200'

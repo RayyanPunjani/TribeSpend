@@ -40,7 +40,7 @@ function buildRows(
       'Reimbursement Status': t.reimbursementStatus,
       'Reimbursement Person': t.reimbursementPerson ?? '',
       'Reimbursable Amount':
-        t.reimbursementStatus === 'full'
+        t.reimbursementStatus === 'settled'
           ? formatAmount(t.amount)
           : t.reimbursementAmount
           ? formatAmount(t.reimbursementAmount)
@@ -118,7 +118,7 @@ export function exportReimbursementReport(
       const card = cardMap.get(t.cardId)
       const owner = card ? personMap.get(card.owner) : undefined
       const reimb =
-        t.reimbursementStatus === 'full'
+        t.reimbursementStatus === 'settled'
           ? t.amount
           : t.reimbursementAmount ?? 0
       return {
@@ -134,7 +134,7 @@ export function exportReimbursementReport(
     })
 
     const total = txns.reduce((sum, t) => {
-      const amt = t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0
+      const amt = t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0
       return sum + amt
     }, 0)
 

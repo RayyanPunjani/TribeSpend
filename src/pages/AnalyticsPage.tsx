@@ -29,12 +29,12 @@ function getEffectiveAmount(
 ): number {
   // Already paid back — money returned, always reduce
   if (t.reimbursementPaid) {
-    const reimbAmt = t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)
+    const reimbAmt = t.reimbursementStatus === 'settled' ? t.amount : (t.reimbursementAmount ?? 0)
     return Math.max(0, t.amount - reimbAmt)
   }
   // Toggle off = show adjusted/net spend
   if (!includeReimb) {
-    if (t.reimbursementStatus === 'full') return 0
+    if (t.reimbursementStatus === 'settled') return 0
     if (t.reimbursementStatus === 'partial') return Math.max(0, t.amount - (t.reimbursementAmount ?? 0))
   }
   return t.amount
@@ -133,7 +133,7 @@ export default function AnalyticsPage() {
     () =>
       displaySpendCharges
         .filter((t) => t.reimbursementStatus !== 'none' && !t.reimbursementPaid)
-        .reduce((s, t) => s + (t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
+        .reduce((s, t) => s + (t.reimbursementStatus === 'settled' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
     [displaySpendCharges],
   )
 
@@ -141,7 +141,7 @@ export default function AnalyticsPage() {
     () =>
       displaySpendCharges
         .filter((t) => t.reimbursementPaid)
-        .reduce((s, t) => s + (t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
+        .reduce((s, t) => s + (t.reimbursementStatus === 'settled' ? t.amount : (t.reimbursementAmount ?? 0)), 0),
     [displaySpendCharges],
   )
 

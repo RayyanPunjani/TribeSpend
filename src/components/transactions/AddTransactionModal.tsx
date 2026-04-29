@@ -87,7 +87,7 @@ export default function AddTransactionModal({ onClose }: Props) {
       isCredit: isCredit,
       isBalancePayment: false,
       statementId: 'manual',
-      reimbursementStatus: form.isReimbursable ? 'full' : 'none',
+      reimbursementStatus: form.isReimbursable ? 'settled' : 'none',
       reimbursementPaid: false,
       isRecurring: form.isRecurring || undefined,
       notes: form.notes.trim() || undefined,

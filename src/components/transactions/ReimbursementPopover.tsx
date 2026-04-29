@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { DollarSign, X, Check } from 'lucide-react'
+import { AlertCircle, DollarSign, X, Check, Loader2 } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -18,6 +18,8 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
   const [person, setPerson] = useState(t.reimbursementPerson ?? '')
   const [paid, setPaid] = useState(t.reimbursementPaid)
   const [note, setNote] = useState(t.reimbursementNote ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -29,25 +31,49 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
   }, [onClose])
 
   const handleSave = async () => {
-    await update(t.id, {
-      reimbursementStatus: status,
-      reimbursementAmount: status === 'partial' ? parseFloat(amount) || undefined : undefined,
-      reimbursementPerson: person || undefined,
-      reimbursementPaid: paid,
-      reimbursementNote: note || undefined,
-    })
-    onClose()
+    setSaving(true)
+    setError(null)
+    try {
+      const success = await update(t.id, {
+        reimbursementStatus: status,
+        reimbursementAmount: status === 'partial' ? parseFloat(amount) || undefined : undefined,
+        reimbursementPerson: status === 'none' ? undefined : person || undefined,
+        reimbursementPaid: status === 'none' ? false : paid,
+        reimbursementNote: status === 'none' ? undefined : note || undefined,
+      })
+      if (!success) {
+        setError('Unable to save reimbursement. Please try again.')
+        return
+      }
+      onClose()
+    } catch {
+      setError('Unable to save reimbursement. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleClear = async () => {
-    await update(t.id, {
-      reimbursementStatus: 'none',
-      reimbursementAmount: undefined,
-      reimbursementPerson: undefined,
-      reimbursementPaid: false,
-      reimbursementNote: undefined,
-    })
-    onClose()
+    setSaving(true)
+    setError(null)
+    try {
+      const success = await update(t.id, {
+        reimbursementStatus: 'none',
+        reimbursementAmount: undefined,
+        reimbursementPerson: undefined,
+        reimbursementPaid: false,
+        reimbursementNote: undefined,
+      })
+      if (!success) {
+        setError('Unable to clear reimbursement. Please try again.')
+        return
+      }
+      onClose()
+    } catch {
+      setError('Unable to clear reimbursement. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -68,7 +94,7 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
       <div className="flex flex-col gap-3">
         {/* Status */}
         <div className="flex gap-2">
-          {(['none', 'full', 'partial'] as const).map((s) => (
+          {(['none', 'settled', 'partial'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatus(s)}
@@ -78,7 +104,7 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
                   : 'border-slate-200 text-slate-600 hover:border-slate-300'
               }`}
             >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'settled' ? 'Full' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
         </div>
@@ -140,6 +166,7 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
           {t.reimbursementStatus !== 'none' && (
             <button
               onClick={handleClear}
+              disabled={saving}
               className="text-xs text-red-500 hover:text-red-600"
             >
               Clear
@@ -147,12 +174,20 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
           )}
           <button
             onClick={handleSave}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-accent-600 text-white rounded-lg text-xs font-medium hover:bg-accent-700 transition-colors"
+            disabled={saving}
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-accent-600 text-white rounded-lg text-xs font-medium hover:bg-accent-700 transition-colors disabled:opacity-60"
           >
-            <Check size={12} />
-            Save
+            {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
+
+        {error && (
+          <div className="flex items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
     </div>
   )

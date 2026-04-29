@@ -51,7 +51,7 @@ export function useBudgetStatus(): BudgetStatus[] {
         if (t.deleted) return sum
         if (t.isPayment || t.isCredit || t.isBalancePayment) return sum
         if (EXCLUDED_FROM_SPEND.includes(t.category)) return sum
-        if (t.reimbursementStatus === 'full') return sum
+        if (t.reimbursementStatus === 'settled') return sum
         // Period filter
         if (t.transDate < periodStart) return sum
         // Person filter

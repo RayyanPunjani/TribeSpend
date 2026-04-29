@@ -25,7 +25,7 @@ export default function TopBar() {
       if (t.category === 'Needs Review') needsReviewCount++
       if (t.reimbursementStatus !== 'none' && !t.reimbursementPaid) {
         const amt =
-          t.reimbursementStatus === 'full'
+          t.reimbursementStatus === 'settled'
             ? t.amount
             : t.reimbursementAmount ?? 0
         outstandingReimb += amt

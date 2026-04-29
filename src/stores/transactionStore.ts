@@ -10,8 +10,8 @@ interface TransactionState {
   filters: TransactionFilters
   load: (householdId: string) => Promise<void>
   addMany: (householdId: string, txns: Transaction[]) => Promise<void>
-  update: (id: string, patch: Partial<Transaction>) => Promise<void>
-  updateMany: (ids: string[], patch: Partial<Transaction>) => Promise<void>
+  update: (id: string, patch: Partial<Transaction>) => Promise<boolean>
+  updateMany: (ids: string[], patch: Partial<Transaction>) => Promise<boolean>
   remove: (id: string) => Promise<void>
   removeByStatement: (statementId: string) => Promise<void>
   setFilters: (filters: Partial<TransactionFilters>) => void
@@ -55,6 +55,12 @@ function logSupabaseError(context: string, error: unknown) {
   })
 }
 
+function normalizeReimbursementStatus(value: unknown): Transaction['reimbursementStatus'] {
+  if (value === 'full' || value === 'paid' || value === 'settled') return 'settled'
+  if (value === 'pending' || value === 'partial') return value
+  return 'none'
+}
+
 function fromRow(r: Record<string, unknown>): Transaction {
   return {
     id: r.id as string,
@@ -70,11 +76,11 @@ function fromRow(r: Record<string, unknown>): Transaction {
     isCredit: r.is_credit as boolean,
     isBalancePayment: (r.is_balance_payment as boolean) || false,
     statementId: (r.statement_id as string) || '',
-    reimbursementStatus: (r.reimbursement_status as Transaction['reimbursementStatus']) || 'none',
+    reimbursementStatus: normalizeReimbursementStatus(r.reimbursement_status),
     reimbursementAmount: r.reimbursement_amount as number | undefined,
     reimbursementPerson: r.reimbursement_to as string | undefined,
-    reimbursementPaid: !!r.reimbursement_paid,
-    reimbursementNote: r.reimbursement_note as string | undefined,
+    reimbursementPaid: Number(r.reimbursement_paid ?? 0) > 0,
+    reimbursementNote: undefined,
     isRecurring: (r.is_recurring as boolean) || false,
     recurringAutoDetected: (r.recurring_auto_detected as boolean) || false,
     recurringDismissed: (r.recurring_dismissed as boolean) || false,
@@ -109,11 +115,10 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.isCredit !== undefined) row.is_credit = t.isCredit
   if (t.isBalancePayment !== undefined) row.is_balance_payment = t.isBalancePayment
   if (t.statementId !== undefined) row.statement_id = t.statementId
-  if (t.reimbursementStatus !== undefined) row.reimbursement_status = t.reimbursementStatus
+  if (t.reimbursementStatus !== undefined) row.reimbursement_status = normalizeReimbursementStatus(t.reimbursementStatus)
   if ('reimbursementAmount' in t) row.reimbursement_amount = t.reimbursementAmount ?? null
   if ('reimbursementPerson' in t) row.reimbursement_to = t.reimbursementPerson ?? null
-  if (t.reimbursementPaid !== undefined) row.reimbursement_paid = t.reimbursementPaid
-  if ('reimbursementNote' in t) row.reimbursement_note = t.reimbursementNote ?? null
+  if (t.reimbursementPaid !== undefined) row.reimbursement_paid = t.reimbursementPaid ? 1 : 0
   if (t.isRecurring !== undefined) row.is_recurring = t.isRecurring
   if (t.recurringAutoDetected !== undefined) row.recurring_auto_detected = t.recurringAutoDetected
   if (t.recurringDismissed !== undefined) row.recurring_dismissed = t.recurringDismissed
@@ -193,12 +198,15 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     const { error } = await supabase.from('transactions').update(row).eq('id', id)
     if (error) {
       logSupabaseError('Failed to update transaction:', error)
-      console.warn('[transactionStore] Update payload:', { id, row })
-      return
+      if (import.meta.env.DEV) {
+        console.warn('[transactionStore] Update payload:', { id, row })
+      }
+      return false
     }
     set((s) => ({
       transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     }))
+    return true
   },
 
   updateMany: async (ids, patch) => {
@@ -206,12 +214,15 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     const { error } = await supabase.from('transactions').update(row).in('id', ids)
     if (error) {
       logSupabaseError('Failed to update transactions:', error)
-      console.warn('[transactionStore] Bulk update payload:', { ids, row })
-      return
+      if (import.meta.env.DEV) {
+        console.warn('[transactionStore] Bulk update payload:', { ids, row })
+      }
+      return false
     }
     set((s) => ({
       transactions: s.transactions.map((t) => ids.includes(t.id) ? { ...t, ...patch } : t),
     }))
+    return true
   },
 
   remove: async (id) => {

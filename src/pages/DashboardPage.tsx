@@ -75,7 +75,7 @@ function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
 ): number {
   if (t.reimbursementPaid) {
-    const reimbursed = t.reimbursementStatus === 'full' ? t.amount : (t.reimbursementAmount ?? 0)
+    const reimbursed = t.reimbursementStatus === 'settled' ? t.amount : (t.reimbursementAmount ?? 0)
     return Math.max(0, t.amount - reimbursed)
   }
   return t.amount

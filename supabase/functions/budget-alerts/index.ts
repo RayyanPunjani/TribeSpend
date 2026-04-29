@@ -128,7 +128,7 @@ function shouldCountTransaction(transaction: TransactionRow): boolean {
   if (transaction.is_deleted) return false
   if (transaction.is_payment || transaction.is_credit || transaction.is_balance_payment) return false
   if (transaction.category === REFUND_CATEGORY) return false
-  if (transaction.reimbursement_status === 'full') return false
+  if (transaction.reimbursement_status === 'settled') return false
   return true
 }
 

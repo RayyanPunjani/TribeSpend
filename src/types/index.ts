@@ -17,7 +17,7 @@ export interface Transaction {
   isCredit: boolean
   isBalancePayment?: boolean   // true for autopay/balance transfers — hidden by default
   statementId: string
-  reimbursementStatus: 'none' | 'full' | 'partial'
+  reimbursementStatus: 'none' | 'pending' | 'partial' | 'settled'
   reimbursementAmount?: number
   reimbursementPerson?: string
   reimbursementPaid: boolean

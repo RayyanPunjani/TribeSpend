@@ -120,7 +120,7 @@ export default function TransactionsPage() {
         totalSpend += t.amount
         if (t.reimbursementStatus !== 'none' && !t.reimbursementPaid) {
           totalReimbursable +=
-            t.reimbursementStatus === 'full' ? t.amount : t.reimbursementAmount ?? 0
+            t.reimbursementStatus === 'settled' ? t.amount : t.reimbursementAmount ?? 0
         }
       }
     }
