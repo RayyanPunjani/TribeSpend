@@ -229,7 +229,7 @@ export default function TransactionsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
