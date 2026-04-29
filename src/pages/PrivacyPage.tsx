@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import TribeSpendLogoIcon from '@/components/shared/TribeSpendLogoIcon'
 
 const sections = [
   {
@@ -82,7 +83,7 @@ export default function PrivacyPage() {
       <div className="relative z-10 max-w-4xl mx-auto px-6 py-8 sm:py-12">
         <header className="flex items-center justify-between gap-4 mb-12">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/favicon.svg" alt="TribeSpend" className="w-8 h-8" />
+            <TribeSpendLogoIcon className="w-8 h-8 shrink-0 text-white" />
             <span className="text-xl font-bold">
               <span className="text-gray-100">Tribe</span>
               <span className="text-teal-400">Spend</span>

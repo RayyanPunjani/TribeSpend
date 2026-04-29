@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import TribeSpendLogoIcon from '@/components/shared/TribeSpendLogoIcon'
 
 export default function LandingPage() {
   return (
@@ -9,7 +10,7 @@ export default function LandingPage() {
       <div className="relative z-10 min-h-screen flex flex-col">
         <header className="flex items-center justify-between px-6 sm:px-10 py-6">
           <Link to="/" className="flex items-center gap-2.5">
-            <img src="/favicon.svg" alt="TribeSpend" className="w-8 h-8" />
+            <TribeSpendLogoIcon className="w-8 h-8 shrink-0 text-white" />
             <span className="text-xl font-bold">
               <span className="text-gray-100">Tribe</span>
               <span className="text-teal-400">Spend</span>

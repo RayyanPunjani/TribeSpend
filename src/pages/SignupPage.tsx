@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import TribeSpendLogoIcon from '@/components/shared/TribeSpendLogoIcon'
 
 export default function SignupPage() {
   const { signUp, signInWithGoogle } = useAuth()
@@ -66,8 +67,8 @@ export default function SignupPage() {
 
       <div className="w-full max-w-[420px] bg-gradient-to-br from-[#141a2a] to-[#0f1422] border border-teal-500/[0.12] rounded-2xl p-9 relative z-10">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 mb-8">
-          <img src="/favicon.svg" alt="TribeSpend" className="w-8 h-8" />
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <TribeSpendLogoIcon className="w-10 h-10 shrink-0 text-white" />
           <span className="text-xl font-bold">
             <span className="text-gray-100">Tribe</span>
             <span className="text-teal-400">Spend</span>

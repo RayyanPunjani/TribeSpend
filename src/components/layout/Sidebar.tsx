@@ -68,7 +68,7 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5 border-b border-slate-700/50">
-        <TribeSpendLogoIcon className="w-8 h-8 shrink-0 drop-shadow-[0_0_10px_rgba(45,212,191,0.18)]" />
+        <TribeSpendLogoIcon className="w-8 h-8 shrink-0 text-white drop-shadow-[0_0_10px_rgba(45,212,191,0.18)]" />
         {!collapsed && (
           <span className="font-bold text-base tracking-tight">
             <span className="text-accent-400">Tribe</span><span className="text-white">Spend</span>

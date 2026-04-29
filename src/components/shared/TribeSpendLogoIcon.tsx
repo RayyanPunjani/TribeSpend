@@ -17,47 +17,50 @@ export default function TribeSpendLogoIcon({
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M18.5 16.5A22 22 0 0 1 48.8 17.9"
-        stroke="#99f6e4"
-        strokeWidth="4"
+        d="M7.5 39.2A26 26 0 0 1 22.2 11.4"
+        stroke="#7ddfd0"
+        strokeWidth="4.8"
         strokeLinecap="round"
       />
       <path
-        d="M53.6 27.2A22 22 0 0 1 45.7 50.1"
-        stroke="#34d399"
-        strokeWidth="4"
+        d="M42 11.3A26 26 0 0 1 56.5 39.2"
+        stroke="#14b8a6"
+        strokeWidth="4.8"
         strokeLinecap="round"
       />
       <path
-        d="M20.7 51.2A22 22 0 0 1 10.7 28.4"
+        d="M13.5 50.4A26 26 0 0 0 21.2 56.4"
         stroke="#2dd4bf"
-        strokeWidth="4"
+        strokeWidth="4.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M42.8 56.4A26 26 0 0 0 50.5 50.4"
+        stroke="#2dd4bf"
+        strokeWidth="4.8"
         strokeLinecap="round"
       />
 
-      <circle cx="17" cy="16" r="4.4" fill="#ccfbf1" />
-      <circle cx="53.5" cy="26.5" r="4.4" fill="#86efac" />
-      <circle cx="20.5" cy="51.5" r="4.4" fill="#5eead4" />
-
-      <circle cx="32" cy="32" r="18" fill="#0f766e" fillOpacity="0.92" />
-      <circle cx="32" cy="32" r="17" stroke="#5eead4" strokeOpacity="0.3" strokeWidth="1.5" />
+      <circle cx="32" cy="7.8" r="7.1" fill="#2dd4bf" stroke="#0f766e" strokeWidth="1.2" />
+      <circle cx="7.8" cy="47" r="7.1" fill="#7ddfd0" stroke="#0f766e" strokeWidth="1.2" />
+      <circle cx="56.2" cy="47" r="7.1" fill="#7ddfd0" stroke="#0f766e" strokeWidth="1.2" />
 
       <text
         x="32"
-        y="34"
+        y="38.5"
         textAnchor="middle"
         fontFamily="Inter, ui-sans-serif, system-ui, sans-serif"
-        fontSize="16"
+        fontSize="23"
         fontWeight="800"
         letterSpacing="0"
-        fill="#f8fafc"
+        fill="currentColor"
       >
         TS
       </text>
 
-      <rect x="22" y="43" width="4" height="7" rx="1.4" fill="#bbf7d0" />
-      <rect x="30" y="39" width="4" height="11" rx="1.4" fill="#86efac" />
-      <rect x="38" y="35" width="4" height="15" rx="1.4" fill="#34d399" />
+      <rect x="24.5" y="52" width="4.5" height="9" rx="1.4" fill="#5eead4" />
+      <rect x="31" y="47.5" width="4.5" height="13.5" rx="1.4" fill="#7ddfd0" />
+      <rect x="37.5" y="42.5" width="4.5" height="18.5" rx="1.4" fill="#2dd4bf" />
     </svg>
   )
 }
