@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Users, Database, Download, Upload, Trash2, AlertTriangle, UserCircle, SlidersHorizontal } from 'lucide-react'
-import PeopleManager from '@/components/settings/PeopleManager'
+import { Database, Download, Upload, Trash2, AlertTriangle, UserCircle, SlidersHorizontal } from 'lucide-react'
 import AIProviderSetup from '@/components/settings/AIProviderSetup'
 import { exportAllData, importAllData } from '@/services/db'
 import { supabase } from '@/lib/supabase'
@@ -13,11 +12,10 @@ import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
-type Tab = 'profile' | 'people' | 'preferences' | 'data'
+type Tab = 'profile' | 'preferences' | 'data'
 
 const TABS = [
   { id: 'profile' as Tab,     label: 'Profile',     icon: UserCircle },
-  { id: 'people' as Tab,  label: 'People',             icon: Users },
   { id: 'preferences' as Tab, label: 'Preferences', icon: SlidersHorizontal },
   { id: 'data' as Tab,    label: 'Data & Backup',      icon: Database },
 ]
@@ -75,7 +73,6 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
-        {tab === 'people' && <PeopleManager />}
         {tab === 'preferences' && <AIProviderSetup />}
         {tab === 'data' && <DataBackup />}
       </div>

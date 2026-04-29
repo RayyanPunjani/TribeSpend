@@ -217,7 +217,7 @@ export default function CardRewardsManager() {
 
       {creditCards.length === 0 && (
         <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-500">
-          No credit cards configured. Add cards on the Cards page first.
+          No credit cards configured. Add cards in Wallet first.
         </div>
       )}
 

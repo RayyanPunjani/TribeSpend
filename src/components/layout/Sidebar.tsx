@@ -7,8 +7,7 @@ import {
   PackageOpen,
   Download,
   Settings,
-  Link2,
-  CreditCard,
+  Wallet,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -46,8 +45,7 @@ const NAV_SECTIONS = [
   {
     label: 'Account',
     items: [
-      { to: '/app/accounts', icon: Link2, label: 'Accounts' },
-      { to: '/app/cards', icon: CreditCard, label: 'Cards' },
+      { to: '/app/wallet', icon: Wallet, label: 'Wallet' },
       { to: '/app/billing', icon: Crown, label: 'Billing' },
       { to: '/app/settings', icon: Settings, label: 'Settings' },
     ],
