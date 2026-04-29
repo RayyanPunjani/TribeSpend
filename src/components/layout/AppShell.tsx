@@ -9,10 +9,8 @@ import UploadPage from '@/pages/UploadPage'
 import RecurringPage from '@/pages/RecurringPage'
 import ReimbursementsPage from '@/pages/ReimbursementsPage'
 import ReturnsPage from '@/pages/ReturnsPage'
-import ExportPage from '@/pages/ExportPage'
 import SettingsPage from '@/pages/SettingsPage'
 import WalletPage from '@/pages/WalletPage'
-import BillingPage from '@/pages/BillingPage'
 import OptimizePage from '@/pages/OptimizePage'
 import BudgetsPage from '@/pages/BudgetsPage'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -136,11 +134,11 @@ export default function AppShell() {
         <Route path="returns" element={<ReturnsPage />} />
         <Route path="budgets" element={<BudgetsPage />} />
         <Route path="optimize" element={<OptimizePage />} />
-        <Route path="export" element={<ExportPage />} />
+        <Route path="export" element={<Navigate to="/app/settings?tab=export" replace />} />
         <Route path="wallet" element={<WalletPage />} />
         <Route path="accounts" element={<Navigate to="/app/wallet" replace />} />
         <Route path="cards" element={<Navigate to="/app/wallet" replace />} />
-        <Route path="billing" element={<BillingPage />} />
+        <Route path="billing" element={<Navigate to="/app/settings?tab=billing" replace />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>

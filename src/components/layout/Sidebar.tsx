@@ -5,7 +5,6 @@ import {
   RefreshCw,
   DollarSign,
   PackageOpen,
-  Download,
   Settings,
   Wallet,
   ChevronLeft,
@@ -39,14 +38,12 @@ const NAV_SECTIONS = [
       { to: '/app/analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/app/budgets', icon: Target, label: 'Budgets' },
       { to: '/app/optimize', icon: BarChart3, label: 'Optimize' },
-      { to: '/app/export', icon: Download, label: 'Export' },
     ],
   },
   {
     label: 'Account',
     items: [
       { to: '/app/wallet', icon: Wallet, label: 'Wallet' },
-      { to: '/app/billing', icon: Crown, label: 'Billing' },
       { to: '/app/settings', icon: Settings, label: 'Settings' },
     ],
   },

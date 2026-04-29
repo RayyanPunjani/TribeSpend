@@ -1,28 +1,48 @@
-import { useState } from 'react'
-import { Database, Download, Upload, Trash2, AlertTriangle, UserCircle, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, SlidersHorizontal, DollarSign } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import AIProviderSetup from '@/components/settings/AIProviderSetup'
 import { exportAllData, importAllData } from '@/services/db'
+import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { getItems, disconnectItem } from '@/api/plaid'
-import { useTransactionStore } from '@/stores/transactionStore'
+import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
-type Tab = 'profile' | 'preferences' | 'data'
+type Tab = 'profile' | 'preferences' | 'billing' | 'export'
 
 const TABS = [
   { id: 'profile' as Tab,     label: 'Profile',     icon: UserCircle },
   { id: 'preferences' as Tab, label: 'Preferences', icon: SlidersHorizontal },
-  { id: 'data' as Tab,    label: 'Data & Backup',      icon: Database },
+  { id: 'billing' as Tab,     label: 'Billing',     icon: Crown },
+  { id: 'export' as Tab,      label: 'Export',      icon: Database },
 ]
 
+function isTab(value: string | null): value is Tab {
+  return value === 'profile' || value === 'preferences' || value === 'billing' || value === 'export'
+}
+
 export default function SettingsPage() {
-  const [tab, setTab] = useState<Tab>('profile')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const initialTab = isTab(tabParam) ? tabParam : 'profile'
+  const [tab, setTab] = useState<Tab>(initialTab)
   const { user, profile, householdId } = useAuth()
+
+  useEffect(() => {
+    const nextTab = searchParams.get('tab')
+    setTab(isTab(nextTab) ? nextTab : 'profile')
+  }, [searchParams])
+
+  const handleTabChange = (nextTab: Tab) => {
+    setTab(nextTab)
+    setSearchParams(nextTab === 'profile' ? {} : { tab: nextTab })
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -32,7 +52,7 @@ export default function SettingsPage() {
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => handleTabChange(id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
               tab === id
                 ? 'bg-white text-slate-800 shadow-sm'
@@ -74,8 +94,253 @@ export default function SettingsPage() {
           </div>
         )}
         {tab === 'preferences' && <AIProviderSetup />}
-        {tab === 'data' && <DataBackup />}
+        {tab === 'billing' && <BillingSettings />}
+        {tab === 'export' && <ExportSettings />}
       </div>
+    </div>
+  )
+}
+
+function isPremiumStatus(status?: string | null): boolean {
+  return status === 'active' || status === 'trialing'
+}
+
+function formatPeriodEnd(value?: string | null): string | null {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function BillingSettings() {
+  const { profile } = useAuth()
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const hasPremium = profile?.plaid_access_enabled === true || isPremiumStatus(profile?.subscription_status)
+  const statusLabel = profile?.subscription_status
+    ? profile.subscription_status.replace(/_/g, ' ')
+    : 'free'
+  const periodEnd = formatPeriodEnd(profile?.subscription_current_period_end)
+
+  const handleUpgrade = async () => {
+    setCheckoutLoading(true)
+    setError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('Please sign in again before upgrading.')
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Checkout is not configured. Missing Supabase settings.')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const checkoutData = await response.json().catch(() => ({})) as { url?: string; error?: string }
+      if (!response.ok) throw new Error(checkoutData.error || `Checkout failed (${response.status})`)
+      if (!checkoutData.url) throw new Error('Checkout session did not return a Stripe URL.')
+
+      window.location.href = checkoutData.url
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to start checkout.')
+      setCheckoutLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Billing</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Unlock automatic bank syncing with Premium — $4.99/month.
+          </p>
+        </div>
+        <span
+          className={`w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+            hasPremium
+              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+              : 'bg-slate-100 text-slate-600 border border-slate-200'
+          }`}
+        >
+          {hasPremium ? 'Premium' : statusLabel}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Subscription Status</p>
+          <p className="text-sm font-medium text-slate-800 mt-1 capitalize">{statusLabel}</p>
+        </div>
+        <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Plaid Access</p>
+          <p className="text-sm font-medium text-slate-800 mt-1">{profile?.plaid_access_enabled ? 'Enabled' : 'Not enabled'}</p>
+        </div>
+      </div>
+
+      {periodEnd && (
+        <p className="text-sm text-slate-500">
+          Current period ends <span className="font-medium text-slate-700">{periodEnd}</span>.
+        </p>
+      )}
+
+      {!hasPremium && (
+        <button
+          onClick={handleUpgrade}
+          disabled={checkoutLoading}
+          className="w-fit flex items-center justify-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-60"
+        >
+          {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {checkoutLoading ? 'Opening Checkout...' : 'Upgrade to Premium'}
+        </button>
+      )}
+
+      {hasPremium && (
+        <a
+          href="mailto:tribespend@gmail.com?subject=TribeSpend%20Billing%20Support"
+          className="w-fit flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+        >
+          Manage subscription
+        </a>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={14} className="shrink-0" />
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ExportSettings() {
+  const { transactions, filters } = useTransactionStore()
+  const { cards } = useCardStore()
+  const { persons } = usePersonStore()
+  const [dateStart, setDateStart] = useState('')
+  const [dateEnd, setDateEnd] = useState('')
+
+  const filteredTransactions = applyFilters(transactions, filters)
+  const rangeFiltered = transactions.filter((t) => {
+    if (dateStart && t.transDate < dateStart) return false
+    if (dateEnd && t.transDate > dateEnd) return false
+    return true
+  })
+
+  const exports = [
+    {
+      icon: <Table size={20} className="text-accent-600" />,
+      title: 'All Transactions (CSV)',
+      description: `Export all ${transactions.length} transactions as a CSV file`,
+      action: () => exportToCSV(transactions, cards, persons, 'tribespend-all.csv'),
+    },
+    {
+      icon: <FileText size={20} className="text-blue-600" />,
+      title: 'All Transactions (Excel)',
+      description: `Export all ${transactions.length} transactions as an Excel file`,
+      action: () => exportToExcel(transactions, cards, persons, 'tribespend-all.xlsx'),
+    },
+    {
+      icon: <Table size={20} className="text-green-600" />,
+      title: 'Current Filtered View (CSV)',
+      description: `Export the currently filtered view — ${filteredTransactions.length} transactions`,
+      action: () => exportToCSV(filteredTransactions, cards, persons, 'tribespend-filtered.csv'),
+    },
+    {
+      icon: <FileText size={20} className="text-purple-600" />,
+      title: 'Current Filtered View (Excel)',
+      description: `Export the currently filtered view — ${filteredTransactions.length} transactions`,
+      action: () => exportToExcel(filteredTransactions, cards, persons, 'tribespend-filtered.xlsx'),
+    },
+    {
+      icon: <DollarSign size={20} className="text-orange-600" />,
+      title: 'Reimbursement Report (Excel)',
+      description: 'Export a detailed reimbursement report grouped by person',
+      action: () => exportReimbursementReport(transactions, cards, persons),
+    },
+  ]
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-700">Export</h3>
+        <p className="text-sm text-slate-500 mt-1">
+          Download transaction reports or back up household data.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        {exports.map((exp, i) => (
+          <button
+            key={i}
+            onClick={exp.action}
+            disabled={transactions.length === 0}
+            className="flex items-center gap-4 border border-slate-200 rounded-xl px-5 py-4 hover:border-slate-300 hover:shadow-card transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">
+              {exp.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-800">{exp.title}</p>
+              <p className="text-xs text-slate-500">{exp.description}</p>
+            </div>
+            <Download size={15} className="text-slate-400 shrink-0" />
+          </button>
+        ))}
+      </div>
+
+      <div className="border border-slate-200 rounded-xl p-5 flex flex-col gap-4">
+        <h3 className="text-sm font-semibold text-slate-700">Export by Date Range</h3>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="block text-xs text-slate-500 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={dateStart}
+              onChange={(e) => setDateStart(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-slate-500 mb-1">End Date</label>
+            <input
+              type="date"
+              value={dateEnd}
+              onChange={(e) => setDateEnd(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => exportToCSV(rangeFiltered, cards, persons, 'tribespend-range.csv')}
+            disabled={rangeFiltered.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 disabled:opacity-50 transition-colors"
+          >
+            <Download size={14} /> CSV ({rangeFiltered.length})
+          </button>
+          <button
+            onClick={() => exportToExcel(rangeFiltered, cards, persons, 'tribespend-range.xlsx')}
+            disabled={rangeFiltered.length === 0}
+            className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            <Download size={14} /> Excel
+          </button>
+        </div>
+      </div>
+
+      <DataBackup />
     </div>
   )
 }
