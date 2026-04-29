@@ -8,7 +8,6 @@ import {
   PackageOpen,
   Download,
   Settings,
-  Home,
   ChevronLeft,
   ChevronRight,
   BarChart3,
@@ -19,6 +18,7 @@ import {
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTransactionStore } from '@/stores/transactionStore'
+import TribeSpendLogoIcon from '@/components/shared/TribeSpendLogoIcon'
 
 const NAV_ITEMS = [
   { to: '/app', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -50,9 +50,7 @@ export default function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5 border-b border-slate-700/50">
-        <div className="w-8 h-8 rounded-lg bg-accent-500 flex items-center justify-center shrink-0">
-          <Home className="w-4 h-4 text-white" />
-        </div>
+        <TribeSpendLogoIcon className="w-8 h-8 shrink-0 drop-shadow-sm" />
         {!collapsed && (
           <span className="font-bold text-base tracking-tight">
             <span className="text-accent-400">Tribe</span><span className="text-white">Spend</span>
