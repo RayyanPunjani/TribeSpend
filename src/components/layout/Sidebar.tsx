@@ -14,6 +14,7 @@ import {
   BarChart3,
   LogOut,
   Target,
+  Crown,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -34,6 +35,9 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const { signOut, profile } = useAuth()
+  const isPremium = profile?.plaid_access_enabled === true
+    || profile?.subscription_status === 'active'
+    || profile?.subscription_status === 'trialing'
   const pendingRefundReviews = useTransactionStore((s) =>
     s.transactions.filter((t) => t.refundReviewPending && !t.deleted).length,
   )
@@ -108,7 +112,20 @@ export default function Sidebar() {
           title="Sign out"
         >
           <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>{profile?.name || 'Sign out'}</span>}
+          {!collapsed && (
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="truncate">{profile?.name || 'Sign out'}</span>
+              {isPremium && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-300"
+                  title="Premium"
+                >
+                  <Crown size={10} className="shrink-0" />
+                  Premium
+                </span>
+              )}
+            </span>
+          )}
         </button>
 
         <button
