@@ -112,9 +112,11 @@ function formatPeriodEnd(value?: string | null): string | null {
 function BillingSettings() {
   const { profile } = useAuth()
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [portalLoading, setPortalLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const hasPremium = profile?.plaid_access_enabled === true || isPremiumStatus(profile?.subscription_status)
+  const canManageSubscription = hasPremium && !!profile?.stripe_customer_id
   const statusLabel = profile?.subscription_status
     ? profile.subscription_status.replace(/_/g, ' ')
     : 'free'
@@ -151,6 +153,40 @@ function BillingSettings() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start checkout.')
       setCheckoutLoading(false)
+    }
+  }
+
+  const handleManageSubscription = async () => {
+    setPortalLoading(true)
+    setError(null)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('Please sign in again before managing your subscription.')
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Billing portal is not configured. Missing Supabase settings.')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/create-portal-session`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const portalData = await response.json().catch(() => ({})) as { url?: string; error?: string }
+      if (!response.ok) throw new Error(portalData.error || `Billing portal failed (${response.status})`)
+      if (!portalData.url) throw new Error('Billing portal did not return a Stripe URL.')
+
+      window.location.href = portalData.url
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to open billing portal.')
+      setPortalLoading(false)
     }
   }
 
@@ -191,7 +227,7 @@ function BillingSettings() {
         </p>
       )}
 
-      {!hasPremium && (
+      {!canManageSubscription && (
         <button
           onClick={handleUpgrade}
           disabled={checkoutLoading}
@@ -202,13 +238,15 @@ function BillingSettings() {
         </button>
       )}
 
-      {hasPremium && (
-        <a
-          href="mailto:tribespend@gmail.com?subject=TribeSpend%20Billing%20Support"
+      {canManageSubscription && (
+        <button
+          onClick={handleManageSubscription}
+          disabled={portalLoading}
           className="w-fit flex items-center justify-center gap-2 px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
         >
-          Manage subscription
-        </a>
+          {portalLoading ? <Loader2 size={14} className="animate-spin" /> : <Crown size={14} />}
+          {portalLoading ? 'Opening Portal...' : 'Manage Subscription'}
+        </button>
       )}
 
       {error && (
