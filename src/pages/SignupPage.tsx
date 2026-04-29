@@ -9,15 +9,32 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [checkEmail, setCheckEmail] = useState(false)
+
+  const passwordChecks = [
+    { label: 'At least 8 characters', valid: password.length >= 8 },
+    { label: 'One uppercase letter', valid: /[A-Z]/.test(password) },
+    { label: 'One lowercase letter', valid: /[a-z]/.test(password) },
+    { label: 'One number', valid: /\d/.test(password) },
+    { label: 'One symbol', valid: /[^A-Za-z0-9]/.test(password) },
+  ]
+  const passwordsMatch = password.length > 0 && password === confirmPassword
+  const passwordIsValid = passwordChecks.every((check) => check.valid)
+  const canSubmit = Boolean(email && password && confirmPassword && passwordIsValid && passwordsMatch)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (!passwordIsValid) {
+      setError('Password does not meet the requirements.')
+      return
+    }
+    if (!passwordsMatch) {
+      setError('Passwords do not match.')
       return
     }
     setLoading(true)
@@ -33,8 +50,12 @@ export default function SignupPage() {
 
   const handleGoogle = async () => {
     setError('')
+    setGoogleLoading(true)
     const { error: err } = await signInWithGoogle()
-    if (err) setError(err.message)
+    if (err) {
+      setError(err.message)
+      setGoogleLoading(false)
+    }
   }
 
   if (checkEmail) {
@@ -81,8 +102,10 @@ export default function SignupPage() {
         {/* Google OAuth */}
         <button
           onClick={handleGoogle}
+          disabled={googleLoading || loading}
           className="w-full py-3 bg-white/5 border border-white/10 rounded-xl text-gray-100 text-sm font-medium
-                     flex items-center justify-center gap-2.5 hover:bg-white/10 transition-colors cursor-pointer"
+                     flex items-center justify-center gap-2.5 hover:bg-white/10 transition-colors cursor-pointer
+                     disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg width="18" height="18" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -90,7 +113,7 @@ export default function SignupPage() {
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
           </svg>
-          Continue with Google
+          {googleLoading ? 'Redirecting…' : 'Continue with Google'}
         </button>
 
         <div className="flex items-center gap-4 my-6">
@@ -133,15 +156,44 @@ export default function SignupPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 6 characters"
+            placeholder="Create a strong password"
             autoComplete="new-password"
             className="w-full px-3.5 py-3 bg-white/[0.04] border border-teal-500/[0.12] rounded-lg text-gray-100 text-sm
-                       placeholder-gray-600 outline-none focus:border-teal-500/40 transition-colors mb-4"
+                       placeholder-gray-600 outline-none focus:border-teal-500/40 transition-colors mb-2"
           />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 mb-4">
+            {passwordChecks.map((check) => (
+              <p
+                key={check.label}
+                className={`text-[11px] ${check.valid ? 'text-teal-300' : 'text-gray-500'}`}
+              >
+                {check.valid ? '✓' : '○'} {check.label}
+              </p>
+            ))}
+          </div>
+
+          <label className="block text-xs text-gray-400 font-medium mb-1.5">Confirm password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter your password"
+            autoComplete="new-password"
+            className="w-full px-3.5 py-3 bg-white/[0.04] border border-teal-500/[0.12] rounded-lg text-gray-100 text-sm
+                       placeholder-gray-600 outline-none focus:border-teal-500/40 transition-colors mb-2"
+          />
+          <p
+            className={`text-[11px] mb-4 ${
+              !confirmPassword ? 'text-gray-500' : passwordsMatch ? 'text-teal-300' : 'text-red-400'
+            }`}
+          >
+            {!confirmPassword ? 'Confirm your password.' : passwordsMatch ? '✓ Passwords match' : 'Passwords do not match'}
+          </p>
 
           <button
             type="submit"
-            disabled={loading || !email || !password}
+            disabled={loading || googleLoading || !canSubmit}
             className="w-full py-3 bg-teal-500 text-[#0a0e17] rounded-xl text-sm font-semibold
                        hover:bg-teal-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer mt-1"
           >
