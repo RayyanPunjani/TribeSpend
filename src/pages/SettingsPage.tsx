@@ -5,7 +5,7 @@ import { exportAllData, importAllData } from '@/services/db'
 import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { getItems, disconnectItem } from '@/api/plaid'
+import { getItems } from '@/api/plaid'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -343,7 +343,7 @@ function ExportSettings() {
 }
 
 function DataBackup() {
-  const { householdId } = useAuth()
+  const { householdId, signOut } = useAuth()
   const { transactions, load: loadTransactions } = useTransactionStore()
   const { load: loadCards } = useCardStore()
   const { load: loadPersons } = usePersonStore()
@@ -351,9 +351,10 @@ function DataBackup() {
   const { load: loadRewards } = useCardRewardStore()
   const { load: loadCredits } = useCardCreditStore()
   const [importing, setImporting] = useState(false)
-  const [dangerModal, setDangerModal] = useState<'transactions' | 'reset' | null>(null)
+  const [dangerModal, setDangerModal] = useState<'transactions' | 'account' | null>(null)
   const [confirmText, setConfirmText] = useState('')
   const [isWorking, setIsWorking] = useState(false)
+  const [dangerError, setDangerError] = useState<string | null>(null)
 
   const hid = householdId!
 
@@ -407,27 +408,71 @@ function DataBackup() {
     }
   }
 
-  const handleResetEverything = async () => {
+  const handleDeleteAccount = async () => {
     setIsWorking(true)
+    setDangerError(null)
     try {
+      let hadPlaidConnections = false
       try {
-        const items = await getItems()
-        await Promise.all(items.map((it) => disconnectItem(it.id).catch(() => {})))
+        hadPlaidConnections = (await getItems()).length > 0
       } catch {
-        // Server may not be running
+        // Non-premium users or offline Plaid server may not be able to list items.
       }
 
-      // Delete all household data from Supabase
-      const tables = [
-        'transactions', 'card_credits', 'card_reward_rules',
-        'category_rules', 'plaid_account_mappings', 'plaid_items',
-        'cards', 'people',
-      ]
-      for (const table of tables) {
-        await supabase.from(table).delete().eq('household_id', hid)
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('Please sign in again before deleting your account.')
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Account deletion is not configured. Missing Supabase settings.')
       }
+
+      const callDeleteFunction = async (phase: 'prepare' | 'finalize') => {
+        const response = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: supabaseAnonKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ phase }),
+        })
+
+        const result = await response.json().catch(() => ({})) as { error?: string }
+        if (!response.ok) {
+          throw new Error(result.error || 'Unable to delete account.')
+        }
+      }
+
+      await callDeleteFunction('prepare')
+
+      try {
+        const plaidCleanup = await fetch('/api/plaid/account-connections', {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!plaidCleanup.ok && hadPlaidConnections) {
+          throw new Error('Plaid cleanup failed')
+        }
+      } catch {
+        if (hadPlaidConnections) {
+          throw new Error("We couldn't remove your linked bank connections. Please try again or contact support.")
+        }
+      }
+
+      await callDeleteFunction('finalize')
+
       localStorage.removeItem('tribespend_settings')
-      window.location.reload()
+      await signOut()
+      window.location.href = '/login'
+    } catch (err) {
+      setDangerError(err instanceof Error ? err.message : 'Unable to delete account.')
     } finally {
       setIsWorking(false)
       setConfirmText('')
@@ -437,6 +482,7 @@ function DataBackup() {
   const closeModal = () => {
     setDangerModal(null)
     setConfirmText('')
+    setDangerError(null)
   }
 
   return (
@@ -494,17 +540,17 @@ function DataBackup() {
 
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-slate-800">Reset Everything</p>
+                <p className="text-sm font-medium text-slate-800">Delete Account</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Erase all data — transactions, cards, people, rules, and settings.
+                  Permanently deactivate your account, cancel active subscriptions, remove Plaid links, and delete app data.
                 </p>
               </div>
               <button
-                onClick={() => setDangerModal('reset')}
+                onClick={() => setDangerModal('account')}
                 className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
               >
                 <AlertTriangle size={13} />
-                Reset
+                Delete Account
               </button>
             </div>
           </div>
@@ -563,22 +609,40 @@ function DataBackup() {
                   <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
                     <AlertTriangle size={18} className="text-red-600" />
                   </div>
-                  <h3 className="text-base font-semibold text-slate-800">Reset Everything</h3>
+                  <h3 className="text-base font-semibold text-slate-800">Delete Account</h3>
+                </div>
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  This is permanent. If you have an active Stripe subscription, TribeSpend will cancel it first.
+                  If cancellation fails, account deletion will stop.
+                </div>
+                <div className="text-sm text-slate-500">
+                  <p className="mb-2">This will permanently delete or deactivate:</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>profile/account data</li>
+                    <li>transactions</li>
+                    <li>budgets</li>
+                    <li>recurring items</li>
+                    <li>reimbursements</li>
+                    <li>returns/refunds</li>
+                    <li>linked Plaid connections</li>
+                    <li>cards/payment methods</li>
+                  </ul>
                 </div>
                 <p className="text-sm text-slate-500">
-                  This will erase all data and reset TribeSpend to a fresh install.
-                  This cannot be undone.
-                </p>
-                <p className="text-sm text-slate-500">
-                  Type <strong className="text-slate-700 font-mono">RESET</strong> to confirm.
+                  Type <strong className="text-slate-700 font-mono">DELETE</strong> to confirm.
                 </p>
                 <input
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="RESET"
+                  placeholder="DELETE"
                   autoFocus
                   className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
                 />
+                {dangerError && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {dangerError}
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={closeModal}
@@ -587,11 +651,11 @@ function DataBackup() {
                     Cancel
                   </button>
                   <button
-                    onClick={handleResetEverything}
-                    disabled={confirmText !== 'RESET' || isWorking}
+                    onClick={handleDeleteAccount}
+                    disabled={confirmText !== 'DELETE' || isWorking}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-40 transition-colors"
                   >
-                    {isWorking ? 'Resetting…' : 'Reset Everything'}
+                    {isWorking ? 'Deleting…' : 'Delete Account'}
                   </button>
                 </div>
               </>

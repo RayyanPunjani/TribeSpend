@@ -25,6 +25,8 @@ export interface Profile {
   stripe_subscription_id?: string | null
   subscription_current_period_end?: string | null
   plaid_access_enabled?: boolean | null
+  account_status?: string | null
+  deleted_at?: string | null
 }
 
 export interface AuthContextType {
@@ -88,7 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('[Auth] Profile fetch error:', error.message, error.details, error.hint)
         return null
       }
-      return data as Profile | null
+      const profile = data as Profile | null
+      if (profile?.account_status === 'deleted' || profile?.deleted_at) {
+        console.warn('[Auth] Account profile is deactivated')
+        return null
+      }
+      return profile
     } catch (err) {
       console.warn('[Auth] Profile fetch exception:', err)
       return null

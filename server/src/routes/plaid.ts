@@ -10,10 +10,26 @@ import {
 } from '../plaidService'
 import { itemQueries, accountQueries } from '../db'
 import { syncItem } from '../syncService'
-import { getRequiredPlaidAuth, requirePremiumPlaid } from '../supabaseAuth'
+import { getPlaidAuthContext, getRequiredPlaidAuth, requirePremiumPlaid } from '../supabaseAuth'
 
 const router = Router()
 const MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD = 10
+
+async function removeStoredPlaidItem(itemId: string): Promise<boolean> {
+  const item = itemQueries.findById.get(itemId)
+  if (!item) return false
+
+  try {
+    const accessToken = decryptToken(item.access_token)
+    await removeItem(accessToken)
+  } catch (plaidErr) {
+    console.warn('[plaid] removeItem call failed during cleanup (proceeding with local delete):', plaidErr)
+  }
+
+  accountQueries.deleteByItem.run(itemId)
+  itemQueries.delete.run(itemId)
+  return true
+}
 
 function activeAccountCount(householdId: string): number {
   return accountQueries.countActiveByHousehold.get(householdId)?.count ?? 0
@@ -227,6 +243,28 @@ router.post('/sync', requirePremiumPlaid, async (req: Request, res: Response) =>
 
 // ── DELETE /api/plaid/items/:id ───────────────────────────────────────────────
 
+router.delete('/account-connections', async (req: Request, res: Response) => {
+  try {
+    const auth = await getPlaidAuthContext(req)
+    const items = itemQueries.findAllByHousehold.all(auth.householdId)
+    let removed = 0
+
+    for (const item of items) {
+      if (await removeStoredPlaidItem(item.id)) removed += 1
+    }
+
+    res.json({ success: true, removed })
+  } catch (err: any) {
+    const message = err instanceof Error ? err.message : 'Failed to remove Plaid connections'
+    if (message === 'Authentication required' || message === 'Profile not found') {
+      res.status(401).json({ error: message })
+      return
+    }
+    console.error('[plaid] account connection cleanup failed:', err)
+    res.status(500).json({ error: message })
+  }
+})
+
 router.delete('/items/:id', requirePremiumPlaid, async (req: Request, res: Response) => {
   const auth = getRequiredPlaidAuth(res)
   const { id } = req.params
@@ -241,18 +279,7 @@ router.delete('/items/:id', requirePremiumPlaid, async (req: Request, res: Respo
       return
     }
 
-    // Call Plaid to revoke access
-    try {
-      const accessToken = decryptToken(item.access_token)
-      await removeItem(accessToken)
-    } catch (plaidErr) {
-      // Log but don't fail — still remove from our DB
-      console.warn('[plaid] removeItem call failed (proceeding with local delete):', plaidErr)
-    }
-
-    // Clean up
-    accountQueries.deleteByItem.run(id)
-    itemQueries.delete.run(id)
+    await removeStoredPlaidItem(id)
 
     res.json({ success: true })
   } catch (err: any) {
