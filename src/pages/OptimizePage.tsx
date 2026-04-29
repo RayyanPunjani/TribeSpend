@@ -211,7 +211,7 @@ export default function OptimizePage() {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
 
-  const [expandedMissedReward, setExpandedMissedReward] = useState<number | null>(null)
+  const [missedRewardsExpanded, setMissedRewardsExpanded] = useState(false)
   const [expandedCreditCards, setExpandedCreditCards] = useState<Set<string>>(new Set())
 
   // Portal credits manually toggled — key: `${creditId}_${periodKey}`
@@ -299,6 +299,8 @@ export default function OptimizePage() {
 
     return { monthlyAverage, topHint }
   }, [missedRewards, totalMissed])
+
+  const visibleMissedRewards = missedRewardsExpanded ? missedRewards : missedRewards.slice(0, 5)
 
   // ── Section 2: Card Recommendations ───────────────────────────────────────
   const cardRecommendations = useMemo(() => {
@@ -453,69 +455,53 @@ export default function OptimizePage() {
             Great job! You're using your best cards for all categories (or no transactions found in the last 90 days).
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 overflow-hidden">
-            {missedRewards.map((r, i) => {
-              const expanded = expandedMissedReward === i
-              const rateDiff = r.bestRate - r.earnedRate
-              return (
-                <div key={`${r.date}-${r.merchant}-${i}`} className="bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedMissedReward(expanded ? null : i)}
-                    className="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-slate-50 transition-colors"
-                  >
-                    {expanded ? <ChevronDown size={15} className="text-slate-400 shrink-0" /> : <ChevronRight size={15} className="text-slate-400 shrink-0" />}
-                    <div className="flex-1 min-w-0">
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {visibleMissedRewards.map((r, i) => {
+                const rateDiff = r.bestRate - r.earnedRate
+                return (
+                  <div key={`${r.date}-${r.merchant}-${i}`} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-3 bg-white">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-sm font-medium text-slate-800 truncate">{r.merchant}</span>
                         <span className="text-xs text-slate-400 shrink-0">{r.date}</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{formatCurrency(r.amount)}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                        <span>{formatCurrency(r.amount)}</span>
+                        <span className="text-slate-300">·</span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.cardUsedColor }} />
+                          {r.cardUsed?.name ?? 'Unknown card'} {(r.earnedRate * 100).toFixed(1)}%
+                        </span>
+                        <span className="text-slate-300">→</span>
+                        <span className="inline-flex items-center gap-1 text-accent-700">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.bestCardColor }} />
+                          {r.bestCard?.name ?? 'Best card'} {(r.bestRate * 100).toFixed(1)}%
+                        </span>
+                        <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-orange-700">
+                          +{(rateDiff * 100).toFixed(1)} pts
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-sm font-semibold text-orange-600 shrink-0">
-                      +{formatCurrency(r.diff)} potential
+                    <span className="text-sm font-semibold text-orange-600 shrink-0 self-center">
+                      +{formatCurrency(r.diff)}
                     </span>
-                  </button>
+                  </div>
+                )
+              })}
+            </div>
 
-                  {expanded && (
-                    <div className="px-9 pb-4 pt-1 bg-slate-50/70">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
-                          <p className="text-xs text-slate-400 mb-1">Original card used</p>
-                          <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.cardUsedColor }} />
-                            <span className="font-medium text-slate-700">{r.cardUsed?.name ?? 'Unknown card'}</span>
-                            <span className="ml-auto text-xs text-slate-500">{(r.earnedRate * 100).toFixed(1)}%</span>
-                          </div>
-                        </div>
-
-                        <div className="rounded-lg bg-white border border-slate-100 px-3 py-2">
-                          <p className="text-xs text-slate-400 mb-1">Recommended card</p>
-                          <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: r.bestCardColor }} />
-                            <span className="font-medium text-slate-700">{r.bestCard?.name ?? 'Unknown card'}</span>
-                            <span className="ml-auto text-xs text-accent-600 font-semibold">{(r.bestRate * 100).toFixed(1)}%</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 text-xs">
-                        <span className="px-2 py-1 rounded-full bg-orange-100 text-orange-700 w-fit">
-                          +{(rateDiff * 100).toFixed(1)} pts reward difference
-                        </span>
-                        <span className="text-slate-500">
-                          {r.bestCard?.name ?? 'Recommended card'} gives {(r.bestRate * 100).toFixed(1)}% here, compared with {(r.earnedRate * 100).toFixed(1)}% on {r.cardUsed?.name ?? 'the card used'}.
-                        </span>
-                      </div>
-
-                      <div className="mt-2 text-xs text-slate-500">
-                        Earned {formatCurrency(r.earned)} · Potential {formatCurrency(r.potential)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+            {missedRewards.length > 5 && (
+              <div className="border-t border-slate-100 bg-slate-50 px-3 py-3 text-center">
+                <button
+                  type="button"
+                  onClick={() => setMissedRewardsExpanded((expanded) => !expanded)}
+                  className="text-sm font-medium text-accent-700 hover:text-accent-800"
+                >
+                  {missedRewardsExpanded ? 'Show less' : 'Show all missed rewards'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
