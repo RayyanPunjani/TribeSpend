@@ -89,6 +89,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-slate-800 mt-1 truncate">{householdId || 'Not loaded'}</p>
               </div>
             </div>
+            <DangerZone />
           </div>
         )}
         {tab === 'billing' && <BillingSettings />}
@@ -381,18 +382,14 @@ function ExportSettings() {
 }
 
 function DataBackup() {
-  const { householdId, signOut } = useAuth()
-  const { transactions, load: loadTransactions } = useTransactionStore()
+  const { householdId } = useAuth()
+  const { load: loadTransactions } = useTransactionStore()
   const { load: loadCards } = useCardStore()
   const { load: loadPersons } = usePersonStore()
   const { load: loadRules } = useCategoryRuleStore()
   const { load: loadRewards } = useCardRewardStore()
   const { load: loadCredits } = useCardCreditStore()
   const [importing, setImporting] = useState(false)
-  const [dangerModal, setDangerModal] = useState<'transactions' | 'account' | null>(null)
-  const [confirmText, setConfirmText] = useState('')
-  const [isWorking, setIsWorking] = useState(false)
-  const [dangerError, setDangerError] = useState<string | null>(null)
 
   const hid = householdId!
 
@@ -433,6 +430,47 @@ function DataBackup() {
     reader.readAsText(file)
     e.target.value = ''
   }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h3 className="text-sm font-semibold text-slate-700">Data Backup & Restore</h3>
+      <p className="text-sm text-slate-500">
+        All data is stored securely in the cloud. Export a backup regularly
+        as an extra precaution.
+      </p>
+
+      <div className="flex gap-3">
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2.5 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors"
+        >
+          <Download size={15} />
+          Export All Data
+        </button>
+
+        <label className={`flex items-center gap-2 px-4 py-2.5 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer ${importing ? 'opacity-50' : ''}`}>
+          <Upload size={15} />
+          {importing ? 'Importing...' : 'Import Backup'}
+          <input type="file" accept=".json" className="hidden" onChange={handleImport} disabled={importing} />
+        </label>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
+        Importing a backup will merge with existing data. It will not delete existing records.
+      </div>
+    </div>
+  )
+}
+
+function DangerZone() {
+  const { householdId, signOut } = useAuth()
+  const { transactions, load: loadTransactions } = useTransactionStore()
+  const [dangerModal, setDangerModal] = useState<'transactions' | 'account' | null>(null)
+  const [confirmText, setConfirmText] = useState('')
+  const [isWorking, setIsWorking] = useState(false)
+  const [dangerError, setDangerError] = useState<string | null>(null)
+
+  const hid = householdId!
 
   const handleDeleteTransactions = async () => {
     setIsWorking(true)
@@ -525,77 +563,47 @@ function DataBackup() {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
-        <h3 className="text-sm font-semibold text-slate-700">Data Backup & Restore</h3>
-        <p className="text-sm text-slate-500">
-          All data is stored securely in the cloud. Export a backup regularly
-          as an extra precaution.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-4 py-2.5 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors"
-          >
-            <Download size={15} />
-            Export All Data
-          </button>
-
-          <label className={`flex items-center gap-2 px-4 py-2.5 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors cursor-pointer ${importing ? 'opacity-50' : ''}`}>
-            <Upload size={15} />
-            {importing ? 'Importing...' : 'Import Backup'}
-            <input type="file" accept=".json" className="hidden" onChange={handleImport} disabled={importing} />
-          </label>
+      <div className="mt-4 rounded-xl border border-red-200 overflow-hidden">
+        <div className="bg-red-50 px-4 py-2.5 border-b border-red-100">
+          <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Danger Zone</span>
         </div>
-
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          Importing a backup will merge with existing data. It will not delete existing records.
-        </div>
-
-        {/* ── Danger Zone ────────────────────────────────────────────────────── */}
-        <div className="mt-4 rounded-xl border border-red-200 overflow-hidden">
-          <div className="bg-red-50 px-4 py-2.5 border-b border-red-100">
-            <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Danger Zone</span>
+        <div className="p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-800">Delete All Transactions</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Remove all {transactions.length} transactions. Cards, people, and category rules are kept.
+              </p>
+            </div>
+            <button
+              onClick={() => setDangerModal('transactions')}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={13} />
+              Delete
+            </button>
           </div>
-          <div className="p-4 flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-800">Delete All Transactions</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Remove all {transactions.length} transactions. Cards, people, and category rules are kept.
-                </p>
-              </div>
-              <button
-                onClick={() => setDangerModal('transactions')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={13} />
-                Delete
-              </button>
-            </div>
 
-            <div className="border-t border-red-100" />
+          <div className="border-t border-red-100" />
 
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium text-slate-800">Delete Account</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Permanently deactivate your account, cancel active subscriptions, remove Plaid links, and delete app data.
-                </p>
-              </div>
-              <button
-                onClick={() => setDangerModal('account')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
-              >
-                <AlertTriangle size={13} />
-                Delete Account
-              </button>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-slate-800">Delete Account</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Permanently deactivate your account, cancel active subscriptions, remove Plaid links, and delete app data.
+              </p>
             </div>
+            <button
+              onClick={() => setDangerModal('account')}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            >
+              <AlertTriangle size={13} />
+              Delete Account
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── Confirmation modals ──────────────────────────────────────────────── */}
       {dangerModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
