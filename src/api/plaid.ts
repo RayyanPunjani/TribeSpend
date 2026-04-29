@@ -1,12 +1,13 @@
 /**
- * Frontend API client for the TribeSpend server's Plaid endpoints.
- * All calls go to /api/plaid/* which Vite proxies to localhost:3001 in dev.
+ * Frontend API client for Plaid endpoints.
+ * In dev, calls go to /api/plaid/* which Vite proxies to localhost:3001.
+ * In production, calls go to the Netlify Function deployed with the app.
  */
 
 import type { Transaction } from '@/types'
 import { supabase } from '@/lib/supabase'
 
-const BASE = '/api/plaid'
+const BASE = import.meta.env.DEV ? '/api/plaid' : '/.netlify/functions/plaid'
 const PREMIUM_REQUIRED_MESSAGE = 'Premium subscription required for Plaid access.'
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -116,10 +117,15 @@ export async function disconnectItem(id: string): Promise<{ success: boolean }> 
   return del(`/items/${id}`)
 }
 
+/** Remove all Plaid account connections for the current household */
+export async function removeAllPlaidConnections(): Promise<{ success: boolean; removed: number }> {
+  return del('/account-connections')
+}
+
 /** Check if the server is reachable */
 export async function checkServerHealth(): Promise<boolean> {
   try {
-    const res = await fetch('/api/health', { signal: AbortSignal.timeout(2000) })
+    const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) })
     return res.ok
   } catch {
     return false

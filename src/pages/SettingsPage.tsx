@@ -5,7 +5,7 @@ import { exportAllData, importAllData } from '@/services/db'
 import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
-import { getItems } from '@/api/plaid'
+import { getItems, removeAllPlaidConnections } from '@/api/plaid'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -528,17 +528,7 @@ function DangerZone() {
       await callDeleteFunction('prepare')
 
       try {
-        const plaidCleanup = await fetch('/api/plaid/account-connections', {
-          method: 'DELETE',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (!plaidCleanup.ok && hadPlaidConnections) {
-          throw new Error('Plaid cleanup failed')
-        }
+        await removeAllPlaidConnections()
       } catch {
         if (hadPlaidConnections) {
           throw new Error("We couldn't remove your linked bank connections. Please try again or contact support.")

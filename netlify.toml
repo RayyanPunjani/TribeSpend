@@ -1,7 +1,16 @@
 [[redirects]]
+  from = "/api/plaid/*"
+  to = "/.netlify/functions/plaid/:splat"
+  status = 200
+  force = true
 
+[[redirects]]
+  from = "/api/health"
+  to = "/.netlify/functions/plaid/health"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
-
   to = "/index.html"
-
   status = 200
