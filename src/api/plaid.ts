@@ -4,36 +4,44 @@
  */
 
 import type { Transaction } from '@/types'
+import { supabase } from '@/lib/supabase'
 
 const BASE = '/api/plaid'
+const PREMIUM_REQUIRED_MESSAGE = 'Premium subscription required for Plaid access.'
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || `Request failed: ${res.status}`)
+    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
   }
   return res.json()
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+  const res = await fetch(`${BASE}${path}`, { headers: await authHeaders() })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || `Request failed: ${res.status}`)
+    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
   }
   return res.json()
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE' })
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: await authHeaders() })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || `Request failed: ${res.status}`)
+    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
   }
   return res.json()
 }

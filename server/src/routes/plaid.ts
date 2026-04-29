@@ -8,16 +8,38 @@ import {
   encryptToken,
   decryptToken,
 } from '../plaidService'
-import { itemQueries, accountQueries, syncedIdQueries } from '../db'
+import { itemQueries, accountQueries } from '../db'
 import { syncItem } from '../syncService'
+import { getRequiredPlaidAuth, requirePremiumPlaid } from '../supabaseAuth'
 
 const router = Router()
+const MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD = 10
+
+function activeAccountCount(householdId: string): number {
+  return accountQueries.countActiveByHousehold.get(householdId)?.count ?? 0
+}
+
+function activeConnectionCount(householdId: string): number {
+  return itemQueries.countActiveByHousehold.get(householdId)?.count ?? 0
+}
+
+function hasConnectionCapacity(householdId: string, additionalAccounts = 0, additionalConnections = 0): boolean {
+  const withinAccountLimit = activeAccountCount(householdId) + additionalAccounts <= MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD
+  const withinConnectionLimit = activeConnectionCount(householdId) + additionalConnections <= MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD
+  return withinAccountLimit && withinConnectionLimit
+}
 
 // ── POST /api/plaid/create-link-token ─────────────────────────────────────────
 
-router.post('/create-link-token', async (_req: Request, res: Response) => {
+router.post('/create-link-token', requirePremiumPlaid, async (_req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
+  if (!hasConnectionCapacity(auth.householdId)) {
+    res.status(403).json({ error: `Plaid account limit reached. Maximum ${MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD} active accounts per household.` })
+    return
+  }
+
   try {
-    const linkToken = await createLinkToken()
+    const linkToken = await createLinkToken(auth.userId)
     res.json({ link_token: linkToken })
   } catch (err: any) {
     console.error('[plaid] create-link-token error:', err?.response?.data || err)
@@ -28,8 +50,9 @@ router.post('/create-link-token', async (_req: Request, res: Response) => {
 // ── POST /api/plaid/exchange-token ────────────────────────────────────────────
 // Body: { public_token, institution: { name, institution_id }, accounts: [...] }
 
-router.post('/exchange-token', async (req: Request, res: Response) => {
-  const { public_token, institution, accounts: metaAccounts } = req.body
+router.post('/exchange-token', requirePremiumPlaid, async (req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
+  const { public_token, institution } = req.body
   if (!public_token) {
     res.status(400).json({ error: 'public_token required' })
     return
@@ -38,19 +61,29 @@ router.post('/exchange-token', async (req: Request, res: Response) => {
   try {
     const { accessToken, itemId } = await exchangePublicToken(public_token)
     const encryptedToken = encryptToken(accessToken)
+    const plaidAccounts = await getAccounts(accessToken)
+
+    if (!hasConnectionCapacity(auth.householdId, plaidAccounts.length, 1)) {
+      try {
+        await removeItem(accessToken)
+      } catch (removeErr) {
+        console.warn('[plaid] removeItem after limit check failed:', removeErr)
+      }
+      res.status(403).json({ error: `Plaid account limit reached. Maximum ${MAX_PLAID_ACCOUNTS_PER_HOUSEHOLD} active accounts per household.` })
+      return
+    }
 
     // Persist item
     const itemRowId = uuidv4()
     itemQueries.insert.run(
       itemRowId,
+      auth.userId,
+      auth.householdId,
       encryptedToken,
       itemId,
       institution?.institution_id ?? null,
       institution?.name ?? null,
     )
-
-    // Fetch full account list from Plaid
-    const plaidAccounts = await getAccounts(accessToken)
 
     // Persist account rows
     for (const acct of plaidAccounts) {
@@ -88,7 +121,8 @@ router.post('/exchange-token', async (req: Request, res: Response) => {
 // Body: { mappings: [{ plaidAccountId, cardId }] }
 // Saves the frontend IndexedDB card IDs → Plaid account IDs
 
-router.post('/accounts/map', (req: Request, res: Response) => {
+router.post('/accounts/map', requirePremiumPlaid, (req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
   const { mappings } = req.body as {
     mappings: Array<{ plaidAccountId: string; cardId: string }>
   }
@@ -98,7 +132,7 @@ router.post('/accounts/map', (req: Request, res: Response) => {
   }
   try {
     for (const { plaidAccountId, cardId } of mappings) {
-      accountQueries.setCardId.run(cardId, plaidAccountId)
+      accountQueries.setCardIdForHousehold.run(cardId, plaidAccountId, auth.householdId)
     }
     res.json({ success: true })
   } catch (err: any) {
@@ -109,9 +143,10 @@ router.post('/accounts/map', (req: Request, res: Response) => {
 
 // ── GET /api/plaid/items ──────────────────────────────────────────────────────
 
-router.get('/items', (_req: Request, res: Response) => {
+router.get('/items', requirePremiumPlaid, (_req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
   try {
-    const items = itemQueries.findAll.all()
+    const items = itemQueries.findAllByHousehold.all(auth.householdId)
     const result = items.map((item) => {
       const accounts = accountQueries.findByItem.all(item.id)
       return {
@@ -142,10 +177,17 @@ router.get('/items', (_req: Request, res: Response) => {
 // ── POST /api/plaid/sync ──────────────────────────────────────────────────────
 // Body (optional): { itemId } — if omitted, syncs all items
 
-router.post('/sync', async (req: Request, res: Response) => {
+router.post('/sync', requirePremiumPlaid, async (req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
   const { itemId } = req.body as { itemId?: string }
   try {
     if (itemId) {
+      const item = itemQueries.findById.get(itemId)
+      if (!item || (item.household_id && item.household_id !== auth.householdId)) {
+        res.status(404).json({ error: 'Item not found' })
+        return
+      }
+
       const result = await syncItem(itemId)
       res.json({
         transactions: result.added,
@@ -154,7 +196,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       })
     } else {
       // Sync all items
-      const items = itemQueries.findAll.all()
+      const items = itemQueries.findAllByHousehold.all(auth.householdId)
       const allAdded: any[] = []
       const allRemoved: string[] = []
       const errors: Array<{ itemId: string; error: string }> = []
@@ -185,11 +227,16 @@ router.post('/sync', async (req: Request, res: Response) => {
 
 // ── DELETE /api/plaid/items/:id ───────────────────────────────────────────────
 
-router.delete('/items/:id', async (req: Request, res: Response) => {
+router.delete('/items/:id', requirePremiumPlaid, async (req: Request, res: Response) => {
+  const auth = getRequiredPlaidAuth(res)
   const { id } = req.params
   try {
     const item = itemQueries.findById.get(id)
     if (!item) {
+      res.status(404).json({ error: 'Item not found' })
+      return
+    }
+    if (item.household_id && item.household_id !== auth.householdId) {
       res.status(404).json({ error: 'Item not found' })
       return
     }

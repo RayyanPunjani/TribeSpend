@@ -14,6 +14,8 @@ db.pragma('foreign_keys = ON')
 db.exec(`
   CREATE TABLE IF NOT EXISTS plaid_items (
     id TEXT PRIMARY KEY,
+    user_id TEXT,
+    household_id TEXT,
     access_token TEXT NOT NULL,
     item_id TEXT NOT NULL UNIQUE,
     institution_id TEXT,
@@ -44,10 +46,22 @@ db.exec(`
   );
 `)
 
+function ensureColumn(table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  }
+}
+
+ensureColumn('plaid_items', 'user_id', 'TEXT')
+ensureColumn('plaid_items', 'household_id', 'TEXT')
+
 // ── Typed row interfaces ──────────────────────────────────────────────────────
 
 export interface PlaidItemRow {
   id: string
+  user_id: string | null
+  household_id: string | null
   access_token: string
   item_id: string
   institution_id: string | null
@@ -74,13 +88,25 @@ export interface PlaidAccountRow {
 // ── Query helpers ─────────────────────────────────────────────────────────────
 
 export const itemQueries = {
-  insert: db.prepare<[string, string, string, string | null, string | null]>(`
-    INSERT INTO plaid_items (id, access_token, item_id, institution_id, institution_name)
-    VALUES (?, ?, ?, ?, ?)
+  insert: db.prepare<[string, string, string, string, string, string | null, string | null]>(`
+    INSERT INTO plaid_items (id, user_id, household_id, access_token, item_id, institution_id, institution_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `),
 
   findAll: db.prepare<[], PlaidItemRow>(`
     SELECT * FROM plaid_items WHERE status = 'active' ORDER BY created_at DESC
+  `),
+
+  findAllByHousehold: db.prepare<[string], PlaidItemRow>(`
+    SELECT * FROM plaid_items
+    WHERE status = 'active' AND (household_id = ? OR household_id IS NULL)
+    ORDER BY created_at DESC
+  `),
+
+  countActiveByHousehold: db.prepare<[string], { count: number }>(`
+    SELECT COUNT(*) AS count
+    FROM plaid_items
+    WHERE status = 'active' AND (household_id = ? OR household_id IS NULL)
   `),
 
   findById: db.prepare<[string], PlaidItemRow>(`
@@ -120,6 +146,22 @@ export const accountQueries = {
 
   setCardId: db.prepare<[string, string], void>(`
     UPDATE plaid_accounts SET card_id = ? WHERE plaid_account_id = ?
+  `),
+
+  setCardIdForHousehold: db.prepare<[string, string, string], void>(`
+    UPDATE plaid_accounts
+    SET card_id = ?
+    WHERE plaid_account_id = ?
+      AND plaid_item_id IN (
+        SELECT id FROM plaid_items WHERE household_id = ? OR household_id IS NULL
+      )
+  `),
+
+  countActiveByHousehold: db.prepare<[string], { count: number }>(`
+    SELECT COUNT(*) AS count
+    FROM plaid_accounts a
+    JOIN plaid_items i ON i.id = a.plaid_item_id
+    WHERE i.status = 'active' AND (i.household_id = ? OR i.household_id IS NULL)
   `),
 
   deleteByItem: db.prepare<[string], void>(`

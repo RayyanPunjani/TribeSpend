@@ -438,15 +438,10 @@ export default function PlaidManager() {
     setCheckoutLoading(true)
     setError(null)
     try {
-      const {
-  data: { session },
-} = await supabase.auth.getSession()
+      const { data: sessionData } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('Please sign in again before upgrading.')
 
-const accessToken = session?.access_token
-
-if (!accessToken) {
-  throw new Error('Please sign in again before upgrading.')
-}
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
       if (!supabaseUrl || !supabaseAnonKey) {
@@ -462,11 +457,11 @@ if (!accessToken) {
         },
       })
 
-      const data = await response.json().catch(() => ({})) as { url?: string; error?: string }
-      if (!response.ok) throw new Error(data.error || `Checkout failed (${response.status})`)
-      if (!data.url) throw new Error('Checkout session did not return a Stripe URL.')
+      const checkoutData = await response.json().catch(() => ({})) as { url?: string; error?: string }
+      if (!response.ok) throw new Error(checkoutData.error || `Checkout failed (${response.status})`)
+      if (!checkoutData.url) throw new Error('Checkout session did not return a Stripe URL.')
 
-      window.location.href = data.url
+      window.location.href = checkoutData.url
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to start checkout.')
       setCheckoutLoading(false)
@@ -546,10 +541,10 @@ if (!accessToken) {
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-800">
-                Unlock automatic bank syncing with Premium — $4.99/month
+                Automatic bank syncing is a Premium feature
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Connect bank accounts through Plaid for automatic transaction syncing and spending insights.
+                Unlock automatic bank syncing with Premium — $4.99/month
               </p>
             </div>
           </div>
