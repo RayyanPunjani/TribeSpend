@@ -246,6 +246,45 @@ function mapPlaidCategory(category) {
   return PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary] || 'Miscellaneous'
 }
 
+function transactionToRow(transaction, householdId) {
+  return {
+    id: transaction.id,
+    household_id: householdId,
+    trans_date: transaction.transDate,
+    post_date: transaction.postDate,
+    description: transaction.description,
+    clean_description: transaction.cleanDescription,
+    amount: transaction.amount,
+    category: transaction.category,
+    card_id: transaction.cardId || null,
+    cardholder_name: transaction.cardholderName || '',
+    person_id: null,
+    is_payment: transaction.isPayment,
+    is_credit: transaction.isCredit,
+    is_balance_payment: transaction.isBalancePayment,
+    statement_id: transaction.statementId,
+    reimbursement_status: transaction.reimbursementStatus,
+    reimbursement_amount: null,
+    reimbursement_to: null,
+    reimbursement_paid: transaction.reimbursementPaid ? 1 : 0,
+    expected_return_status: null,
+    expected_return_amount: null,
+    expected_return_note: null,
+    is_recurring: false,
+    recurring_auto_detected: false,
+    recurring_dismissed: false,
+    spend_type: 'personal',
+    notes: null,
+    is_manual_entry: false,
+    is_deleted: false,
+    source: 'plaid',
+    plaid_transaction_id: transaction.plaidTransactionId,
+    refund_for_id: transaction.refundForId,
+    has_refund: transaction.hasRefund,
+    refund_review_pending: transaction.refundReviewPending,
+  }
+}
+
 async function removePlaidItem(supabase, item) {
   try {
     const accessToken = decryptToken(item.access_token_encrypted)
@@ -396,6 +435,22 @@ async function syncItem(supabase, item) {
     cursor = data.next_cursor
     nextCursor = data.next_cursor
     hasMore = data.has_more === true
+  }
+
+  if (added.length > 0) {
+    const rows = added.map((transaction) => transactionToRow(transaction, item.household_id))
+    const { error: insertError } = await supabase.from('transactions').insert(rows)
+    if (insertError) {
+      console.error('[plaid] Failed to insert synced transactions:', {
+        message: insertError.message,
+        code: insertError.code,
+        details: insertError.details,
+        hint: insertError.hint,
+      })
+      const error = new Error(insertError.message || 'Failed to insert synced transactions')
+      error.details = insertError
+      throw error
+    }
   }
 
   if (nextCursor) {

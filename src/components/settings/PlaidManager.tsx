@@ -366,7 +366,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
 // ── Main PlaidManager component ───────────────────────────────────────────────
 
 export default function PlaidManager() {
-  const { addMany: addTransactions, transactions: existingTxns, updateMany } = useTransactionStore()
+  const { load: loadTransactions, updateMany } = useTransactionStore()
   const { householdId, profile, session } = useAuth()
   const { cards } = useCardStore()
   const hasPlaidAccess = profile?.plaid_access_enabled === true
@@ -502,22 +502,13 @@ export default function PlaidManager() {
 
     try {
       const result = await syncTransactions(itemId)
+      const syncedCount = result.transactions.length
 
-      // Duplicate detection: filter out transactions already in IndexedDB
-      const newTxns = result.transactions.filter((incoming) => {
-        return !existingTxns.some((existing) => {
-          if (existing.plaidTransactionId === incoming.plaidTransactionId) return true
-          const dateDiff = Math.abs(
-            new Date(existing.transDate).getTime() - new Date(incoming.transDate).getTime(),
-          )
-          const sameAmount = Math.abs(existing.amount - incoming.amount) < 0.01
-          const dayDiff = dateDiff / (1000 * 60 * 60 * 24)
-          return dayDiff <= 1 && sameAmount
-        })
-      })
+      if (householdId) {
+        await loadTransactions(householdId)
+      }
 
-      if (newTxns.length > 0) {
-        await addTransactions(householdId!, newTxns)
+      if (syncedCount > 0) {
         // Auto-detect recurring charges on the updated transaction set (non-blocking)
         const { transactions: allTxns } = useTransactionStore.getState()
         runRecurringDetector(allTxns, updateMany).catch(() => {/* non-blocking */})
@@ -525,7 +516,7 @@ export default function PlaidManager() {
 
       setSyncStatus((prev) => ({
         ...prev,
-        [key]: newTxns.length > 0 ? `+${newTxns.length} transactions` : 'Up to date',
+        [key]: syncedCount > 0 ? `+${syncedCount} transactions` : 'Up to date',
       }))
       await loadItems()
     } catch (err: any) {
