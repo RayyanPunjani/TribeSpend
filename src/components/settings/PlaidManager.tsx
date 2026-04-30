@@ -680,21 +680,6 @@ export default function PlaidManager() {
               {syncStatus['__all__'] || 'Sync All'}
             </button>
           )}
-          {items.length > 0 && (
-            <button
-              onClick={() => handleSync(undefined, true)}
-              disabled={syncingItems.has('__all__')}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-500 rounded-xl text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-              title="Reset Plaid cursors and re-check historical transactions without creating duplicates"
-            >
-              {syncingItems.has('__all__') ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <RefreshCw size={12} />
-              )}
-              Full Resync
-            </button>
-          )}
           <button
             onClick={handleLinkAccount}
             disabled={loadingLink}
@@ -768,15 +753,6 @@ export default function PlaidManager() {
                   >
                     {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
                     {status || 'Sync'}
-                  </button>
-
-                  <button
-                    onClick={() => handleSync(item.id, true)}
-                    disabled={syncing}
-                    className="px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-50 transition-colors"
-                    title="Reset this institution cursor and re-check historical transactions"
-                  >
-                    Full Resync
                   </button>
 
                   {/* Disconnect */}
