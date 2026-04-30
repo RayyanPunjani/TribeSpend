@@ -127,7 +127,7 @@ export default function RecurringPage() {
   }
 
   const recurring = useMemo(
-    () => transactions.filter((t) => t.isRecurring && !t.isPayment && !t.isCredit),
+    () => transactions.filter((t) => t.isRecurring && !t.isPayment && !t.isCredit && !t.deleted),
     [transactions],
   )
 

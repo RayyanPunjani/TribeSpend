@@ -11,9 +11,14 @@ export default function ExportPage() {
   const { persons } = usePersonStore()
   const [dateStart, setDateStart] = useState('')
   const [dateEnd, setDateEnd] = useState('')
+  const [includeHidden, setIncludeHidden] = useState(false)
 
-  const filteredTransactions = applyFilters(transactions, filters)
-  const rangeFiltered = transactions.filter((t) => {
+  const exportTransactions = includeHidden ? transactions : transactions.filter((t) => !t.deleted)
+  const filteredTransactions = applyFilters(exportTransactions, {
+    ...filters,
+    showDeleted: includeHidden || filters.showDeleted,
+  })
+  const rangeFiltered = exportTransactions.filter((t) => {
     if (dateStart && t.transDate < dateStart) return false
     if (dateEnd && t.transDate > dateEnd) return false
     return true
@@ -23,14 +28,14 @@ export default function ExportPage() {
     {
       icon: <Table size={20} className="text-accent-600" />,
       title: 'All Transactions (CSV)',
-      description: `Export all ${transactions.length} transactions as a CSV file`,
-      action: () => exportToCSV(transactions, cards, persons, 'tribespend-all.csv'),
+      description: `Export ${exportTransactions.length} transaction${exportTransactions.length !== 1 ? 's' : ''} as a CSV file`,
+      action: () => exportToCSV(exportTransactions, cards, persons, 'tribespend-all.csv'),
     },
     {
       icon: <FileText size={20} className="text-blue-600" />,
       title: 'All Transactions (Excel)',
-      description: `Export all ${transactions.length} transactions as an Excel file`,
-      action: () => exportToExcel(transactions, cards, persons, 'tribespend-all.xlsx'),
+      description: `Export ${exportTransactions.length} transaction${exportTransactions.length !== 1 ? 's' : ''} as an Excel file`,
+      action: () => exportToExcel(exportTransactions, cards, persons, 'tribespend-all.xlsx'),
     },
     {
       icon: <Table size={20} className="text-green-600" />,
@@ -48,7 +53,7 @@ export default function ExportPage() {
       icon: <DollarSign size={20} className="text-orange-600" />,
       title: 'Reimbursement Report (Excel)',
       description: 'Export a detailed reimbursement report grouped by person',
-      action: () => exportReimbursementReport(transactions, cards, persons),
+      action: () => exportReimbursementReport(exportTransactions, cards, persons),
     },
   ]
 
@@ -61,13 +66,23 @@ export default function ExportPage() {
         </p>
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={includeHidden}
+          onChange={(e) => setIncludeHidden(e.target.checked)}
+          className="rounded border-slate-300 text-accent-600"
+        />
+        Include hidden transactions
+      </label>
+
       {/* Quick exports */}
       <div className="flex flex-col gap-3">
         {exports.map((exp, i) => (
           <button
             key={i}
             onClick={exp.action}
-            disabled={transactions.length === 0}
+            disabled={exportTransactions.length === 0}
             className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl px-5 py-4 hover:border-slate-300 hover:shadow-card transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0">

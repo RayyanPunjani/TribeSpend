@@ -108,7 +108,7 @@ export default function TransactionsPage() {
   )
 
   const needsReviewCount = useMemo(
-    () => transactions.filter((t) => t.category === 'Needs Review' && !t.isPayment).length,
+    () => transactions.filter((t) => t.category === 'Needs Review' && !t.isPayment && !t.deleted).length,
     [transactions],
   )
 
@@ -116,6 +116,7 @@ export default function TransactionsPage() {
     let totalSpend = 0
     let totalReimbursable = 0
     for (const t of filtered) {
+      if (t.deleted) continue
       if (!t.isPayment && !t.isCredit) {
         totalSpend += t.amount
         if (t.reimbursementStatus !== 'none' && !t.reimbursementPaid) {

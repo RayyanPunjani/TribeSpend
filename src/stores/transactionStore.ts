@@ -226,15 +226,19 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
   },
 
   remove: async (id) => {
-    const { error } = await supabase.from('transactions').delete().eq('id', id)
-    if (error) { console.error('Failed to remove transaction:', error); return }
-    set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }))
+    const { error } = await supabase.from('transactions').update({ is_deleted: true }).eq('id', id)
+    if (error) { console.error('Failed to hide transaction:', error); return }
+    set((s) => ({
+      transactions: s.transactions.map((t) => (t.id === id ? { ...t, deleted: true } : t)),
+    }))
   },
 
   removeByStatement: async (statementId) => {
-    const { error } = await supabase.from('transactions').delete().eq('statement_id', statementId)
-    if (error) { console.error('Failed to remove by statement:', error); return }
-    set((s) => ({ transactions: s.transactions.filter((t) => t.statementId !== statementId) }))
+    const { error } = await supabase.from('transactions').update({ is_deleted: true }).eq('statement_id', statementId)
+    if (error) { console.error('Failed to hide by statement:', error); return }
+    set((s) => ({
+      transactions: s.transactions.map((t) => (t.statementId === statementId ? { ...t, deleted: true } : t)),
+    }))
   },
 
   setFilters: (partial) => set((s) => ({ filters: { ...s.filters, ...partial } })),

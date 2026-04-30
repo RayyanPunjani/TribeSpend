@@ -139,9 +139,15 @@ export default function FilterBar() {
                 onChange={(e) => setFilters({ showDeleted: e.target.checked })}
                 className="rounded border-slate-300 text-accent-600"
               />
-              Show deleted
+              Show hidden transactions
             </label>
           </div>
+
+          {filters.showDeleted && (
+            <p className="text-xs text-slate-500">
+              Hidden transactions stay saved but do not count toward totals.
+            </p>
+          )}
 
           {/* Cards grouped by person */}
           {persons.length > 0 && (

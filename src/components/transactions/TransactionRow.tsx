@@ -1,7 +1,7 @@
 import { useState, useRef, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { DollarSign, RefreshCw, StickyNote, AlertCircle, Trash2, PackageOpen, Undo2 } from 'lucide-react'
+import { DollarSign, RefreshCw, StickyNote, AlertCircle, EyeOff, PackageOpen, Undo2 } from 'lucide-react'
 import type { Transaction, CreditCard, Person } from '@/types'
 import { formatDate, formatAmount } from '@/utils/formatters'
 import { hexToRgba } from '@/utils/colors'
@@ -27,7 +27,7 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
   const [showRuleModal, setShowRuleModal] = useState(false)
   const [pendingCategory, setPendingCategory] = useState<string | null>(null)
   const [noteText, setNoteText] = useState(t.notes ?? '')
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showHideConfirm, setShowHideConfirm] = useState(false)
 
   const reimbBtnRef = useRef<HTMLButtonElement>(null)
   const returnBtnRef = useRef<HTMLButtonElement>(null)
@@ -62,17 +62,17 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
     closeAll()
   }
 
-  const handleDelete = async () => {
+  const handleHide = async () => {
     await update(t.id, { deleted: true })
-    setShowDeleteConfirm(false)
+    setShowHideConfirm(false)
   }
 
-  const handleUndoDelete = async () => {
+  const handleUnhide = async () => {
     await update(t.id, { deleted: false })
   }
 
   const isNeedsReview = t.category === 'Needs Review'
-  const textClass = t.deleted ? 'line-through opacity-40' : ''
+  const textClass = t.deleted ? 'opacity-45 grayscale' : ''
   const linkedRefundOriginal = t.refundForId
     ? transactions.find((tx) => tx.id === t.refundForId)
     : undefined
@@ -196,25 +196,25 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
         {/* Actions */}
         <td className="px-4 py-2.5">
           {t.deleted ? (
-            <Tooltip text="Undo Delete" side="bottom">
+            <Tooltip text="Unhide transaction" side="bottom">
               <button
-                onClick={handleUndoDelete}
+                onClick={handleUnhide}
                 className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
               >
-                <Undo2 size={13} /> Undo
+                <Undo2 size={13} /> Unhide
               </button>
             </Tooltip>
-          ) : showDeleteConfirm ? (
+          ) : showHideConfirm ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Delete?</span>
+              <span className="text-xs text-slate-500">Hide?</span>
               <button
-                onClick={handleDelete}
-                className="text-xs text-red-600 font-medium hover:text-red-700"
+                onClick={handleHide}
+                className="text-xs text-slate-700 font-medium hover:text-slate-900"
               >
                 Yes
               </button>
               <button
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => setShowHideConfirm(false)}
                 className="text-xs text-slate-400 hover:text-slate-600"
               >
                 No
@@ -296,13 +296,13 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
                 </button>
               </Tooltip>
 
-              {/* Delete */}
-              <Tooltip text="Delete Transaction">
+              {/* Hide */}
+              <Tooltip text="Hide transaction">
                 <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="text-slate-300 hover:text-red-400 transition-colors"
+                  onClick={() => setShowHideConfirm(true)}
+                  className="text-slate-300 hover:text-slate-500 transition-colors"
                 >
-                  <Trash2 size={14} />
+                  <EyeOff size={14} />
                 </button>
               </Tooltip>
             </div>
