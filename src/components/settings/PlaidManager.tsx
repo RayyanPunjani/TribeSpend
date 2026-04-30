@@ -3,7 +3,7 @@ import { usePlaidLink } from 'react-plaid-link'
 import { Link } from 'react-router-dom'
 import {
   Link2, RefreshCw, Trash2, CheckCircle, AlertCircle,
-  Loader2, Building2, CreditCard, ChevronDown, ChevronUp, UserPlus, Sparkles,
+  Loader2, Building2, CreditCard, ChevronDown, ChevronUp, UserPlus, Sparkles, Pencil, Check, X,
 } from 'lucide-react'
 import {
   createLinkToken,
@@ -366,7 +366,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
 // ── Main PlaidManager component ───────────────────────────────────────────────
 
 export default function PlaidManager() {
-  const { load: loadTransactions, updateMany } = useTransactionStore()
+  const { load: loadTransactions, transactions, updateMany } = useTransactionStore()
   const { householdId, profile, session } = useAuth()
   const { cards } = useCardStore()
   const hasPlaidAccess = profile?.plaid_access_enabled === true
@@ -385,6 +385,10 @@ export default function PlaidManager() {
   const [loadingLink, setLoadingLink] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
+  const [mappingDraftCardId, setMappingDraftCardId] = useState('')
+  const [savingMappingId, setSavingMappingId] = useState<string | null>(null)
 
   // Check server health on mount
   useEffect(() => {
@@ -494,14 +498,15 @@ export default function PlaidManager() {
     await loadItems()
   }
 
-  const handleSync = async (itemId?: string) => {
+  const handleSync = async (itemId?: string, fullResync = false) => {
     const key = itemId ?? '__all__'
     setSyncingItems((prev) => new Set(prev).add(key))
-    setSyncStatus((prev) => ({ ...prev, [key]: 'syncing' }))
+    const shouldFullResync = fullResync || transactions.filter((t) => !t.deleted).length === 0
+    setSyncStatus((prev) => ({ ...prev, [key]: shouldFullResync ? 'full resyncing' : 'syncing' }))
     setError(null)
 
     try {
-      const result = await syncTransactions(itemId)
+      const result = await syncTransactions(itemId, { fullResync: shouldFullResync })
       const syncedCount = result.transactions.length
 
       if (householdId) {
@@ -539,6 +544,45 @@ export default function PlaidManager() {
       setItems((prev) => prev.filter((item) => item.id !== id))
     } catch (err: any) {
       setError(err.message)
+    }
+  }
+
+  const startMappingEdit = (account: PlaidAccount) => {
+    setEditingAccountId(account.plaidAccountId)
+    setMappingDraftCardId(account.cardId ?? '')
+    setError(null)
+    setSuccessMessage(null)
+  }
+
+  const cancelMappingEdit = () => {
+    setEditingAccountId(null)
+    setMappingDraftCardId('')
+  }
+
+  const handleSaveMapping = async (plaidAccountId: string) => {
+    const nextCardId = mappingDraftCardId || null
+    setSavingMappingId(plaidAccountId)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      await mapAccounts([{ plaidAccountId, cardId: nextCardId }])
+      setItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          accounts: item.accounts.map((account) =>
+            account.plaidAccountId === plaidAccountId
+              ? { ...account, cardId: nextCardId }
+              : account,
+          ),
+        })),
+      )
+      setSuccessMessage(nextCardId ? 'Account mapping updated.' : 'Account set to unmapped.')
+      cancelMappingEdit()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update account mapping.')
+    } finally {
+      setSavingMappingId(null)
     }
   }
 
@@ -636,6 +680,21 @@ export default function PlaidManager() {
               {syncStatus['__all__'] || 'Sync All'}
             </button>
           )}
+          {items.length > 0 && (
+            <button
+              onClick={() => handleSync(undefined, true)}
+              disabled={syncingItems.has('__all__')}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-slate-500 rounded-xl text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+              title="Reset Plaid cursors and re-check historical transactions without creating duplicates"
+            >
+              {syncingItems.has('__all__') ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <RefreshCw size={12} />
+              )}
+              Full Resync
+            </button>
+          )}
           <button
             onClick={handleLinkAccount}
             disabled={loadingLink}
@@ -655,6 +714,13 @@ export default function PlaidManager() {
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
           <AlertCircle size={14} className="shrink-0" />
           {error}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+          <CheckCircle size={14} className="shrink-0" />
+          {successMessage}
         </div>
       )}
 
@@ -704,6 +770,15 @@ export default function PlaidManager() {
                     {status || 'Sync'}
                   </button>
 
+                  <button
+                    onClick={() => handleSync(item.id, true)}
+                    disabled={syncing}
+                    className="px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-50 transition-colors"
+                    title="Reset this institution cursor and re-check historical transactions"
+                  >
+                    Full Resync
+                  </button>
+
                   {/* Disconnect */}
                   <button
                     onClick={() => handleDisconnect(item.id)}
@@ -736,8 +811,10 @@ export default function PlaidManager() {
                       const card = acct.cardId
                         ? cards.find((c) => c.id === acct.cardId)
                         : null
+                      const isEditing = editingAccountId === acct.plaidAccountId
+                      const isSavingMapping = savingMappingId === acct.plaidAccountId
                       return (
-                        <div key={acct.plaidAccountId} className="flex items-center gap-3 px-4 py-2.5">
+                        <div key={acct.plaidAccountId} className="flex flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:gap-3">
                           {card ? (
                             <span
                               className="w-2.5 h-2.5 rounded-full shrink-0"
@@ -753,9 +830,56 @@ export default function PlaidManager() {
                             </p>
                             <p className="text-xs text-slate-400 capitalize">
                               {acct.subtype || acct.type}
-                              {card && ` · ${card.name}`}
+                              {' · '}
+                              {card ? (
+                                <span className="font-medium text-slate-500">{card.name}</span>
+                              ) : (
+                                <span className="font-medium text-amber-600">Unmapped</span>
+                              )}
                             </p>
                           </div>
+                          {isEditing ? (
+                            <div className="flex w-full items-center gap-2 sm:w-auto">
+                              <select
+                                value={mappingDraftCardId}
+                                onChange={(e) => setMappingDraftCardId(e.target.value)}
+                                disabled={isSavingMapping}
+                                className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-500 sm:w-56"
+                              >
+                                <option value="">No card / Unmapped</option>
+                                {cards.map((availableCard) => (
+                                  <option key={availableCard.id} value={availableCard.id}>
+                                    {availableCard.name}
+                                    {availableCard.lastFour ? ` ···${availableCard.lastFour}` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleSaveMapping(acct.plaidAccountId)}
+                                disabled={isSavingMapping}
+                                className="rounded-lg p-1.5 text-accent-600 hover:bg-accent-50 disabled:opacity-50"
+                                title="Save mapping"
+                              >
+                                {isSavingMapping ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                              </button>
+                              <button
+                                onClick={cancelMappingEdit}
+                                disabled={isSavingMapping}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
+                                title="Cancel"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startMappingEdit(acct)}
+                              className="self-start rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 sm:self-auto"
+                              title="Edit mapped card"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
                         </div>
                       )
                     })}

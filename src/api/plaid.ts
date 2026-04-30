@@ -122,7 +122,7 @@ export async function exchangeToken(
 
 /** Save frontend card IDs → Plaid account IDs mapping */
 export async function mapAccounts(
-  mappings: Array<{ plaidAccountId: string; cardId: string }>,
+  mappings: Array<{ plaidAccountId: string; cardId: string | null }>,
 ): Promise<{ success: boolean }> {
   return post('/accounts/map', { mappings })
 }
@@ -133,8 +133,14 @@ export async function getItems(): Promise<PlaidItem[]> {
 }
 
 /** Sync new transactions. Pass itemId to sync one institution, omit for all. */
-export async function syncTransactions(itemId?: string): Promise<SyncResult> {
-  return post('/sync', itemId ? { itemId } : {})
+export async function syncTransactions(
+  itemId?: string,
+  options: { fullResync?: boolean } = {},
+): Promise<SyncResult> {
+  return post('/sync', {
+    ...(itemId ? { itemId } : {}),
+    ...(options.fullResync ? { fullResync: true } : {}),
+  })
 }
 
 /** Disconnect a linked institution */

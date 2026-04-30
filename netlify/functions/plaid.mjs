@@ -580,6 +580,25 @@ async function handleRoute(event) {
       if (items.length === 0) return json(404, { error: 'Item not found' })
     }
 
+    if (body.fullResync === true && items.length > 0) {
+      const itemIds = items.map((item) => item.id)
+      const { error: cursorError } = await auth.supabase
+        .from('plaid_items')
+        .update({ cursor: null })
+        .eq('household_id', auth.householdId)
+        .in('id', itemIds)
+      if (cursorError) {
+        console.error('[plaid] Failed to reset cursor for full resync:', {
+          message: cursorError.message,
+          code: cursorError.code,
+          details: cursorError.details,
+          hint: cursorError.hint,
+        })
+        throw cursorError
+      }
+      items = items.map((item) => ({ ...item, cursor: null }))
+    }
+
     for (const item of items) {
       try {
         const result = await syncItem(auth.supabase, item)
