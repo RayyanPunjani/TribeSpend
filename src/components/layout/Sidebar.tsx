@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
-  LogOut,
   Target,
   Crown,
   Mail,
@@ -51,8 +50,7 @@ const NAV_SECTIONS = [
 
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const { signOut, profile } = useAuth()
+  const { profile } = useAuth()
   const isPremium = profile?.plaid_access_enabled === true
     || profile?.subscription_status === 'active'
     || profile?.subscription_status === 'trialing'
@@ -139,12 +137,17 @@ export default function Sidebar() {
 
       {/* User + Collapse */}
       <div className="px-2 pb-4 flex flex-col gap-1 border-t border-slate-700/50 pt-3">
-        <div className="relative">
-          <button
-            onClick={() => setUserMenuOpen((open) => !open)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200 transition-colors text-sm ${
+        <NavLink
+          to="/app/settings"
+          className={({ isActive }) =>
+            `relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm ${
               collapsed ? 'justify-center' : ''
-            }`}
+            } ${
+              isActive
+                ? 'bg-accent-700/40 text-accent-300'
+                : 'text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200'
+            }`
+          }
             title={profile?.name || 'Account'}
           >
             <UserCircle size={18} className="shrink-0" />
@@ -159,55 +162,14 @@ export default function Sidebar() {
                 )}
               </span>
             )}
-            {!collapsed && (
-              <ChevronRight
-                size={14}
-                className={`shrink-0 text-slate-500 transition-transform ${userMenuOpen ? 'rotate-90' : ''}`}
-              />
-            )}
             {collapsed && isPremium && (
               <span className="absolute right-1.5 top-1.5 w-2 h-2 rounded-full bg-amber-300" title="Premium" />
             )}
-          </button>
-
-          {userMenuOpen && (
-            <div
-              className={`absolute bottom-full mb-2 rounded-xl border border-slate-700 bg-[#111827] shadow-xl overflow-hidden ${
-                collapsed ? 'left-2 w-44' : 'left-0 right-0'
-              }`}
-            >
-              <NavLink
-                to="/app/settings"
-                onClick={() => setUserMenuOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
-                    isActive
-                      ? 'text-accent-300 bg-accent-700/30'
-                      : 'text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200'
-                  }`
-                }
-              >
-                <Settings size={15} />
-                Settings
-              </NavLink>
-              <button
-                onClick={() => {
-                  setUserMenuOpen(false)
-                  void signOut()
-                }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-sidebar-text hover:bg-red-500/20 hover:text-red-300 transition-colors"
-              >
-                <LogOut size={15} />
-                Log out
-              </button>
-            </div>
-          )}
-        </div>
+          </NavLink>
 
         <button
           onClick={() => {
             setCollapsed((c) => !c)
-            setUserMenuOpen(false)
           }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200 transition-colors text-sm"
         >

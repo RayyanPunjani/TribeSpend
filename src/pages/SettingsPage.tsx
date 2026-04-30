@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, AlertTriangle, Crown, Database, Download, FileText, Loader2, Sparkles, Table, Trash2, Upload, UserCircle, DollarSign, Tags } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { AlertCircle, AlertTriangle, CheckCircle, Crown, Database, Download, FileText, KeyRound, Loader2, LogOut, Sparkles, Table, Trash2, Upload, UserCircle, DollarSign, Tags } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { exportAllData, importAllData } from '@/services/db'
 import { exportToCSV, exportToExcel, exportReimbursementReport } from '@/services/exportService'
 import { supabase } from '@/lib/supabase'
@@ -29,6 +29,7 @@ function isTab(value: string | null): value is Tab {
 
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const tabParam = searchParams.get('tab')
   const initialTab = isTab(tabParam) ? tabParam : 'profile'
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -91,6 +92,7 @@ export default function SettingsPage() {
                 <p className="text-sm font-medium text-slate-800 mt-1 truncate">{householdId || 'Not loaded'}</p>
               </div>
             </div>
+            <AccountSection onLoggedOut={() => navigate('/login', { replace: true })} />
             <DangerZone />
           </div>
         )}
@@ -111,6 +113,101 @@ function formatPeriodEnd(value?: string | null): string | null {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return null
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function AccountSection({ onLoggedOut }: { onLoggedOut: () => void }) {
+  const { user, signOut } = useAuth()
+  const [resetLoading, setResetLoading] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleChangePassword = async () => {
+    setResetLoading(true)
+    setMessage(null)
+    setError(null)
+    try {
+      if (!user?.email) throw new Error('No account email is available for password reset.')
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (resetError) throw resetError
+      setMessage('Password reset email sent. Check your inbox for the next step.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to send password reset email.')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const handleLogOut = async () => {
+    setLogoutLoading(true)
+    setMessage(null)
+    setError(null)
+    try {
+      await signOut()
+      onLoggedOut()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to log out.')
+      setLogoutLoading(false)
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-100">
+        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Account</span>
+      </div>
+      <div className="p-4 flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Change Password</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Send a secure password reset link to {user?.email || 'your account email'}.
+            </p>
+          </div>
+          <button
+            onClick={handleChangePassword}
+            disabled={resetLoading}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-60 transition-colors"
+          >
+            {resetLoading ? <Loader2 size={13} className="animate-spin" /> : <KeyRound size={13} />}
+            {resetLoading ? 'Sending...' : 'Change Password'}
+          </button>
+        </div>
+
+        <div className="border-t border-slate-100" />
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-800">Log Out</p>
+            <p className="text-xs text-slate-500 mt-0.5">Sign out of TribeSpend on this device.</p>
+          </div>
+          <button
+            onClick={handleLogOut}
+            disabled={logoutLoading}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-60 transition-colors"
+          >
+            {logoutLoading ? <Loader2 size={13} className="animate-spin" /> : <LogOut size={13} />}
+            {logoutLoading ? 'Logging out...' : 'Log Out'}
+          </button>
+        </div>
+
+        {message && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-sm text-green-700">
+            <CheckCircle size={14} className="shrink-0" />
+            {message}
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-sm text-red-700">
+            <AlertCircle size={14} className="shrink-0" />
+            {error}
+          </div>
+        )}
+      </div>
+    </section>
+  )
 }
 
 function BillingSettings() {
