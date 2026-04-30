@@ -10,41 +10,66 @@ import { supabase } from '@/lib/supabase'
 const BASE = import.meta.env.DEV ? '/api/plaid' : '/.netlify/functions/plaid'
 const PREMIUM_REQUIRED_MESSAGE = 'Premium subscription required for Plaid access.'
 
-async function authHeaders(): Promise<Record<string, string>> {
-  const { data } = await supabase.auth.getSession()
+async function plaidHeaders(hasBody = false): Promise<Record<string, string>> {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw new Error(error.message)
+
   const token = data.session?.access_token
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  if (!token) throw new Error('Please sign in again before connecting Plaid.')
+
+  return {
+    ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+    Authorization: `Bearer ${token}`,
+  }
+}
+
+async function parseResponse<T>(res: Response): Promise<T> {
+  const text = await res.text()
+  const contentType = res.headers.get('content-type') ?? ''
+  const isJson = contentType.includes('application/json')
+
+  let parsed: { error?: string; details?: string } | T | null = null
+  if (text && isJson) {
+    try {
+      parsed = JSON.parse(text) as { error?: string; details?: string } | T
+    } catch {
+      throw new Error(`Plaid request returned invalid JSON (${res.status}).`)
+    }
+  }
+
+  if (!res.ok) {
+    if (parsed && typeof parsed === 'object' && 'error' in parsed && parsed.error) {
+      throw new Error(parsed.error)
+    }
+    const fallback = res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Plaid request failed (${res.status})`
+    throw new Error(text && !isJson ? `${fallback}: ${text.slice(0, 200)}` : fallback)
+  }
+
+  if (!text) return undefined as T
+  if (!isJson) {
+    throw new Error(`Plaid request returned non-JSON response (${res.status}): ${text.slice(0, 200)}`)
+  }
+  return parsed as T
 }
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
+  const hasBody = body !== undefined
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: await plaidHeaders(hasBody),
+    body: hasBody ? JSON.stringify(body) : undefined,
   })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
-  }
-  return res.json()
+  return parseResponse<T>(res)
 }
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: await authHeaders() })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
-  }
-  return res.json()
+  const res = await fetch(`${BASE}${path}`, { headers: await plaidHeaders() })
+  return parseResponse<T>(res)
 }
 
 async function del<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: await authHeaders() })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || (res.status === 403 ? PREMIUM_REQUIRED_MESSAGE : `Request failed: ${res.status}`))
-  }
-  return res.json()
+  const res = await fetch(`${BASE}${path}`, { method: 'DELETE', headers: await plaidHeaders() })
+  return parseResponse<T>(res)
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -125,8 +150,14 @@ export async function removeAllPlaidConnections(): Promise<{ success: boolean; r
 /** Check if the server is reachable */
 export async function checkServerHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) })
-    return res.ok
+    const healthUrl = import.meta.env.DEV ? '/api/health' : `${BASE}/health`
+    const res = await fetch(healthUrl, {
+      headers: await plaidHeaders(),
+      signal: AbortSignal.timeout(2000),
+    })
+    if (!res.ok) return false
+    await parseResponse<unknown>(res)
+    return true
   } catch {
     return false
   }
