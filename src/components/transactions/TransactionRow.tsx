@@ -73,6 +73,7 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
 
   const isNeedsReview = t.category === 'Needs Review'
   const textClass = t.deleted ? 'opacity-45 grayscale' : ''
+  const hasDistinctPostDate = Boolean(t.postDate) && t.postDate !== t.transDate
   const linkedRefundOriginal = t.refundForId
     ? transactions.find((tx) => tx.id === t.refundForId)
     : undefined
@@ -87,9 +88,24 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
       >
         {/* Date */}
         <td className={`px-4 py-2.5 whitespace-nowrap ${textClass}`}>
-          <div>
-            <p className="text-sm font-medium text-slate-800">{formatDate(t.transDate, 'MMM d')}</p>
-            <p className="text-xs text-slate-400">{formatDate(t.postDate, 'MMM d')}</p>
+          <div className="flex flex-col gap-1">
+            {hasDistinctPostDate ? (
+              <>
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{formatDate(t.postDate, 'MMM d')}</p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Posted</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500">{formatDate(t.transDate, 'MMM d')}</p>
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Purchased</p>
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className="text-sm font-medium text-slate-800">{formatDate(t.transDate, 'MMM d')}</p>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Purchased</p>
+              </div>
+            )}
           </div>
         </td>
 
