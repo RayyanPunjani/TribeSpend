@@ -54,6 +54,7 @@ export const useCardStore = create<CardState>((set, get) => ({
       .from('cards')
       .select('*')
       .eq('household_id', householdId)
+      .order('created_at', { ascending: false })
     if (error) { console.error('Failed to load cards:', error); return }
     set({ cards: (data || []).map(fromRow), loaded: true })
   },
@@ -67,7 +68,7 @@ export const useCardStore = create<CardState>((set, get) => ({
     }
     const { error } = await supabase.from('cards').insert(toRow(newCard, householdId))
     if (error) { console.error('Failed to add card:', error); throw error }
-    set((s) => ({ cards: [...s.cards, newCard] }))
+    set((s) => ({ cards: [newCard, ...s.cards] }))
     return newCard
   },
 

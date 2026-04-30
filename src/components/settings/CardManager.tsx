@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Plus, Trash2, CreditCard, Wallet, Pencil, Info } from 'lucide-react'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -35,6 +35,10 @@ export default function CardManager() {
   const [showing, setShowing] = useState(false)
   const [form, setForm] = useState<CardFormData>({ ...emptyForm })
   const [selectedTemplate, setSelectedTemplate] = useState<PresetCardTemplate | null>(null)
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null)
+  const creditCardsTopRef = useRef<HTMLDivElement | null>(null)
+  const paymentMethodsTopRef = useRef<HTMLDivElement | null>(null)
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Edit card
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -46,6 +50,21 @@ export default function CardManager() {
   const [showingPaymentMethod, setShowingPaymentMethod] = useState(false)
   const [pmName, setPmName] = useState('')
   const [pmColor, setPmColor] = useState('#6b7280')
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    }
+  }, [])
+
+  const highlightNewCard = (cardId: string, target: RefObject<HTMLDivElement | null>) => {
+    setHighlightedCardId(cardId)
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    highlightTimerRef.current = setTimeout(() => setHighlightedCardId(null), 2200)
+    requestAnimationFrame(() => {
+      target.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   const handleAdd = async () => {
     if (!form.lastFour || !form.owner) return
@@ -73,6 +92,7 @@ export default function CardManager() {
     setForm({ ...emptyForm })
     setSelectedTemplate(null)
     setShowing(false)
+    highlightNewCard(card.id, creditCardsTopRef)
   }
 
   const startEdit = (cardId: string) => {
@@ -136,7 +156,7 @@ export default function CardManager() {
 
   const handleAddPaymentMethod = async () => {
     if (!pmName.trim()) return
-    await addCard(hid, {
+    const paymentMethod = await addCard(hid, {
       name: pmName.trim(),
       issuer: 'Other',
       cardType: 'Payment Method',
@@ -149,6 +169,7 @@ export default function CardManager() {
     setPmName('')
     setPmColor('#6b7280')
     setShowingPaymentMethod(false)
+    highlightNewCard(paymentMethod.id, paymentMethodsTopRef)
   }
 
   const creditCards = cards.filter((c) => !c.isPaymentMethod)
@@ -173,6 +194,7 @@ export default function CardManager() {
           Add at least one person in the <span className="font-medium">People</span> tab before adding cards.
         </p>
       )}
+      <div ref={creditCardsTopRef} />
       <div className="mb-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
         <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
         <p>
@@ -215,7 +237,9 @@ export default function CardManager() {
           return (
             <div
               key={card.id}
-              className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white"
+              className={`flex items-center gap-3 p-3 rounded-xl border bg-white transition-all duration-700 ${
+                highlightedCardId === card.id ? 'border-accent-300 shadow-[0_0_0_3px_rgba(20,184,166,0.16)]' : 'border-slate-200'
+              }`}
               style={{ borderLeftColor: card.color, borderLeftWidth: 3 }}
             >
               <div
@@ -278,6 +302,7 @@ export default function CardManager() {
 
       {/* ── Other Payment Methods ── */}
       <div className="mt-6 pt-5 border-t border-slate-200">
+        <div ref={paymentMethodsTopRef} />
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Other Payment Methods</h3>
@@ -295,7 +320,9 @@ export default function CardManager() {
           {paymentMethods.map((pm) => (
             <div
               key={pm.id}
-              className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white"
+              className={`flex items-center gap-3 p-3 rounded-xl border bg-white transition-all duration-700 ${
+                highlightedCardId === pm.id ? 'border-accent-300 shadow-[0_0_0_3px_rgba(20,184,166,0.16)]' : 'border-slate-200'
+              }`}
               style={{ borderLeftColor: pm.color, borderLeftWidth: 3 }}
             >
               <div
