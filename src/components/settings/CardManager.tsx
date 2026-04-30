@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trash2, CreditCard, Wallet, Pencil } from 'lucide-react'
+import { Plus, Trash2, CreditCard, Wallet, Pencil, Info } from 'lucide-react'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
@@ -173,6 +173,19 @@ export default function CardManager() {
           Add at least one person in the <span className="font-medium">People</span> tab before adding cards.
         </p>
       )}
+      <div className="mb-3 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <Info size={14} className="mt-0.5 shrink-0 text-slate-400" />
+        <p>
+          Don&apos;t see your card?{' '}
+          <a
+            href="mailto:tribespend@gmail.com?subject=Missing%20Card%20Request"
+            className="font-medium text-accent-600 hover:text-accent-700"
+          >
+            Send us a quick email
+          </a>{' '}
+          and we&apos;ll work on getting it added.
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2">
         {creditCards.map((card) => {
