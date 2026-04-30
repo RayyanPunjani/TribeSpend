@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Target, Plus, Pencil, Trash2, AlertTriangle, Check, X, ChevronDown, Mail, Loader2,
 } from 'lucide-react'
-import { useBudgetStore } from '@/stores/budgetStore'
+import { BUDGET_LIMIT_ERROR, MAX_BUDGETS_PER_HOUSEHOLD, useBudgetStore } from '@/stores/budgetStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { useAuth } from '@/contexts/AuthContext'
@@ -478,7 +478,7 @@ function BudgetCard({
 export default function BudgetsPage() {
   const { householdId } = useAuth()
   const hid = householdId!
-  const { add: addBudget, update: updateBudget, remove: removeBudget } = useBudgetStore()
+  const { budgets, add: addBudget, update: updateBudget, remove: removeBudget } = useBudgetStore()
   const { persons } = usePersonStore()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
   const statuses = useBudgetStatus()
@@ -489,22 +489,29 @@ export default function BudgetsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<BudgetForm>({ ...emptyForm })
   const [testEmailStates, setTestEmailStates] = useState<Record<string, TestEmailState>>({})
+  const [addError, setAddError] = useState('')
 
   const alerts = statuses.filter((s) => s.status !== 'ok')
+  const budgetLimitReached = budgets.length >= MAX_BUDGETS_PER_HOUSEHOLD
 
   const handleAdd = async () => {
     if (!addForm.label.trim() || !addForm.amount) return
-    await addBudget(hid, {
-      label: addForm.label.trim(),
-      personId: addForm.personId || undefined,
-      category: addForm.category || undefined,
-      amount: parseFloat(addForm.amount),
-      period: addForm.period,
-      notifyEmail: addForm.notifyEmail.trim() || null,
-      notifyThresholds: addForm.notifyThresholds,
-    })
-    setAddForm({ ...emptyForm })
-    setShowAddForm(false)
+    setAddError('')
+    try {
+      await addBudget(hid, {
+        label: addForm.label.trim(),
+        personId: addForm.personId || undefined,
+        category: addForm.category || undefined,
+        amount: parseFloat(addForm.amount),
+        period: addForm.period,
+        notifyEmail: addForm.notifyEmail.trim() || null,
+        notifyThresholds: addForm.notifyThresholds,
+      })
+      setAddForm({ ...emptyForm })
+      setShowAddForm(false)
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : BUDGET_LIMIT_ERROR)
+    }
   }
 
   const startEdit = (s: BudgetStatus) => {
@@ -581,14 +588,26 @@ export default function BudgetsPage() {
           </div>
         </div>
         {!showAddForm && (
-          <button
-            onClick={() => { setShowAddForm(true); setEditingId(null) }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors"
-          >
-            <Plus size={15} /> Add Budget
-          </button>
+          budgetLimitReached ? (
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-500">
+              Limit of {MAX_BUDGETS_PER_HOUSEHOLD} budgets reached
+            </span>
+          ) : (
+            <button
+              onClick={() => { setShowAddForm(true); setEditingId(null); setAddError('') }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors"
+            >
+              <Plus size={15} /> Add Budget
+            </button>
+          )
         )}
       </div>
+
+      {budgetLimitReached && !showAddForm && (
+        <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Limit of {MAX_BUDGETS_PER_HOUSEHOLD} budgets reached.
+        </div>
+      )}
 
       {/* Alerts */}
       {alerts.length > 0 && (
@@ -621,6 +640,11 @@ export default function BudgetsPage() {
       {showAddForm && (
         <div className="bg-white border border-accent-200 rounded-xl p-5 mb-4">
           <p className="text-sm font-semibold text-slate-700 mb-4">New Budget</p>
+          {addError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+              {addError}
+            </div>
+          )}
           <BudgetFormPanel
             form={addForm}
             setForm={setAddForm}
@@ -628,8 +652,8 @@ export default function BudgetsPage() {
             categoryNames={categoryNames}
             submitLabel="Create Budget"
             onSubmit={handleAdd}
-            onCancel={() => { setShowAddForm(false); setAddForm({ ...emptyForm }) }}
-            disableSubmit={addFormInvalid}
+            onCancel={() => { setShowAddForm(false); setAddForm({ ...emptyForm }); setAddError('') }}
+            disableSubmit={addFormInvalid || budgetLimitReached}
           />
         </div>
       )}
@@ -643,8 +667,9 @@ export default function BudgetsPage() {
             Create a budget to track spending by category or person.
           </p>
           <button
-            onClick={() => setShowAddForm(true)}
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors"
+            onClick={() => { setShowAddForm(true); setAddError('') }}
+            disabled={budgetLimitReached}
+            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus size={14} /> Add your first budget
           </button>

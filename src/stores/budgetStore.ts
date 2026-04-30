@@ -2,6 +2,9 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
 
+export const MAX_BUDGETS_PER_HOUSEHOLD = 3
+export const BUDGET_LIMIT_ERROR = 'You can only create up to 3 budgets.'
+
 export interface Budget {
   id: string
   householdId: string
@@ -76,6 +79,20 @@ export const useBudgetStore = create<BudgetState>((set) => ({
   },
 
   add: async (householdId, budget) => {
+    const { count, error: countError } = await supabase
+      .from('budgets')
+      .select('id', { count: 'exact', head: true })
+      .eq('household_id', householdId)
+
+    if (countError) {
+      console.error('Failed to count budgets:', countError)
+      throw countError
+    }
+
+    if ((count ?? 0) >= MAX_BUDGETS_PER_HOUSEHOLD) {
+      throw new Error(BUDGET_LIMIT_ERROR)
+    }
+
     const newBudget: Budget = {
       ...budget,
       id: uuidv4(),
