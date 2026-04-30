@@ -757,11 +757,13 @@ export default function PlaidManager() {
       )}
 
       {/* Sandbox hint */}
-      <div className="text-xs text-slate-400 bg-slate-50 rounded-xl p-3 border border-slate-100">
-        <strong className="text-slate-500">Sandbox testing:</strong> Use institution "First Platypus Bank",
-        username <code>user_good</code>, password <code>pass_good</code>.
-        For dynamic transaction data: <code>user_transactions_dynamic</code>.
-      </div>
+      {import.meta.env.DEV && (
+        <div className="text-xs text-slate-400 bg-slate-50 rounded-xl p-3 border border-slate-100">
+          <strong className="text-slate-500">Sandbox testing:</strong> Use institution "First Platypus Bank",
+          username <code>user_good</code>, password <code>pass_good</code>.
+          For dynamic transaction data: <code>user_transactions_dynamic</code>.
+        </div>
+      )}
 
       {/* Account setup modal */}
       {setupData && (
