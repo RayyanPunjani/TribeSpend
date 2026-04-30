@@ -210,23 +210,22 @@ async function activeCounts(supabase, householdId) {
     .from('plaid_items')
     .select('id', { count: 'exact', head: true })
     .eq('household_id', householdId)
-    .eq('status', 'active')
   if (itemError) throw itemError
 
   const { data: activeItems, error: activeItemsError } = await supabase
     .from('plaid_items')
     .select('id')
     .eq('household_id', householdId)
-    .eq('status', 'active')
   if (activeItemsError) throw activeItemsError
 
   const itemIds = (activeItems || []).map((item) => item.id)
   if (itemIds.length === 0) return { items: itemCount || 0, accounts: 0 }
 
   const { count: accountCount, error: accountError } = await supabase
-    .from('plaid_accounts')
+    .from('plaid_account_mappings')
     .select('id', { count: 'exact', head: true })
     .in('plaid_item_id', itemIds)
+    .eq('enabled', true)
   if (accountError) throw accountError
 
   return { items: itemCount || 0, accounts: accountCount || 0 }
@@ -249,7 +248,7 @@ function mapPlaidCategory(category) {
 
 async function removePlaidItem(supabase, item) {
   try {
-    const accessToken = decryptToken(item.access_token)
+    const accessToken = decryptToken(item.access_token_encrypted)
     await plaidPost('/item/remove', { access_token: accessToken })
   } catch (error) {
     console.warn('[plaid] Plaid item/remove failed during cleanup:', error.message)
@@ -260,50 +259,84 @@ async function removePlaidItem(supabase, item) {
 }
 
 async function findItemsWithAccounts(supabase, householdId) {
-  const { data, error } = await supabase
+  const { data: items, error } = await supabase
     .from('plaid_items')
-    .select('*, plaid_accounts(*)')
+    .select('*')
     .eq('household_id', householdId)
-    .eq('status', 'active')
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return data || []
+  const itemIds = (items || []).map((item) => item.id)
+  if (itemIds.length === 0) return []
+
+  const { data: mappings, error: mappingsError } = await supabase
+    .from('plaid_account_mappings')
+    .select('*')
+    .eq('household_id', householdId)
+    .in('plaid_item_id', itemIds)
+    .eq('enabled', true)
+  if (mappingsError) throw mappingsError
+
+  const mappingsByItem = new Map()
+  for (const mapping of mappings || []) {
+    const existing = mappingsByItem.get(mapping.plaid_item_id) || []
+    existing.push(mapping)
+    mappingsByItem.set(mapping.plaid_item_id, existing)
+  }
+
+  return (items || []).map((item) => ({
+    ...item,
+    plaid_account_mappings: mappingsByItem.get(item.id) || [],
+  }))
 }
 
-function publicItem(item) {
+async function publicItem(item) {
+  let plaidAccountsById = new Map()
+  try {
+    const accessToken = decryptToken(item.access_token_encrypted)
+    const plaidAccounts = (await plaidPost('/accounts/get', { access_token: accessToken })).accounts || []
+    plaidAccountsById = new Map(plaidAccounts.map((account) => [account.account_id, account]))
+  } catch (error) {
+    console.warn(`[plaid] Unable to refresh account details for item ${item.id}:`, error.message)
+  }
+
   return {
     id: item.id,
-    itemId: item.item_id,
+    itemId: item.id,
     institutionName: item.institution_name,
     institutionId: item.institution_id,
-    status: item.status,
-    lastSyncedAt: item.last_synced_at,
+    status: 'active',
+    lastSyncedAt: null,
     createdAt: item.created_at,
-    accounts: (item.plaid_accounts || []).map((account) => ({
-      plaidAccountId: account.plaid_account_id,
-      cardId: account.card_id,
-      name: account.name,
-      officialName: account.official_name,
-      type: account.type,
-      subtype: account.subtype,
-      mask: account.mask,
-    })),
+    accounts: (item.plaid_account_mappings || []).map((mapping) => {
+      const account = plaidAccountsById.get(mapping.account_id)
+      return {
+        plaidAccountId: mapping.account_id,
+        cardId: mapping.card_id,
+        name: account?.name ?? null,
+        officialName: account?.official_name ?? null,
+        type: account?.type ?? null,
+        subtype: account?.subtype ?? null,
+        mask: account?.mask ?? null,
+      }
+    }),
   }
 }
 
 async function syncItem(supabase, item) {
-  const accessToken = decryptToken(item.access_token)
-  const { data: accounts, error: accountsError } = await supabase
-    .from('plaid_accounts')
+  const accessToken = decryptToken(item.access_token_encrypted)
+  const { data: mappings, error: accountsError } = await supabase
+    .from('plaid_account_mappings')
     .select('*')
     .eq('plaid_item_id', item.id)
+    .eq('household_id', item.household_id)
+    .eq('enabled', true)
   if (accountsError) throw accountsError
 
-  const accountMap = new Map((accounts || []).map((account) => [account.plaid_account_id, account]))
+  const accountMap = new Map((mappings || []).map((mapping) => [mapping.account_id, mapping]))
   const added = []
   const removedPlaidIds = []
-  let cursor = item.last_cursor || undefined
+  let cursor = item.cursor || undefined
   let hasMore = true
   let nextCursor = null
 
@@ -315,18 +348,19 @@ async function syncItem(supabase, item) {
     })
 
     for (const txn of data.added || []) {
-      const { data: existingId, error: existingError } = await supabase
-        .from('synced_transaction_ids')
-        .select('plaid_transaction_id')
+      const { data: existingTransaction, error: existingError } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('household_id', item.household_id)
         .eq('plaid_transaction_id', txn.transaction_id)
         .maybeSingle()
       if (existingError) throw existingError
-      if (existingId) continue
+      if (existingTransaction) continue
 
       const category = mapPlaidCategory(txn.personal_finance_category)
       if (category === 'exclude') continue
 
-      const account = accountMap.get(txn.account_id)
+      const mapping = accountMap.get(txn.account_id)
       added.push({
         id: crypto.randomUUID(),
         transDate: txn.date,
@@ -335,8 +369,8 @@ async function syncItem(supabase, item) {
         cleanDescription: txn.merchant_name || txn.name,
         amount: Number(txn.amount),
         category,
-        cardId: account?.card_id || 'unknown',
-        cardholderName: account?.name || '',
+        cardId: mapping?.card_id || 'unknown',
+        cardholderName: '',
         isPayment: false,
         isCredit: Number(txn.amount) < 0,
         isBalancePayment: false,
@@ -349,20 +383,14 @@ async function syncItem(supabase, item) {
         hasRefund: false,
         refundReviewPending: false,
       })
-
-      const { error: insertSyncedError } = await supabase
-        .from('synced_transaction_ids')
-        .insert({ plaid_transaction_id: txn.transaction_id, plaid_account_id: txn.account_id })
-      if (insertSyncedError && insertSyncedError.code !== '23505') throw insertSyncedError
     }
 
     for (const txn of data.modified || []) {
-      await supabase.from('synced_transaction_ids').delete().eq('plaid_transaction_id', txn.transaction_id)
+      removedPlaidIds.push(txn.transaction_id)
     }
 
     for (const txn of data.removed || []) {
       removedPlaidIds.push(txn.transaction_id)
-      await supabase.from('synced_transaction_ids').delete().eq('plaid_transaction_id', txn.transaction_id)
     }
 
     cursor = data.next_cursor
@@ -373,7 +401,7 @@ async function syncItem(supabase, item) {
   if (nextCursor) {
     const { error } = await supabase
       .from('plaid_items')
-      .update({ last_cursor: nextCursor, last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .update({ cursor: nextCursor })
       .eq('id', item.id)
     if (error) throw error
   }
@@ -422,10 +450,8 @@ async function handleRoute(event) {
     const itemId = crypto.randomUUID()
     const { error: itemError } = await auth.supabase.from('plaid_items').insert({
       id: itemId,
-      user_id: auth.userId,
       household_id: auth.householdId,
-      access_token: encryptToken(accessToken),
-      item_id: exchange.item_id,
+      access_token_encrypted: encryptToken(accessToken),
       institution_id: body.institution?.institution_id ?? null,
       institution_name: body.institution?.name ?? null,
     })
@@ -434,16 +460,14 @@ async function handleRoute(event) {
     const accountRows = plaidAccounts.map((account) => ({
       id: crypto.randomUUID(),
       plaid_item_id: itemId,
-      plaid_account_id: account.account_id,
-      name: account.name,
-      official_name: account.official_name ?? null,
-      type: account.type,
-      subtype: account.subtype ?? null,
-      mask: account.mask ?? null,
+      household_id: auth.householdId,
+      account_id: account.account_id,
+      card_id: null,
+      enabled: true,
     }))
 
     if (accountRows.length > 0) {
-      const { error: accountsError } = await auth.supabase.from('plaid_accounts').insert(accountRows)
+      const { error: accountsError } = await auth.supabase.from('plaid_account_mappings').insert(accountRows)
       if (accountsError) throw accountsError
     }
 
@@ -471,9 +495,10 @@ async function handleRoute(event) {
 
     for (const mapping of body.mappings) {
       const { error } = await auth.supabase
-        .from('plaid_accounts')
-        .update({ card_id: mapping.cardId, updated_at: new Date().toISOString() })
-        .eq('plaid_account_id', mapping.plaidAccountId)
+        .from('plaid_account_mappings')
+        .update({ card_id: mapping.cardId })
+        .eq('account_id', mapping.plaidAccountId)
+        .eq('household_id', auth.householdId)
         .in('plaid_item_id', itemIds)
       if (error) throw error
     }
@@ -484,7 +509,7 @@ async function handleRoute(event) {
   if (route === 'items' && method === 'GET') {
     const auth = await getAuthContext(event)
     const items = await findItemsWithAccounts(auth.supabase, auth.householdId)
-    return json(200, items.map(publicItem))
+    return json(200, await Promise.all(items.map(publicItem)))
   }
 
   if (route === 'sync' && method === 'POST') {
