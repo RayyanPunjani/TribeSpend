@@ -120,14 +120,20 @@ export default function Sidebar() {
               Support
             </p>
           )}
-          <a
-            href="mailto:tribespend@gmail.com?subject=TribeSpend%20Feedback"
-            className="relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200"
+          <NavLink
+            to="/app/help"
+            className={({ isActive }) =>
+              `relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
+                isActive
+                  ? 'bg-accent-700/40 text-accent-300'
+                  : 'text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200'
+              }`
+            }
             title="Help & Support"
           >
             <Mail size={18} className="shrink-0" />
             {!collapsed && <span>Help & Support</span>}
-          </a>
+          </NavLink>
         </div>
       </nav>
 

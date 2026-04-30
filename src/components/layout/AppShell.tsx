@@ -13,6 +13,7 @@ import SettingsPage from '@/pages/SettingsPage'
 import WalletPage from '@/pages/WalletPage'
 import OptimizePage from '@/pages/OptimizePage'
 import BudgetsPage from '@/pages/BudgetsPage'
+import HelpSupportPage from '@/pages/HelpSupportPage'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -143,6 +144,7 @@ export default function AppShell() {
         <Route path="cards" element={<Navigate to="/app/wallet" replace />} />
         <Route path="billing" element={<Navigate to="/app/settings?tab=billing" replace />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="help" element={<HelpSupportPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </Layout>
