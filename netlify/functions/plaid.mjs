@@ -369,7 +369,7 @@ async function syncItem(supabase, item) {
         cleanDescription: txn.merchant_name || txn.name,
         amount: Number(txn.amount),
         category,
-        cardId: mapping?.card_id || 'unknown',
+        cardId: mapping?.card_id ?? null,
         cardholderName: '',
         isPayment: false,
         isCredit: Number(txn.amount) < 0,
