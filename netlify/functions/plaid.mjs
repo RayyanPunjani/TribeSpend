@@ -246,6 +246,16 @@ function mapPlaidCategory(category) {
   return PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary] || 'Miscellaneous'
 }
 
+function formatDateYmd(date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function dateMonthsAgo(months) {
+  const date = new Date()
+  date.setMonth(date.getMonth() - months)
+  return date
+}
+
 function transactionToRow(transaction, householdId) {
   return {
     id: transaction.id,
@@ -283,6 +293,49 @@ function transactionToRow(transaction, householdId) {
     has_refund: transaction.hasRefund,
     refund_review_pending: transaction.refundReviewPending,
   }
+}
+
+async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds }) {
+  if (!txn?.transaction_id || seenPlaidIds.has(txn.transaction_id)) return false
+
+  const { data: existingTransaction, error: existingError } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('household_id', item.household_id)
+    .eq('plaid_transaction_id', txn.transaction_id)
+    .maybeSingle()
+  if (existingError) throw existingError
+
+  seenPlaidIds.add(txn.transaction_id)
+  if (existingTransaction) return false
+
+  const category = mapPlaidCategory(txn.personal_finance_category)
+  if (category === 'exclude') return false
+
+  const mapping = accountMap.get(txn.account_id)
+  added.push({
+    id: crypto.randomUUID(),
+    transDate: txn.date,
+    postDate: txn.authorized_date || txn.date,
+    description: txn.original_description || txn.name,
+    cleanDescription: txn.merchant_name || txn.name,
+    amount: Number(txn.amount),
+    category,
+    cardId: mapping?.card_id ?? null,
+    cardholderName: '',
+    isPayment: false,
+    isCredit: Number(txn.amount) < 0,
+    isBalancePayment: false,
+    statementId: `plaid-${item.id}`,
+    reimbursementStatus: 'none',
+    reimbursementPaid: false,
+    source: 'plaid',
+    plaidTransactionId: txn.transaction_id,
+    refundForId: null,
+    hasRefund: false,
+    refundReviewPending: false,
+  })
+  return true
 }
 
 async function removePlaidItem(supabase, item) {
@@ -374,10 +427,49 @@ async function syncItem(supabase, item) {
 
   const accountMap = new Map((mappings || []).map((mapping) => [mapping.account_id, mapping]))
   const added = []
+  const seenPlaidIds = new Set()
   const removedPlaidIds = []
+  const isFirstSync = !item.cursor
   let cursor = item.cursor || undefined
   let hasMore = true
   let nextCursor = null
+
+  console.info(`[plaid] sync item ${item.id}: isFirstSync=${isFirstSync}`)
+
+  if (isFirstSync) {
+    const endDate = formatDateYmd(new Date())
+    const startDate = formatDateYmd(dateMonthsAgo(24))
+    const count = 500
+    let offset = 0
+    let totalTransactions = null
+    let historicalFetched = 0
+
+    do {
+      const data = await plaidPost('/transactions/get', {
+        access_token: accessToken,
+        start_date: startDate,
+        end_date: endDate,
+        options: {
+          count,
+          offset,
+          include_personal_finance_category: true,
+        },
+      })
+
+      const transactions = data.transactions || []
+      historicalFetched += transactions.length
+      const reportedTotal = Number(data.total_transactions)
+      totalTransactions = Number.isFinite(reportedTotal) ? reportedTotal : historicalFetched
+
+      for (const txn of transactions) {
+        await appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds })
+      }
+
+      offset += count
+    } while (offset < (totalTransactions || 0))
+
+    console.info(`[plaid] sync item ${item.id}: historicalFetched=${historicalFetched}`)
+  }
 
   while (hasMore) {
     const data = await plaidPost('/transactions/sync', {
@@ -387,41 +479,7 @@ async function syncItem(supabase, item) {
     })
 
     for (const txn of data.added || []) {
-      const { data: existingTransaction, error: existingError } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('household_id', item.household_id)
-        .eq('plaid_transaction_id', txn.transaction_id)
-        .maybeSingle()
-      if (existingError) throw existingError
-      if (existingTransaction) continue
-
-      const category = mapPlaidCategory(txn.personal_finance_category)
-      if (category === 'exclude') continue
-
-      const mapping = accountMap.get(txn.account_id)
-      added.push({
-        id: crypto.randomUUID(),
-        transDate: txn.date,
-        postDate: txn.authorized_date || txn.date,
-        description: txn.original_description || txn.name,
-        cleanDescription: txn.merchant_name || txn.name,
-        amount: Number(txn.amount),
-        category,
-        cardId: mapping?.card_id ?? null,
-        cardholderName: '',
-        isPayment: false,
-        isCredit: Number(txn.amount) < 0,
-        isBalancePayment: false,
-        statementId: `plaid-${item.id}`,
-        reimbursementStatus: 'none',
-        reimbursementPaid: false,
-        source: 'plaid',
-        plaidTransactionId: txn.transaction_id,
-        refundForId: null,
-        hasRefund: false,
-        refundReviewPending: false,
-      })
+      await appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds })
     }
 
     for (const txn of data.modified || []) {
@@ -452,6 +510,7 @@ async function syncItem(supabase, item) {
       throw error
     }
   }
+  console.info(`[plaid] sync item ${item.id}: inserted=${added.length}`)
 
   if (nextCursor) {
     const { error } = await supabase
