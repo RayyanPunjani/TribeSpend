@@ -82,6 +82,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
     ),
   )
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [showAddPerson, setShowAddPerson] = useState(persons.length === 0)
   const [newPersonName, setNewPersonName] = useState('')
   const [newPersonColor, setNewPersonColor] = useState('#3b82f6')
@@ -109,41 +110,53 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
 
   const handleSave = async () => {
     setSaving(true)
-    const mappings: Array<{ plaidAccountId: string; cardId: string }> = []
+    setSaveError(null)
 
-    for (const acct of accounts) {
-      const cfg = assignments[acct.plaidAccountId]
-      if (cfg.skip || !cfg.personId) continue
+    try {
+      const mappings: Array<{ plaidAccountId: string; cardId: string }> = []
 
-      const template = cfg.brand && cfg.cardName
-        ? (PRESETS_BY_BRAND[cfg.brand] ?? []).find((p) => p.cardName === cfg.cardName) ?? null
-        : null
+      for (const acct of accounts) {
+        const cfg = assignments[acct.plaidAccountId]
+        if (cfg.skip || !cfg.personId) continue
 
-      const owner = persons.find((p) => p.id === cfg.personId)
-      const newCard = await addCard(hid, {
-        name: template?.cardName ?? acct.officialName ?? acct.name ?? institutionName ?? 'Linked Account',
-        issuer: template?.issuer ?? institutionName ?? 'Plaid',
-        cardType: template?.cardType ?? acct.subtype ?? acct.type ?? 'Credit Card',
-        lastFour: acct.mask || '',
-        owner: cfg.personId,
-        color: cfg.color,
-        annualFee: template?.annualFee || undefined,
-        isAuthorizedUser: false,
-      })
-      if (cfg.personId) {
-        await addCardToPerson(cfg.personId, newCard.id)
+        const template = cfg.brand && cfg.cardName
+          ? (PRESETS_BY_BRAND[cfg.brand] ?? []).find((p) => p.cardName === cfg.cardName) ?? null
+          : null
+
+        const newCard = await addCard(hid, {
+          name: template?.cardName ?? acct.officialName ?? acct.name ?? institutionName ?? 'Linked Account',
+          issuer: template?.issuer ?? institutionName ?? 'Plaid',
+          cardType: template?.cardType ?? acct.subtype ?? acct.type ?? 'Credit Card',
+          lastFour: acct.mask || '',
+          owner: cfg.personId,
+          color: cfg.color,
+          annualFee: template?.annualFee || undefined,
+          isAuthorizedUser: false,
+        })
+        if (cfg.personId) {
+          await addCardToPerson(cfg.personId, newCard.id)
+        }
+        if (template) {
+          const { rules, credits } = buildRulesFromPreset(template, newCard.id)
+          try {
+            await Promise.all(rules.map((r) => addRule(hid, r)))
+            await Promise.all(credits.map((c) => addCredit(hid, c)))
+          } catch (err) {
+            console.error('[PlaidManager] Failed to save card reward setup:', err)
+            throw new Error('We could not save the reward rules for this card. Please try again.')
+          }
+        }
+        mappings.push({ plaidAccountId: acct.plaidAccountId, cardId: newCard.id })
       }
-      if (template) {
-        const { rules, credits } = buildRulesFromPreset(template, newCard.id)
-        await Promise.all(rules.map((r) => addRule(hid, r)))
-        await Promise.all(credits.map((c) => addCredit(hid, c)))
-      }
-      mappings.push({ plaidAccountId: acct.plaidAccountId, cardId: newCard.id })
+
+      await mapAccounts(mappings)
+      onDone()
+    } catch (err) {
+      console.error('[PlaidManager] Save & Start Syncing failed:', err)
+      setSaveError(err instanceof Error ? err.message : 'Unable to save linked account setup. Please try again.')
+    } finally {
+      setSaving(false)
     }
-
-    await mapAccounts(mappings)
-    setSaving(false)
-    onDone()
   }
 
   const selectCls = 'text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500 bg-white'
@@ -320,9 +333,16 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
 
         {/* Sticky footer */}
         <div className="px-6 py-4 border-t border-slate-100 shrink-0 shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.06)]">
+          {saveError && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
           <div className="flex gap-3 justify-end">
             <button
               onClick={onDone}
+              disabled={saving}
               className="px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm hover:bg-slate-50"
             >
               Skip
