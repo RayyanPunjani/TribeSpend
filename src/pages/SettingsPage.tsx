@@ -587,10 +587,10 @@ function DangerZone() {
 
   const hid = householdId!
 
-  const handleHideTransactions = async () => {
+  const handleDeleteTransactions = async () => {
     setIsWorking(true)
     try {
-      await supabase.from('transactions').update({ is_deleted: true }).eq('household_id', hid)
+      await supabase.from('transactions').delete().eq('household_id', hid)
       await loadTransactions(hid)
       setDangerModal(null)
     } finally {
@@ -675,9 +675,9 @@ function DangerZone() {
         <div className="p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-slate-800">Hide All Transactions</p>
+              <p className="text-sm font-medium text-slate-800">Delete all transactions</p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Hide all {transactions.length} transactions. Cards, people, and category rules are kept.
+                Permanently delete all {transactions.length} transactions. Cards, people, and category rules are kept.
               </p>
             </div>
             <button
@@ -685,7 +685,7 @@ function DangerZone() {
               className="shrink-0 flex items-center gap-1.5 px-3 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors"
             >
               <Trash2 size={13} />
-              Hide
+              Delete
             </button>
           </div>
 
@@ -721,12 +721,11 @@ function DangerZone() {
                   <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
                     <Trash2 size={18} className="text-red-600" />
                   </div>
-                  <h3 className="text-base font-semibold text-slate-800">Hide All Transactions</h3>
+                  <h3 className="text-base font-semibold text-slate-800">Delete all transactions</h3>
                 </div>
                 <p className="text-sm text-slate-500">
-                  This will hide all{' '}
-                  <strong className="text-slate-700">{transactions.length} transactions</strong>.
-                  They stay saved in the database but will not count toward totals, budgets, charts, rewards, or exports by default.
+                  This will permanently delete all transactions. This cannot be undone.
+                  You can run a Full Resync later to restore available Plaid transactions.
                 </p>
                 <p className="text-sm text-slate-500">
                   Type <strong className="text-slate-700 font-mono">DELETE</strong> to confirm.
@@ -746,11 +745,11 @@ function DangerZone() {
                     Cancel
                   </button>
                   <button
-                    onClick={handleHideTransactions}
+                    onClick={handleDeleteTransactions}
                     disabled={confirmText !== 'DELETE' || isWorking}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-40 transition-colors"
                   >
-                    {isWorking ? 'Hiding…' : 'Hide Transactions'}
+                    {isWorking ? 'Deleting…' : 'Delete Transactions'}
                   </button>
                 </div>
               </>
