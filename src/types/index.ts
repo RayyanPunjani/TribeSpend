@@ -55,6 +55,7 @@ export interface CreditCard {
   isPaymentMethod?: boolean  // true for Cash, Zelle, Venmo, etc.
   annualFee?: number
   isAuthorizedUser: boolean  // if true, this card skips annual fee + credits in Optimize
+  isCustomName: boolean // true when the user manually edited the display name
 }
 
 export interface Person {

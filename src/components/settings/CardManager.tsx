@@ -13,6 +13,7 @@ import {
 } from '@/data/presetCards'
 import { CascadeForm, emptyForm, CUSTOM, type CardFormData } from '@/components/shared/CascadeCardForm'
 import ColorPicker from '@/components/shared/ColorPicker'
+import { buildCardDisplayName } from '@/utils/cardNames'
 
 const PAYMENT_METHOD_PRESETS = ['Cash', 'Zelle', 'Venmo', 'PayPal', 'Check', 'Wire Transfer', 'Other']
 
@@ -70,9 +71,11 @@ export default function CardManager() {
     if (!form.lastFour || !form.owner) return
     const issuer = (selectedTemplate?.issuer ?? form.issuer) || 'Other'
     const cardType = (selectedTemplate?.cardType ?? form.cardType) || 'Other'
-    const autoName = form.name || `${persons.find((p) => p.id === form.owner)?.name ?? ''}'s ${cardType}`
+    const isCustomName = form.isCustomName && !!form.name.trim()
+    const personName = persons.find((p) => p.id === form.owner)?.name ?? ''
+    const autoName = buildCardDisplayName(personName, selectedTemplate?.cardName ?? cardType)
     const card = await addCard(hid, {
-      name: autoName,
+      name: isCustomName ? form.name.trim() : autoName,
       issuer,
       cardType,
       lastFour: form.lastFour.slice(-4),
@@ -80,6 +83,7 @@ export default function CardManager() {
       color: form.color,
       annualFee: form.isAuthorizedUser ? undefined : (form.annualFee ? parseFloat(form.annualFee) : undefined),
       isAuthorizedUser: form.isAuthorizedUser,
+      isCustomName,
     })
     await addCardToPerson(form.owner, card.id)
 
@@ -115,6 +119,7 @@ export default function CardManager() {
       color: card.color,
       annualFee: card.annualFee?.toString() ?? '',
       isAuthorizedUser: card.isAuthorizedUser ?? false,
+      isCustomName: card.isCustomName ?? false,
     })
     setShowing(false)
   }
@@ -123,9 +128,11 @@ export default function CardManager() {
     if (!editingId) return
     const issuer = (editSelectedTemplate?.issuer ?? editForm.issuer) || 'Other'
     const cardType = (editSelectedTemplate?.cardType ?? editForm.cardType) || 'Other'
-    const autoName = editForm.name || `${persons.find((p) => p.id === editForm.owner)?.name ?? ''}'s ${cardType}`
+    const isCustomName = editForm.isCustomName && !!editForm.name.trim()
+    const personName = persons.find((p) => p.id === editForm.owner)?.name ?? ''
+    const autoName = buildCardDisplayName(personName, editSelectedTemplate?.cardName ?? cardType)
     await updateCard(editingId, {
-      name: autoName,
+      name: isCustomName ? editForm.name.trim() : autoName,
       issuer,
       cardType,
       lastFour: editForm.lastFour.slice(-4),
@@ -133,6 +140,7 @@ export default function CardManager() {
       color: editForm.color,
       annualFee: editForm.isAuthorizedUser ? undefined : (editForm.annualFee ? parseFloat(editForm.annualFee) : undefined),
       isAuthorizedUser: editForm.isAuthorizedUser,
+      isCustomName,
     })
     if (editForm.owner !== editOriginalOwner) {
       if (editOriginalOwner) await removeCardFromPerson(editOriginalOwner, editingId)
@@ -165,6 +173,7 @@ export default function CardManager() {
       color: pmColor,
       isPaymentMethod: true,
       isAuthorizedUser: false,
+      isCustomName: true,
     })
     setPmName('')
     setPmColor('#6b7280')

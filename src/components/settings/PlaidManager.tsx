@@ -32,6 +32,7 @@ import {
 } from '@/data/presetCards'
 import { CATEGORY_COLORS } from '@/utils/categories'
 import { formatCurrency } from '@/utils/formatters'
+import { buildCardDisplayName } from '@/utils/cardNames'
 import ColorPicker from '@/components/shared/ColorPicker'
 
 // ── Account setup modal ───────────────────────────────────────────────────────
@@ -122,9 +123,11 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
         const template = cfg.brand && cfg.cardName
           ? (PRESETS_BY_BRAND[cfg.brand] ?? []).find((p) => p.cardName === cfg.cardName) ?? null
           : null
+        const personName = persons.find((p) => p.id === cfg.personId)?.name ?? ''
+        const cardDisplayName = template?.cardName ?? acct.officialName ?? acct.name ?? institutionName ?? 'Linked Account'
 
         const newCard = await addCard(hid, {
-          name: template?.cardName ?? acct.officialName ?? acct.name ?? institutionName ?? 'Linked Account',
+          name: buildCardDisplayName(personName, cardDisplayName),
           issuer: template?.issuer ?? institutionName ?? 'Plaid',
           cardType: template?.cardType ?? acct.subtype ?? acct.type ?? 'Credit Card',
           lastFour: acct.mask || '',
@@ -132,6 +135,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
           color: cfg.color,
           annualFee: template?.annualFee || undefined,
           isAuthorizedUser: false,
+          isCustomName: false,
         })
         if (cfg.personId) {
           await addCardToPerson(cfg.personId, newCard.id)

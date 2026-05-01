@@ -22,6 +22,7 @@ export interface CardFormData {
   color: string
   annualFee: string
   isAuthorizedUser: boolean
+  isCustomName: boolean
 }
 
 export const emptyForm: CardFormData = {
@@ -30,6 +31,7 @@ export const emptyForm: CardFormData = {
   lastFour: '', owner: '',
   color: '#3b82f6', annualFee: '',
   isAuthorizedUser: false,
+  isCustomName: false,
 }
 
 export interface CascadeFormProps {
@@ -67,6 +69,9 @@ export function CascadeForm({
   const sf = (k: keyof CardFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, name: e.target.value, isCustomName: true }))
+
   const handleBrandChange = (brand: string) => {
     setForm((prev) => ({ ...prev, brand, cardName: '', issuer: '', cardType: '', annualFee: '' }))
     setTemplate(null)
@@ -86,7 +91,6 @@ export function CascadeForm({
         cardName,
         issuer: t.issuer,
         cardType: t.cardType,
-        name: prev.name || t.cardName,
         annualFee: prev.isAuthorizedUser ? '0' : String(t.annualFee),
       }))
     } else {
@@ -253,7 +257,7 @@ export function CascadeForm({
 
         <div>
           <label className={labelCls}>Nickname (optional)</label>
-          <input type="text" value={form.name} onChange={sf('name')} placeholder="e.g., Rayyan's Venture X" className={inputCls} />
+          <input type="text" value={form.name} onChange={handleNameChange} placeholder="e.g., Rayyan's Venture X" className={inputCls} />
         </div>
         <div>
           <label className={`${labelCls} ${form.isAuthorizedUser ? 'opacity-40' : ''}`}>Annual Fee ($)</label>

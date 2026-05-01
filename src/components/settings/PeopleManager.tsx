@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { Plus, Trash2, Edit2, Check, X, User } from 'lucide-react'
 import { usePersonStore } from '@/stores/personStore'
+import { useCardStore } from '@/stores/cardStore'
 import { useAuth } from '@/contexts/AuthContext'
 import ColorPicker from '@/components/shared/ColorPicker'
 import { hexToRgba } from '@/utils/colors'
+import { buildCardDisplayName } from '@/utils/cardNames'
 
 export default function PeopleManager() {
   const { persons, add, update, remove } = usePersonStore()
+  const { cards, update: updateCard } = useCardStore()
   const { householdId } = useAuth()
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -31,7 +34,13 @@ export default function PeopleManager() {
 
   const handleSaveEdit = async () => {
     if (!editingId) return
-    await update(editingId, { name: editName, color: editColor })
+    const nextName = editName.trim()
+    await update(editingId, { name: nextName, color: editColor })
+    await Promise.all(
+      cards
+        .filter((card) => card.owner === editingId && !card.isCustomName && !card.isPaymentMethod)
+        .map((card) => updateCard(card.id, { name: buildCardDisplayName(nextName, card.cardType || 'Card') })),
+    )
     setEditingId(null)
   }
 

@@ -9,6 +9,7 @@ import ColorPicker from '@/components/shared/ColorPicker'
 import { CascadeForm, emptyForm, type CardFormData } from '@/components/shared/CascadeCardForm'
 import { buildRulesFromPreset, type PresetCardTemplate } from '@/data/presetCards'
 import { nextColor } from '@/utils/colors'
+import { buildCardDisplayName } from '@/utils/cardNames'
 import type { ParsedCardholder } from '@/types'
 
 export interface CardholderAssignment {
@@ -98,9 +99,10 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
     const issuer = (cardTemplate?.issuer ?? cardForm.issuer) || 'Other'
     const cardType = (cardTemplate?.cardType ?? cardForm.cardType) || 'Other'
     const personName = persons.find((p) => p.id === cardForm.owner)?.name ?? ''
-    const autoName = cardForm.name || `${personName}'s ${cardType}`
+    const isCustomName = cardForm.isCustomName && !!cardForm.name.trim()
+    const autoName = buildCardDisplayName(personName, cardTemplate?.cardName ?? cardType)
     const newCard = await addCard(hid, {
-      name: autoName,
+      name: isCustomName ? cardForm.name.trim() : autoName,
       issuer,
       cardType,
       lastFour: cardForm.lastFour.slice(-4),
@@ -108,6 +110,7 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
       color: cardForm.color,
       annualFee: cardForm.isAuthorizedUser ? undefined : (cardForm.annualFee ? parseFloat(cardForm.annualFee) : undefined),
       isAuthorizedUser: cardForm.isAuthorizedUser,
+      isCustomName,
     })
     await addCardToPerson(cardForm.owner, newCard.id)
     if (cardTemplate) {
@@ -127,13 +130,14 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
         // Auto-create card for unmatched cardholder
         const person = persons.find((p) => p.id === a.personId)
         const newCard = await addCard(hid, {
-          name: `${person?.name ?? a.cardholderName}'s Card`,
+          name: buildCardDisplayName(person?.name ?? a.cardholderName, 'Card'),
           issuer: 'Unknown',
           cardType: 'Unknown',
           lastFour: a.lastFour || '0000',
           owner: a.personId,
           color: person?.color ?? '#64748b',
           isAuthorizedUser: false,
+          isCustomName: false,
         })
         await addCardToPerson(a.personId, newCard.id)
         finalAssignments[i] = { ...a, cardId: newCard.id }

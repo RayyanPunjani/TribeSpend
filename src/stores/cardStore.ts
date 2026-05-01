@@ -26,6 +26,7 @@ function fromRow(r: Record<string, unknown>): CreditCard {
     isPaymentMethod: (r.is_payment_method as boolean) || false,
     annualFee: r.annual_fee as number | undefined,
     isAuthorizedUser: (r.is_authorized_user as boolean) || false,
+    isCustomName: (r.is_custom_name as boolean) || false,
   }
 }
 
@@ -42,6 +43,7 @@ function toRow(c: Partial<CreditCard>, householdId?: string): Record<string, unk
   if (c.isPaymentMethod !== undefined) row.is_payment_method = c.isPaymentMethod
   if (c.annualFee !== undefined) row.annual_fee = c.annualFee
   if (c.isAuthorizedUser !== undefined) row.is_authorized_user = c.isAuthorizedUser
+  if (c.isCustomName !== undefined) row.is_custom_name = c.isCustomName
   return row
 }
 
@@ -65,6 +67,7 @@ export const useCardStore = create<CardState>((set, get) => ({
       ...card,
       id: uuidv4(),
       color: card.color || nextColor(usedColors),
+      isCustomName: card.isCustomName ?? false,
     }
     const { error } = await supabase.from('cards').insert(toRow(newCard, householdId))
     if (error) { console.error('Failed to add card:', error); throw error }
