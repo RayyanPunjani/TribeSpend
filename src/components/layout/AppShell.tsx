@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { getItems, syncTransactions } from '@/api/plaid'
 import Layout from '@/components/layout/Layout'
 import DashboardPage from '@/pages/DashboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
@@ -25,6 +26,7 @@ import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 
 const STORE_LOAD_TIMEOUT_MS = 8000
+const PLAID_AUTO_SYNC_THROTTLE_MS = 15 * 60 * 1000
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T | null> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -42,8 +44,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export default function AppShell() {
-  const { householdId } = useAuth()
+  const { householdId, profile } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
+  const autoSyncStartedRef = useRef(false)
 
   const { load: loadSettings } = useSettingsStore()
   const { load: loadTransactions } = useTransactionStore()
@@ -96,6 +99,31 @@ export default function AppShell() {
       cancelled = true
     }
   }, [householdId])
+
+  useEffect(() => {
+    if (!householdId || !dataLoaded || profile?.plaid_access_enabled !== true || autoSyncStartedRef.current) return
+    autoSyncStartedRef.current = true
+
+    const storageKey = `tribespend_plaid_auto_sync_at_${householdId}`
+    const now = Date.now()
+    const lastSyncAt = Number(localStorage.getItem(storageKey) || 0)
+    if (lastSyncAt && now - lastSyncAt < PLAID_AUTO_SYNC_THROTTLE_MS) return
+
+    void (async () => {
+      try {
+        const items = await getItems()
+        if (items.length === 0) return
+
+        localStorage.setItem(storageKey, String(Date.now()))
+        const result = await syncTransactions()
+        if (result.transactions.length > 0) {
+          await loadTransactions(householdId)
+        }
+      } catch (error) {
+        console.warn('[AppShell] Plaid auto-sync failed:', error)
+      }
+    })()
+  }, [householdId, dataLoaded, profile?.plaid_access_enabled, loadTransactions])
 
   if (!householdId) {
     return (
