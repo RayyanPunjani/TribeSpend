@@ -60,6 +60,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   })
 }
 
+function getProfileNameFromUser(user: User): string {
+  const metadata = user.user_metadata ?? {}
+  const metadataName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : ''
+  const emailPrefix = user.email?.split('@')[0]?.trim() ?? ''
+  return metadataName || fullName || emailPrefix || 'New User'
+}
+
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return ['42703', 'PGRST204', 'PGRST205'].includes(error.code ?? '')
+    || /could not find|does not exist|schema cache/i.test(error.message ?? '')
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -80,48 +94,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(s?.user ?? null)
   }, [])
 
-  const fetchProfile = useCallback(async (userId: string): Promise<Profile | null> => {
+  const reactivateProfile = useCallback(async (profile: Profile, user: User): Promise<Profile | null> => {
+    const name = getProfileNameFromUser(user)
+    const basePatch = {
+      name,
+      subscription_status: 'free',
+      plaid_access_enabled: false,
+      onboarding_completed: false,
+    }
+    const fullPatch = {
+      ...basePatch,
+      account_status: 'active',
+      deleted_at: null,
+    }
+
+    let result = await supabase
+      .from('profiles')
+      .update(fullPatch)
+      .eq('id', profile.id)
+      .select('*')
+      .maybeSingle()
+
+    if (result.error && isMissingColumnError(result.error)) {
+      result = await supabase
+        .from('profiles')
+        .update(basePatch)
+        .eq('id', profile.id)
+        .select('*')
+        .maybeSingle()
+    }
+
+    if (result.error) {
+      console.warn('[Auth] Profile reactivation failed:', result.error.message, result.error.details, result.error.hint)
+      return null
+    }
+
+    return result.data as Profile | null
+  }, [])
+
+  const fetchProfile = useCallback(async (user: User): Promise<Profile | null> => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('id', user.id)
         .maybeSingle()
       if (error) {
         console.warn('[Auth] Profile fetch error:', error.message, error.details, error.hint)
         return null
       }
       const profile = data as Profile | null
-      if (profile?.account_status === 'deleted' || profile?.deleted_at) {
-        console.warn('[Auth] Account profile is deactivated')
-        return null
+      const isDeletedProfile =
+        profile?.account_status === 'deleted' ||
+        !!profile?.deleted_at ||
+        profile?.name === 'Deleted Account'
+
+      if (profile && isDeletedProfile) {
+        console.info('[Auth] Reactivating previously deleted account profile')
+        return reactivateProfile(profile, user)
       }
       return profile
     } catch (err) {
       console.warn('[Auth] Profile fetch exception:', err)
       return null
     }
-  }, [])
+  }, [reactivateProfile])
 
-  const fetchProfileWithRetry = useCallback(async (userId: string): Promise<Profile | null> => {
+  const fetchProfileWithRetry = useCallback(async (user: User): Promise<Profile | null> => {
     const delays = [0, 300, 800]
     for (let i = 0; i < delays.length; i++) {
       if (delays[i] > 0) {
         await new Promise((resolve) => setTimeout(resolve, delays[i]))
       }
-      const p = await fetchProfile(userId)
+      const p = await fetchProfile(user)
       if (p?.household_id) return p
     }
-    console.warn('[Auth] Profile could not be loaded after retry for user:', userId)
+    console.warn('[Auth] Profile could not be loaded after retry for user:', user.id)
     return null
   }, [fetchProfile])
 
   const refreshProfile = useCallback(async () => {
-    const userId = sessionRef.current?.user?.id
-    if (!userId) return
+    const currentUser = sessionRef.current?.user
+    if (!currentUser) return
 
     const p = await withTimeout(
-      fetchProfileWithRetry(userId),
+      fetchProfileWithRetry(currentUser),
       PROFILE_FETCH_TIMEOUT_MS,
       'Manual profile refresh',
     )
@@ -137,7 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { forceProfileFetch?: boolean; showLoading?: boolean } = {},
     ) => {
       const requestId = ++authFlowId.current
-      const userId = s?.user?.id ?? null
+      const authUser = s?.user ?? null
+      const userId = authUser?.id ?? null
       const existingProfile = profileRef.current
       const hasCurrentProfile = !!userId && existingProfile?.id === userId && !!existingProfile.household_id
 
@@ -146,7 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setSessionState(s)
 
-        if (!userId) {
+        if (!authUser) {
           setProfileState(null)
           return
         }
@@ -160,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const p = await withTimeout(
-          fetchProfileWithRetry(userId),
+          fetchProfileWithRetry(authUser),
           PROFILE_FETCH_TIMEOUT_MS,
           `${event} profile fetch`,
         )

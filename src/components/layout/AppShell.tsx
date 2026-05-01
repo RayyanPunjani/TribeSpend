@@ -168,6 +168,7 @@ export default function AppShell() {
 
   const onboardingStorageKey = profile?.id ? `tribespend_onboarding_completed_${profile.id}` : null
   const onboardingCompletedLocally = (() => {
+    if (profile?.onboarding_completed === false) return false
     if (!onboardingStorageKey) return false
     try {
       return localStorage.getItem(onboardingStorageKey) === 'true'

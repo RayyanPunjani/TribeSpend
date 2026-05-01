@@ -1,4 +1,3 @@
-import '@supabase/functions-js/edge-runtime.d.ts'
 import Stripe from 'https://esm.sh/stripe@12.0.0?target=deno'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -154,6 +153,7 @@ Deno.serve(async (req) => {
           .update({
             subscription_status: 'canceled',
             plaid_access_enabled: false,
+            onboarding_completed: false,
           })
           .eq('id', userId)
 
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
     } else {
       await supabase
         .from('profiles')
-        .update({ plaid_access_enabled: false })
+        .update({ plaid_access_enabled: false, onboarding_completed: false })
         .eq('id', userId)
     }
 
@@ -229,6 +229,7 @@ Deno.serve(async (req) => {
         name: 'Deleted Account',
         subscription_status: 'canceled',
         plaid_access_enabled: false,
+        onboarding_completed: false,
       })
       .eq('id', userId)
 
@@ -244,6 +245,7 @@ Deno.serve(async (req) => {
           name: 'Deleted Account',
           subscription_status: 'canceled',
           plaid_access_enabled: false,
+          onboarding_completed: false,
         })
         .eq('id', userId)
     }
