@@ -20,9 +20,9 @@ import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
-import EmptyState from '@/components/shared/EmptyState'
 import BudgetAlerts from '@/components/dashboard/BudgetAlerts'
 import type { CardCredit, Transaction } from '@/types'
 
@@ -94,6 +94,54 @@ function shortMoney(value: number): string {
   return `$${Math.round(value)}`
 }
 
+function exampleTransaction(id: string, monthOffset: number, day: number, description: string, amount: number, category: string, cardId: string): Transaction {
+  const date = new Date()
+  date.setMonth(date.getMonth() + monthOffset)
+  date.setDate(day)
+  const transDate = format(date, 'yyyy-MM-dd')
+  return {
+    id,
+    transDate,
+    postDate: transDate,
+    description,
+    cleanDescription: description,
+    amount,
+    category,
+    cardId,
+    cardholderName: 'Example',
+    isPayment: false,
+    isCredit: false,
+    isBalancePayment: false,
+    statementId: 'example-data',
+    reimbursementStatus: 'none',
+    reimbursementPaid: false,
+    deleted: false,
+    isManualEntry: false,
+    source: 'manual',
+    refundForId: null,
+    hasRefund: false,
+    refundReviewPending: false,
+    spendType: 'personal',
+  }
+}
+
+function buildExampleTransactions(): Transaction[] {
+  return [
+    exampleTransaction('example-1', -5, 3, 'Urban Cafe', 84.2, 'Dining', 'example-card-1'),
+    exampleTransaction('example-2', -5, 12, 'Fresh Market', 246.18, 'Groceries', 'example-card-2'),
+    exampleTransaction('example-3', -4, 1, 'Oakwood Rent', 1850, 'Rent', 'example-card-1'),
+    exampleTransaction('example-4', -4, 19, 'Cinema House', 72.5, 'Entertainment', 'example-card-2'),
+    exampleTransaction('example-5', -3, 6, 'Family Bistro', 132.44, 'Dining', 'example-card-1'),
+    exampleTransaction('example-6', -3, 14, 'Green Basket', 318.72, 'Groceries', 'example-card-2'),
+    exampleTransaction('example-7', -2, 1, 'Oakwood Rent', 1850, 'Rent', 'example-card-1'),
+    exampleTransaction('example-8', -2, 22, 'Streaming Bundle', 46.99, 'Entertainment', 'example-card-2'),
+    exampleTransaction('example-9', -1, 8, 'Taco Garden', 58.31, 'Dining', 'example-card-1'),
+    exampleTransaction('example-10', -1, 16, 'Fresh Market', 289.64, 'Groceries', 'example-card-2'),
+    exampleTransaction('example-11', 0, 1, 'Oakwood Rent', 1850, 'Rent', 'example-card-1'),
+    exampleTransaction('example-12', 0, 10, 'Arcade Lounge', 94.7, 'Entertainment', 'example-card-2'),
+  ]
+}
+
 async function loadPlaidItemsWithTimeout(): Promise<PlaidItem[]> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<PlaidItem[]>((resolve) => {
@@ -114,6 +162,7 @@ export default function DashboardPage() {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
   const { credits } = useCardCreditStore()
+  const { profile } = useAuth()
   const categoryColors = useCategoryStore((s) => s.categoryColors)
   const [plaidItems, setPlaidItems] = useState<PlaidItem[]>([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
@@ -138,10 +187,15 @@ export default function DashboardPage() {
 
   const cardMap = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards])
   const personMap = useMemo(() => new Map(persons.map((person) => [person.id, person])), [persons])
+  const isExampleData = transactions.length === 0
+  const sourceTransactions = useMemo(
+    () => (isExampleData ? buildExampleTransactions() : transactions),
+    [isExampleData, transactions],
+  )
 
   const spendTransactions = useMemo(
-    () => transactions.filter(isSpendTransaction),
-    [transactions],
+    () => sourceTransactions.filter(isSpendTransaction),
+    [sourceTransactions],
   )
 
   const latestSpendDate = useMemo(() => {
@@ -236,6 +290,12 @@ export default function DashboardPage() {
   }, [overviewTransactions])
 
   const connectedAccountCount = plaidItems.reduce((sum, item) => sum + item.accounts.length, 0)
+  const onboardingSteps = [
+    { label: 'Add People', done: persons.length > 0, to: '/app/wallet?tab=people' },
+    { label: 'Add Payment Methods', done: cards.length > 0, to: '/app/wallet?tab=paymentMethods' },
+    { label: 'Link Bank Accounts', done: connectedAccountCount > 0, to: '/app/wallet?tab=linkedAccounts' },
+    { label: 'Review Insights', done: !isExampleData, to: '/app?onboarding=1' },
+  ]
 
   const expiringCredits = useMemo(() => {
     const now = new Date()
@@ -250,30 +310,68 @@ export default function DashboardPage() {
     })
   }, [credits, cardMap, dismissedCredits])
 
-  if (transactions.length === 0) {
-    return (
-      <EmptyState
-        icon={TrendingUp}
-        title="No data yet"
-        description="Upload your first statement to see your spending overview."
-        action={
-          <Link
-            to="/app/upload"
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
-          >
-            <Upload size={15} /> Upload Statement
-          </Link>
-        }
-      />
-    )
-  }
-
   return (
     <div className="max-w-6xl mx-auto flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
         <p className="text-sm text-slate-500">A quick view of recent spending, categories, transactions, and accounts.</p>
       </div>
+
+      {isExampleData && (
+        <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-accent-900">Example data</p>
+              <p className="mt-1 text-sm text-accent-700">
+                Connect accounts or import a CSV to replace this with your real spending.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/app?onboarding=1"
+                className="inline-flex items-center justify-center rounded-lg bg-white px-3 py-2 text-xs font-semibold text-accent-700 shadow-sm ring-1 ring-accent-200 hover:bg-accent-100"
+              >
+                View setup guide
+              </Link>
+              <Link
+                to="/app/upload"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-2 text-xs font-semibold text-white hover:bg-accent-700"
+              >
+                <Upload size={14} /> Import CSV
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profile?.onboarding_completed !== true && (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-800">Setup guide</h2>
+              <p className="mt-1 text-xs text-slate-500">Finish these steps when you are ready. You can reopen this guide anytime.</p>
+            </div>
+            <Link
+              to="/app?onboarding=1"
+              className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+            >
+              View setup guide
+            </Link>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-4">
+            {onboardingSteps.map((step) => (
+              <Link
+                key={step.label}
+                to={step.to}
+                className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600 hover:bg-slate-100"
+              >
+                <span className={`h-2 w-2 rounded-full ${step.done ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                <span className="font-medium">{step.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -283,7 +381,7 @@ export default function DashboardPage() {
           color="bg-accent-50"
         />
         <StatCard
-          label="Transactions"
+          label={isExampleData ? 'Example Transactions' : 'Transactions'}
           value={String(overviewTransactions.length)}
           icon={<List size={18} className="text-blue-600" />}
           color="bg-blue-50"
@@ -302,7 +400,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      <BudgetAlerts selectedPersonIds={[]} />
+      {!isExampleData && <BudgetAlerts selectedPersonIds={[]} />}
 
       {expiringCredits.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
@@ -348,7 +446,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <ChartCard title="Spending Over Time" subtitle="Last 6 months">
+        <ChartCard title="Spending Over Time" subtitle={isExampleData ? 'Example data' : 'Last 6 months'}>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={monthlyData} margin={{ left: 8, right: 12, top: 10, bottom: 0 }}>
               <defs>
@@ -373,7 +471,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Spending by Category" subtitle="Top categories">
+        <ChartCard title="Spending by Category" subtitle={isExampleData ? 'Example categories' : 'Top categories'}>
           {categoryData.length === 0 ? (
             <p className="text-sm text-slate-400 py-12 text-center">No spending data for this period.</p>
           ) : (
@@ -420,7 +518,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 className="text-sm font-semibold text-slate-700">Recent Transactions</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Latest spending activity</p>
+              <p className="text-xs text-slate-400 mt-0.5">{isExampleData ? 'Example data' : 'Latest spending activity'}</p>
             </div>
             <Link to="/app/transactions" className="text-xs font-medium text-accent-700 hover:text-accent-800">
               View all
@@ -445,7 +543,7 @@ export default function DashboardPage() {
                       </p>
                       <p className="text-xs text-slate-400 truncate">
                         {format(parseISO(transaction.transDate), 'MMM d')} · {transaction.category}
-                        {card ? ` · ${card.name}` : ''}
+                        {card ? ` · ${card.name}` : isExampleData ? ' · Example Card' : ''}
                         {person ? ` · ${person.name}` : ''}
                       </p>
                     </div>
@@ -472,7 +570,18 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {plaidItems.length > 0 ? (
+          {isExampleData ? (
+            <div className="rounded-lg border border-dashed border-accent-200 bg-accent-50 px-3 py-6 text-center">
+              <p className="text-sm font-medium text-accent-900">Example data</p>
+              <p className="text-xs text-accent-700 mt-1">Linked bank accounts will appear here after you connect through Plaid.</p>
+              <Link
+                to="/app/wallet?tab=linkedAccounts"
+                className="inline-flex mt-3 text-xs font-medium text-accent-700 hover:text-accent-800"
+              >
+                Connect accounts
+              </Link>
+            </div>
+          ) : plaidItems.length > 0 ? (
             <div className="space-y-2">
               {plaidItems.slice(0, 4).map((item) => (
                 <div key={item.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
@@ -515,7 +624,7 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <ChartCard title="Top Merchants" subtitle="Last 6 months">
+      <ChartCard title="Top Merchants" subtitle={isExampleData ? 'Example data' : 'Last 6 months'}>
         {topMerchants.length === 0 ? (
           <p className="text-sm text-slate-400 py-4 text-center">No merchant data for this period.</p>
         ) : (

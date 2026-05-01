@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { getItems, syncTransactions } from '@/api/plaid'
 import { supabase } from '@/lib/supabase'
@@ -49,13 +49,16 @@ export default function AppShell() {
   const { householdId, profile, refreshProfile } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false)
+  const [linkedAccountCount, setLinkedAccountCount] = useState(0)
   const autoSyncStartedRef = useRef(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const { load: loadSettings } = useSettingsStore()
-  const { load: loadTransactions } = useTransactionStore()
-  const { load: loadCards } = useCardStore()
-  const { load: loadPersons } = usePersonStore()
+  const { transactions, load: loadTransactions } = useTransactionStore()
+  const { cards, load: loadCards } = useCardStore()
+  const { persons, load: loadPersons } = usePersonStore()
   const { load: loadRules } = useCategoryRuleStore()
   const { load: loadCategories } = useCategoryStore()
   const { load: loadRewards } = useCardRewardStore()
@@ -64,7 +67,16 @@ export default function AppShell() {
 
   useEffect(() => {
     setOnboardingDismissed(false)
+    setShowOnboardingGuide(false)
   }, [profile?.id])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('onboarding') === '1') {
+      setOnboardingDismissed(false)
+      setShowOnboardingGuide(true)
+    }
+  }, [location.search])
 
   useEffect(() => {
     if (!householdId) return
@@ -133,11 +145,39 @@ export default function AppShell() {
     })()
   }, [householdId, dataLoaded, profile?.plaid_access_enabled, loadTransactions])
 
-  const completeOnboarding = useCallback(async (path?: string) => {
+  useEffect(() => {
+    if (!dataLoaded || profile?.plaid_access_enabled !== true) {
+      setLinkedAccountCount(0)
+      return
+    }
+
+    let cancelled = false
+    getItems()
+      .then((items) => {
+        if (!cancelled) setLinkedAccountCount(items.reduce((sum, item) => sum + item.accounts.length, 0))
+      })
+      .catch(() => {
+        if (!cancelled) setLinkedAccountCount(0)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [dataLoaded, profile?.plaid_access_enabled])
+
+  const dismissOnboarding = useCallback((path?: string) => {
+    setOnboardingDismissed(true)
+    setShowOnboardingGuide(false)
+    if (path) navigate(path)
+    else if (location.search.includes('onboarding=1')) navigate(location.pathname, { replace: true })
+  }, [location.pathname, location.search, navigate])
+
+  const finishOnboarding = useCallback(async () => {
     const profileId = profile?.id
     const storageKey = profileId ? `tribespend_onboarding_completed_${profileId}` : null
 
     setOnboardingDismissed(true)
+    setShowOnboardingGuide(false)
     if (storageKey) {
       try {
         localStorage.setItem(storageKey, 'true')
@@ -163,8 +203,10 @@ export default function AppShell() {
       }
     }
 
-    if (path) navigate(path)
-  }, [navigate, profile?.id, refreshProfile])
+    if (location.search.includes('onboarding=1')) {
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.pathname, location.search, navigate, profile?.id, refreshProfile])
 
   const onboardingStorageKey = profile?.id ? `tribespend_onboarding_completed_${profile.id}` : null
   const onboardingCompletedLocally = (() => {
@@ -179,8 +221,14 @@ export default function AppShell() {
   const shouldShowOnboarding =
     !!profile &&
     profile.onboarding_completed !== true &&
-    !onboardingDismissed &&
-    !onboardingCompletedLocally
+    ((!onboardingDismissed && !onboardingCompletedLocally) || showOnboardingGuide)
+
+  const onboardingStatuses = {
+    'Add People': persons.length > 0,
+    'Add Payment Methods': cards.length > 0,
+    'Link Bank Accounts': linkedAccountCount > 0,
+    'Review Insights': transactions.length > 0 || location.pathname === '/app',
+  }
 
   if (!householdId) {
     return (
@@ -212,7 +260,13 @@ export default function AppShell() {
 
   return (
     <Layout>
-      {shouldShowOnboarding && <OnboardingModal onComplete={completeOnboarding} />}
+      {shouldShowOnboarding && (
+        <OnboardingModal
+          onDismiss={dismissOnboarding}
+          onFinish={finishOnboarding}
+          statuses={onboardingStatuses}
+        />
+      )}
       <Routes>
         <Route index element={<DashboardPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

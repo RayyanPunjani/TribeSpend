@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart3, CreditCard, Link2, Users, X } from 'lucide-react'
+import { BarChart3, CheckCircle2, Circle, CreditCard, Link2, Users, X } from 'lucide-react'
 
 type OnboardingStep = {
   title: string
@@ -41,10 +41,12 @@ const STEPS: OnboardingStep[] = [
 ]
 
 interface OnboardingModalProps {
-  onComplete: (path?: string) => Promise<void> | void
+  onDismiss: (path?: string) => void
+  onFinish: () => Promise<void> | void
+  statuses: Record<string, boolean>
 }
 
-export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
+export default function OnboardingModal({ onDismiss, onFinish, statuses }: OnboardingModalProps) {
   const [stepIndex, setStepIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const step = STEPS[stepIndex]
@@ -52,10 +54,10 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
 
-  const complete = async (path?: string) => {
+  const finish = async () => {
     setSaving(true)
     try {
-      await onComplete(path)
+      await onFinish()
     } finally {
       setSaving(false)
     }
@@ -71,7 +73,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
           </div>
           <button
             type="button"
-            onClick={() => complete()}
+            onClick={() => onDismiss()}
             disabled={saving}
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50"
             aria-label="Close onboarding"
@@ -106,11 +108,36 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             </div>
           </div>
 
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Setup checklist</p>
+            <div className="space-y-1.5">
+              {STEPS.map((item, index) => {
+                const done = statuses[item.title] === true
+                return (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => setStepIndex(index)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors ${
+                      index === stepIndex ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-600 hover:bg-white'
+                    }`}
+                  >
+                    {done ? <CheckCircle2 size={15} className="text-emerald-600" /> : <Circle size={15} className="text-slate-300" />}
+                    <span className="flex-1">{item.title}</span>
+                    <span className={`text-[11px] font-medium ${done ? 'text-emerald-700' : 'text-slate-400'}`}>
+                      {done ? 'Done' : 'To do'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={() => complete(step.path)}
+            onClick={() => onDismiss(step.path)}
             disabled={saving}
-            className="mt-6 w-full rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:opacity-50"
+            className="mt-4 w-full rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:opacity-50"
           >
             {step.cta}
           </button>
@@ -119,7 +146,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
         <div className="flex items-center justify-between gap-3 bg-slate-50 px-6 py-4">
           <button
             type="button"
-            onClick={() => complete()}
+            onClick={() => onDismiss()}
             disabled={saving}
             className="text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
           >
@@ -138,7 +165,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             {isLast ? (
               <button
                 type="button"
-                onClick={() => complete()}
+                onClick={finish}
                 disabled={saving}
                 className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
               >
