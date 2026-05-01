@@ -50,15 +50,14 @@ export default function AppShell() {
   const [dataLoaded, setDataLoaded] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState(false)
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false)
-  const [linkedAccountCount, setLinkedAccountCount] = useState(0)
   const autoSyncStartedRef = useRef(false)
   const navigate = useNavigate()
   const location = useLocation()
 
   const { load: loadSettings } = useSettingsStore()
   const { transactions, load: loadTransactions } = useTransactionStore()
-  const { cards, load: loadCards } = useCardStore()
-  const { persons, load: loadPersons } = usePersonStore()
+  const { load: loadCards } = useCardStore()
+  const { load: loadPersons } = usePersonStore()
   const { load: loadRules } = useCategoryRuleStore()
   const { load: loadCategories } = useCategoryStore()
   const { load: loadRewards } = useCardRewardStore()
@@ -145,26 +144,6 @@ export default function AppShell() {
     })()
   }, [householdId, dataLoaded, profile?.plaid_access_enabled, loadTransactions])
 
-  useEffect(() => {
-    if (!dataLoaded || profile?.plaid_access_enabled !== true) {
-      setLinkedAccountCount(0)
-      return
-    }
-
-    let cancelled = false
-    getItems()
-      .then((items) => {
-        if (!cancelled) setLinkedAccountCount(items.reduce((sum, item) => sum + item.accounts.length, 0))
-      })
-      .catch(() => {
-        if (!cancelled) setLinkedAccountCount(0)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [dataLoaded, profile?.plaid_access_enabled])
-
   const dismissOnboarding = useCallback((path?: string) => {
     setOnboardingDismissed(true)
     setShowOnboardingGuide(false)
@@ -220,15 +199,8 @@ export default function AppShell() {
   })()
   const shouldShowOnboarding =
     !!profile &&
-    profile.onboarding_completed !== true &&
-    ((!onboardingDismissed && !onboardingCompletedLocally) || showOnboardingGuide)
-
-  const onboardingStatuses = {
-    'Add People': persons.length > 0,
-    'Add Payment Methods': cards.length > 0,
-    'Link Bank Accounts': linkedAccountCount > 0,
-    'Review Insights': transactions.length > 0 || location.pathname === '/app',
-  }
+    (showOnboardingGuide ||
+      (profile.onboarding_completed !== true && !onboardingDismissed && !onboardingCompletedLocally))
 
   if (!householdId) {
     return (
@@ -264,7 +236,7 @@ export default function AppShell() {
         <OnboardingModal
           onDismiss={dismissOnboarding}
           onFinish={finishOnboarding}
-          statuses={onboardingStatuses}
+          showExampleData={transactions.length === 0}
         />
       )}
       <Routes>

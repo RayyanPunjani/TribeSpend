@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { AlertTriangle, Building2, ChevronDown, ChevronUp, CreditCard, DollarSign, List, TrendingUp, Upload, X } from 'lucide-react'
+import { AlertTriangle, Building2, ChevronDown, ChevronUp, CreditCard, Crown, DollarSign, List, TrendingUp, Upload, X } from 'lucide-react'
 import { getItems, type PlaidItem } from '@/api/plaid'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
@@ -290,12 +290,6 @@ export default function DashboardPage() {
   }, [overviewTransactions])
 
   const connectedAccountCount = plaidItems.reduce((sum, item) => sum + item.accounts.length, 0)
-  const onboardingSteps = [
-    { label: 'Add People', done: persons.length > 0, to: '/app/wallet?tab=people' },
-    { label: 'Add Payment Methods', done: cards.length > 0, to: '/app/wallet?tab=paymentMethods' },
-    { label: 'Link Bank Accounts', done: connectedAccountCount > 0, to: '/app/wallet?tab=linkedAccounts' },
-    { label: 'Review Insights', done: !isExampleData, to: '/app?onboarding=1' },
-  ]
 
   const expiringCredits = useMemo(() => {
     const now = new Date()
@@ -323,21 +317,21 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm font-semibold text-accent-900">Example data</p>
               <p className="mt-1 text-sm text-accent-700">
-                Connect accounts or import a CSV to replace this with your real spending.
+                Upload CSV for free, or upgrade to Premium to automatically sync transactions through Plaid.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
-                to="/app?onboarding=1"
-                className="inline-flex items-center justify-center rounded-lg bg-white px-3 py-2 text-xs font-semibold text-accent-700 shadow-sm ring-1 ring-accent-200 hover:bg-accent-100"
-              >
-                View setup guide
-              </Link>
-              <Link
                 to="/app/upload"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent-600 px-3 py-2 text-xs font-semibold text-white hover:bg-accent-700"
               >
-                <Upload size={14} /> Import CSV
+                <Upload size={14} /> Upload CSV
+              </Link>
+              <Link
+                to="/app/wallet?tab=linkedAccounts"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-amber-700 shadow-sm ring-1 ring-amber-200 hover:bg-amber-50"
+              >
+                <Crown size={14} /> Upgrade to connect bank
               </Link>
             </div>
           </div>
@@ -348,27 +342,40 @@ export default function DashboardPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Setup guide</h2>
-              <p className="mt-1 text-xs text-slate-500">Finish these steps when you are ready. You can reopen this guide anytime.</p>
+              <h2 className="text-sm font-semibold text-slate-800">Guided product tour</h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Resume the guide to explore tracking, budgets, reimbursements, recurring charges, analytics, and rewards.
+              </p>
             </div>
             <Link
               to="/app?onboarding=1"
               className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
             >
-              View setup guide
+              Resume guide
             </Link>
           </div>
-          <div className="mt-4 grid gap-2 md:grid-cols-4">
-            {onboardingSteps.map((step) => (
-              <Link
-                key={step.label}
-                to={step.to}
-                className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600 hover:bg-slate-100"
-              >
-                <span className={`h-2 w-2 rounded-full ${step.done ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                <span className="font-medium">{step.label}</span>
-              </Link>
-            ))}
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            <Link
+              to="/app/upload"
+              className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600 hover:bg-slate-100"
+            >
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Free</span>
+              <span className="font-medium">Upload CSV</span>
+            </Link>
+            <Link
+              to="/app/wallet?tab=linkedAccounts"
+              className="flex items-center gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800 hover:bg-amber-100/70"
+            >
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Premium</span>
+              <span className="font-medium">Connect bank automatically</span>
+            </Link>
+            <Link
+              to="/app?onboarding=1"
+              className="flex items-center gap-2 rounded-lg border border-accent-100 bg-accent-50 px-3 py-2 text-xs text-accent-800 hover:bg-accent-100/70"
+            >
+              <span className="h-2 w-2 rounded-full bg-accent-500" />
+              <span className="font-medium">Resume product demo</span>
+            </Link>
           </div>
         </section>
       )}
