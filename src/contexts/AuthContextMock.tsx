@@ -9,6 +9,7 @@ const MOCK_PROFILE: Profile = {
   color: '#3b82f6',
   role: 'owner',
   subscription_status: 'active',
+  onboarding_completed: true,
 }
 
 const MOCK_USER = { id: 'mock-user', email: 'test@local.dev' } as unknown as User

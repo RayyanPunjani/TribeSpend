@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CreditCard, Link2, Sparkles, Users, Wallet } from 'lucide-react'
 import PeopleManager from '@/components/settings/PeopleManager'
 import PlaidManager from '@/components/settings/PlaidManager'
@@ -14,8 +15,23 @@ const TABS = [
   { id: 'cardRewards' as WalletTab, label: 'Card Rewards', icon: Sparkles },
 ]
 
+function isWalletTab(value: string | null): value is WalletTab {
+  return value === 'people' || value === 'linkedAccounts' || value === 'paymentMethods' || value === 'cardRewards'
+}
+
 export default function WalletPage() {
-  const [tab, setTab] = useState<WalletTab>('people')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const [tab, setTab] = useState<WalletTab>(isWalletTab(requestedTab) ? requestedTab : 'people')
+
+  useEffect(() => {
+    if (isWalletTab(requestedTab)) setTab(requestedTab)
+  }, [requestedTab])
+
+  const selectTab = (nextTab: WalletTab) => {
+    setTab(nextTab)
+    setSearchParams(nextTab === 'people' ? {} : { tab: nextTab })
+  }
 
   return (
     <div className="max-w-4xl mx-auto flex flex-col gap-6">
@@ -33,7 +49,7 @@ export default function WalletPage() {
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => selectTab(id)}
             className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
               tab === id
                 ? 'bg-white text-slate-800 shadow-sm'

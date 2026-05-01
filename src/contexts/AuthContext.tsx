@@ -27,6 +27,7 @@ export interface Profile {
   plaid_access_enabled?: boolean | null
   account_status?: string | null
   deleted_at?: string | null
+  onboarding_completed?: boolean | null
 }
 
 export interface AuthContextType {

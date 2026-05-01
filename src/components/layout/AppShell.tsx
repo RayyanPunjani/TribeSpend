@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { getItems, syncTransactions } from '@/api/plaid'
+import { supabase } from '@/lib/supabase'
 import Layout from '@/components/layout/Layout'
 import DashboardPage from '@/pages/DashboardPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
@@ -15,6 +16,7 @@ import WalletPage from '@/pages/WalletPage'
 import OptimizePage from '@/pages/OptimizePage'
 import BudgetsPage from '@/pages/BudgetsPage'
 import HelpSupportPage from '@/pages/HelpSupportPage'
+import OnboardingModal from '@/components/onboarding/OnboardingModal'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -44,9 +46,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export default function AppShell() {
-  const { householdId, profile } = useAuth()
+  const { householdId, profile, refreshProfile } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
   const autoSyncStartedRef = useRef(false)
+  const navigate = useNavigate()
 
   const { load: loadSettings } = useSettingsStore()
   const { load: loadTransactions } = useTransactionStore()
@@ -57,6 +61,10 @@ export default function AppShell() {
   const { load: loadRewards } = useCardRewardStore()
   const { load: loadCredits } = useCardCreditStore()
   const { load: loadBudgets } = useBudgetStore()
+
+  useEffect(() => {
+    setOnboardingDismissed(false)
+  }, [profile?.id])
 
   useEffect(() => {
     if (!householdId) return
@@ -125,6 +133,54 @@ export default function AppShell() {
     })()
   }, [householdId, dataLoaded, profile?.plaid_access_enabled, loadTransactions])
 
+  const completeOnboarding = useCallback(async (path?: string) => {
+    const profileId = profile?.id
+    const storageKey = profileId ? `tribespend_onboarding_completed_${profileId}` : null
+
+    setOnboardingDismissed(true)
+    if (storageKey) {
+      try {
+        localStorage.setItem(storageKey, 'true')
+      } catch (error) {
+        console.warn('[Onboarding] Unable to save local completion flag:', error)
+      }
+    }
+
+    if (profileId) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ onboarding_completed: true })
+          .eq('id', profileId)
+
+        if (error) {
+          console.warn('[Onboarding] Failed to save profile completion flag; using local fallback:', error.message)
+        } else {
+          await refreshProfile()
+        }
+      } catch (error) {
+        console.warn('[Onboarding] Failed to save profile completion flag; using local fallback:', error)
+      }
+    }
+
+    if (path) navigate(path)
+  }, [navigate, profile?.id, refreshProfile])
+
+  const onboardingStorageKey = profile?.id ? `tribespend_onboarding_completed_${profile.id}` : null
+  const onboardingCompletedLocally = (() => {
+    if (!onboardingStorageKey) return false
+    try {
+      return localStorage.getItem(onboardingStorageKey) === 'true'
+    } catch {
+      return false
+    }
+  })()
+  const shouldShowOnboarding =
+    !!profile &&
+    profile.onboarding_completed !== true &&
+    !onboardingDismissed &&
+    !onboardingCompletedLocally
+
   if (!householdId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -155,6 +211,7 @@ export default function AppShell() {
 
   return (
     <Layout>
+      {shouldShowOnboarding && <OnboardingModal onComplete={completeOnboarding} />}
       <Routes>
         <Route index element={<DashboardPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
