@@ -394,7 +394,7 @@ async function publicItem(item) {
 
   return {
     id: item.id,
-    itemId: item.id,
+    itemId: item.plaid_item_id ?? item.id,
     institutionName: item.institution_name,
     institutionId: item.institution_id,
     status: 'active',
@@ -566,6 +566,7 @@ async function handleRoute(event) {
       id: itemId,
       household_id: auth.householdId,
       access_token_encrypted: encryptToken(accessToken),
+      plaid_item_id: exchange.item_id ?? null,
       institution_id: body.institution?.institution_id ?? null,
       institution_name: body.institution?.name ?? null,
     })
