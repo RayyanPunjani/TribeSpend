@@ -38,6 +38,7 @@ export default function CardManager() {
   const [selectedTemplate, setSelectedTemplate] = useState<PresetCardTemplate | null>(null)
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null)
   const creditCardsTopRef = useRef<HTMLDivElement | null>(null)
+  const addCardFormRef = useRef<HTMLDivElement | null>(null)
   const paymentMethodsTopRef = useRef<HTMLDivElement | null>(null)
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -57,6 +58,21 @@ export default function CardManager() {
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!showing) return
+    requestAnimationFrame(() => {
+      addCardFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [showing])
+
+  const openAddCardForm = () => {
+    setEditingId(null)
+    setShowing(true)
+    requestAnimationFrame(() => {
+      addCardFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   const highlightNewCard = (cardId: string, target: RefObject<HTMLDivElement | null>) => {
     setHighlightedCardId(cardId)
@@ -191,7 +207,7 @@ export default function CardManager() {
         <h3 className="text-sm font-semibold text-slate-700">Credit Cards</h3>
         {persons.length > 0 ? (
           <button
-            onClick={() => { setShowing(true); setEditingId(null) }}
+            onClick={openAddCardForm}
             className="flex items-center gap-1.5 text-xs text-accent-600 hover:text-accent-700 font-medium"
           >
             <Plus size={14} /> Add Card
@@ -217,6 +233,24 @@ export default function CardManager() {
           and we&apos;ll work on getting it added.
         </p>
       </div>
+
+      {showing && (
+        <div ref={addCardFormRef} className="mb-3 p-4 rounded-xl border border-accent-200 bg-accent-50">
+          <p className="text-xs font-semibold text-slate-600 mb-3">Add Card</p>
+          <CascadeForm
+            form={form}
+            setForm={setForm}
+            template={selectedTemplate}
+            setTemplate={setSelectedTemplate}
+            submitLabel="Add Card"
+            onSubmit={handleAdd}
+            onCancel={() => { setShowing(false); setForm({ ...emptyForm }); setSelectedTemplate(null) }}
+            disableSubmit={!form.lastFour || !form.owner}
+            persons={persons}
+            autoFocusFirstField
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         {creditCards.map((card) => {
@@ -291,22 +325,6 @@ export default function CardManager() {
           </div>
         )}
 
-        {showing && (
-          <div className="p-4 rounded-xl border border-accent-200 bg-accent-50">
-            <p className="text-xs font-semibold text-slate-600 mb-3">Add Card</p>
-            <CascadeForm
-              form={form}
-              setForm={setForm}
-              template={selectedTemplate}
-              setTemplate={setSelectedTemplate}
-              submitLabel="Add Card"
-              onSubmit={handleAdd}
-              onCancel={() => { setShowing(false); setForm({ ...emptyForm }); setSelectedTemplate(null) }}
-              disableSubmit={!form.lastFour || !form.owner}
-              persons={persons}
-            />
-          </div>
-        )}
       </div>
 
       {/* ── Other Payment Methods ── */}

@@ -45,11 +45,12 @@ export interface CascadeFormProps {
   onCancel: () => void
   disableSubmit?: boolean
   persons: { id: string; name: string }[]
+  autoFocusFirstField?: boolean
 }
 
 export function CascadeForm({
   form, setForm, template, setTemplate,
-  existingRuleCount, submitLabel, onSubmit, onCancel, disableSubmit, persons,
+  existingRuleCount, submitLabel, onSubmit, onCancel, disableSubmit, persons, autoFocusFirstField,
 }: CascadeFormProps) {
   const { add: addPerson } = usePersonStore()
   const { householdId } = useAuth()
@@ -119,7 +120,12 @@ export function CascadeForm({
       {/* Step 1: Brand */}
       <div>
         <label className={labelCls}>Brand / Issuer</label>
-        <select value={form.brand} onChange={(e) => handleBrandChange(e.target.value)} className={inputCls}>
+        <select
+          value={form.brand}
+          onChange={(e) => handleBrandChange(e.target.value)}
+          className={inputCls}
+          autoFocus={autoFocusFirstField}
+        >
           <option value="">— Select brand —</option>
           {BRANDS_BY_GROUP.banks.length > 0 && (
             <optgroup label="Banks">
