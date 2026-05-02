@@ -1,4 +1,4 @@
-import { useState, useRef, type RefObject } from 'react'
+import { useEffect, useState, useRef, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { DollarSign, RefreshCw, StickyNote, AlertCircle, EyeOff, PackageOpen, Undo2 } from 'lucide-react'
@@ -74,9 +74,21 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
   const isNeedsReview = t.category === 'Needs Review'
   const textClass = t.deleted ? 'opacity-45 grayscale' : ''
   const hasDistinctPostDate = Boolean(t.postDate) && t.postDate !== t.transDate
+  const popoverOpensUp = anchorRect
+    ? anchorRect.top > (typeof window === 'undefined' ? 0 : window.innerHeight * 0.55)
+    : false
   const linkedRefundOriginal = t.refundForId
     ? transactions.find((tx) => tx.id === t.refundForId)
     : undefined
+
+  useEffect(() => {
+    if (!openPopover) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [openPopover])
 
   return (
     <>
@@ -346,7 +358,9 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
           <div
             className="fixed z-[200]"
             style={{
-              top: anchorRect.bottom + 4,
+              ...(popoverOpensUp
+                ? { bottom: window.innerHeight - anchorRect.top + 4 }
+                : { top: anchorRect.bottom + 4 }),
               right: window.innerWidth - anchorRect.right,
             }}
           >
@@ -357,7 +371,7 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
               <ExpectedReturnPopover transaction={t} onClose={closeAll} />
             )}
             {openPopover === 'note' && (
-              <div className="bg-white border border-slate-200 rounded-xl shadow-card-md p-3 w-56 animate-slide-in">
+              <div className="bg-white border border-slate-200 rounded-xl shadow-card-md p-3 pb-6 w-56 max-h-[80vh] overflow-y-auto animate-slide-in">
                 <textarea
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}

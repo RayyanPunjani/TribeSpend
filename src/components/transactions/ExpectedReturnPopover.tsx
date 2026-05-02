@@ -59,7 +59,7 @@ export default function ExpectedReturnPopover({ transaction: t, onClose }: Props
   }
 
   return (
-    <div ref={ref} className="bg-white border border-slate-200 rounded-xl shadow-card-md p-3 w-64 animate-slide-in">
+    <div ref={ref} className="bg-white border border-slate-200 rounded-xl shadow-card-md p-3 pb-6 w-64 max-h-[80vh] overflow-y-auto animate-slide-in">
       <p className="text-xs font-semibold text-purple-700 mb-2">
         {isAlreadySet ? 'Expected Return' : 'Mark as Expecting Return'}
       </p>

@@ -197,23 +197,9 @@ export default function TransactionsPage() {
           <p className="mt-1 text-sm text-slate-500">
             Upload a statement for free, or add a transaction manually to try your first real entry.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              to="/app/upload"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
-            >
-              <Upload size={15} />
-              Upload CSV
-            </Link>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              <Plus size={15} />
-              Add your first transaction
-            </button>
-          </div>
+          <p className="mt-1 text-sm text-slate-500">
+            Or upgrade to automatically sync your transactions by connecting your bank.
+          </p>
         </div>
 
         <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
@@ -752,6 +738,15 @@ function HeaderActions({
       >
         <Upload size={15} />
         Upload CSV
+      </Link>
+      <Link
+        to="/app/wallet?tab=linkedAccounts"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100"
+      >
+        Connect Bank
+        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+          Premium
+        </span>
       </Link>
     </div>
   )

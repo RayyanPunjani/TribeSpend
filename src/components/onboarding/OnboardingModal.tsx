@@ -16,6 +16,7 @@ import {
   Target,
   Trophy,
   Upload,
+  Users,
   X,
 } from 'lucide-react'
 import { useSampleTransactionStore } from '@/stores/sampleTransactionStore'
@@ -34,6 +35,7 @@ type OnboardingStep = {
 }
 
 type TransactionGuideIcon = 'recurring' | 'reimbursement' | 'return' | 'hide' | 'notes'
+type WalletGuideSection = 'people' | 'cards' | 'linked'
 
 const TRANSACTION_ICON_GUIDE: Array<{
   id: TransactionGuideIcon
@@ -79,6 +81,34 @@ const TRANSACTION_ICON_GUIDE: Array<{
   },
 ]
 
+const WALLET_GUIDE: Array<{
+  id: WalletGuideSection
+  label: string
+  tooltip: string
+  icon: typeof Users
+  premium?: boolean
+}> = [
+  {
+    id: 'people',
+    label: 'People',
+    tooltip: 'Add people to track who is spending and who owes money.',
+    icon: Users,
+  },
+  {
+    id: 'cards',
+    label: 'Payment Methods',
+    tooltip: 'Add cards to track spending and optimize rewards.',
+    icon: CreditCard,
+  },
+  {
+    id: 'linked',
+    label: 'Linked Accounts',
+    tooltip: 'Connect your bank to automatically import transactions.',
+    icon: Crown,
+    premium: true,
+  },
+]
+
 const STEPS: OnboardingStep[] = [
   {
     title: 'See what TribeSpend can do',
@@ -107,6 +137,13 @@ const STEPS: OnboardingStep[] = [
         { name: 'Urban Cafe', detail: 'Dining · Example Card', value: '$84.20' },
       ],
     },
+  },
+  {
+    title: 'Wallet Overview',
+    copy: 'Set up the people, cards, and linked accounts that give each transaction useful context.',
+    path: '/app/wallet',
+    cta: 'View Wallet',
+    icon: CreditCard,
   },
   {
     title: 'Returns',
@@ -209,6 +246,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const [stepIndex, setStepIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [activeTransactionIcon, setActiveTransactionIcon] = useState<TransactionGuideIcon>('recurring')
+  const [activeWalletSection, setActiveWalletSection] = useState<WalletGuideSection>('people')
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const sampleReimbursements = useSampleTransactionStore((state) => state.reimbursements)
@@ -218,6 +256,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
   const isTransactionsStep = step.title === 'Transactions'
+  const isWalletStep = step.title === 'Wallet Overview'
   const isReturnsStep = step.title === 'Returns'
   const isReimbursementsStep = step.title === 'Reimbursements'
   const isRecurringStep = step.title === 'Recurring'
@@ -342,6 +381,74 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
+          {isWalletStep && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Wallet structure</p>
+              <div className="relative overflow-visible rounded-xl bg-white p-3 shadow-sm">
+                <div className="absolute inset-0 rounded-xl bg-slate-900/5 pointer-events-none" />
+                <div className="relative grid gap-2 sm:grid-cols-3">
+                  {WALLET_GUIDE.map(({ id, label, tooltip, icon: SectionIcon, premium }) => {
+                    const active = activeWalletSection === id
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setActiveWalletSection(id)}
+                        className={`relative rounded-xl border p-3 text-left transition-all ${
+                          active
+                            ? 'z-10 scale-[1.02] border-accent-300 bg-white shadow-lg opacity-100'
+                            : 'border-slate-200 bg-white opacity-35 hover:opacity-80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-50 text-accent-600">
+                            <SectionIcon size={17} />
+                          </div>
+                          {premium && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                              Premium
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">{label}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">
+                          {id === 'people' && 'Rayyan, Nada'}
+                          {id === 'cards' && 'Example Card, Rewards Card'}
+                          {id === 'linked' && 'Automatic imports'}
+                        </p>
+                        {active && (
+                          <div className="absolute left-2 right-2 top-[calc(100%+8px)] z-20 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-5 text-white shadow-xl sm:left-0 sm:right-auto sm:w-48">
+                            {tooltip}
+                            <span className="absolute -top-1.5 left-5 h-3 w-3 rotate-45 bg-slate-900" />
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="mt-14 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600 shadow-sm">
+                Transactions are linked to people and cards to track spending and rewards.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {WALLET_GUIDE.map(({ id, label, premium }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveWalletSection(id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      activeWalletSection === id
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-white text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    {label}{premium ? ' · Premium' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isReturnsStep && showExampleData && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
@@ -434,7 +541,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {step.example && showExampleData && !isTransactionsStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
+          {step.example && showExampleData && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">{step.example.label}</p>
               <div className="space-y-1.5">
@@ -451,7 +558,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {step.example && !showExampleData && !isTransactionsStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
+          {step.example && !showExampleData && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
               Your real transaction data is available now, so example cards are hidden.
             </div>

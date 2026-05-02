@@ -80,7 +80,7 @@ function getRecurringType(category: string, merchant: string): RecurringType {
 }
 
 function getFrequency(dates: string[]): string {
-  if (dates.length < 2) return 'Unknown'
+  if (dates.length < 2) return 'Monthly'
 
   const gaps = dates.slice(0, -1).map((d, i) =>
     differenceInDays(parseISO(d), parseISO(dates[i + 1])),
@@ -98,7 +98,7 @@ function getAnnualEstimate(frequency: string, amount: number): number {
   if (frequency === 'Monthly') return amount * 12
   if (frequency === 'Quarterly') return amount * 4
   if (frequency === 'Annual') return amount
-  return 0
+  return amount * 12
 }
 
 function getMonthlyEstimate(frequency: string, amount: number): number {
@@ -106,7 +106,20 @@ function getMonthlyEstimate(frequency: string, amount: number): number {
   if (frequency === 'Monthly') return amount
   if (frequency === 'Quarterly') return amount / 3
   if (frequency === 'Annual') return amount / 12
-  return 0
+  return amount
+}
+
+function getRecurringAmount(transaction: { id: string; amount: unknown; cleanDescription?: string; description?: string }): number | null {
+  const amount = Number(transaction.amount)
+  if (!Number.isFinite(amount)) {
+    console.warn('[RecurringPage] Missing or invalid recurring transaction amount:', {
+      id: transaction.id,
+      amount: transaction.amount,
+      merchant: transaction.cleanDescription || transaction.description,
+    })
+    return null
+  }
+  return Math.abs(amount)
 }
 
 export default function RecurringPage() {
@@ -148,10 +161,15 @@ export default function RecurringPage() {
 
     for (const [, txns] of groups) {
       const sorted = [...txns].sort((a, b) => b.transDate.localeCompare(a.transDate))
-      const amounts = sorted.map((t) => t.amount)
+      const amountEntries = sorted
+        .map((t) => ({ transaction: t, amount: getRecurringAmount(t) }))
+        .filter((entry): entry is { transaction: typeof sorted[number]; amount: number } => entry.amount !== null)
+      if (amountEntries.length === 0) continue
+
+      const amounts = amountEntries.map((entry) => entry.amount)
       const dates = sorted.map((t) => t.transDate)
       const latest = amounts[0]
-      const latestDate = dates[0]
+      const latestDate = amountEntries[0].transaction.transDate
 
       // Detect price change
       const isPriceChanged = amounts.length > 1 && amounts[0] !== amounts[1]
@@ -205,10 +223,15 @@ export default function RecurringPage() {
 
     for (const [, txns] of groups) {
       const sorted = [...txns].sort((a, b) => b.transDate.localeCompare(a.transDate))
-      const amounts = sorted.map((t) => t.amount)
+      const amountEntries = sorted
+        .map((t) => ({ transaction: t, amount: getRecurringAmount(t) }))
+        .filter((entry): entry is { transaction: typeof sorted[number]; amount: number } => entry.amount !== null)
+      if (amountEntries.length === 0) continue
+
+      const amounts = amountEntries.map((entry) => entry.amount)
       const dates = sorted.map((t) => t.transDate)
       const latest = amounts[0]
-      const latestDate = dates[0]
+      const latestDate = amountEntries[0].transaction.transDate
 
       const isPriceChanged = amounts.length > 1 && amounts[0] !== amounts[1]
 

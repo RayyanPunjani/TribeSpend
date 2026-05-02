@@ -79,7 +79,7 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
   return (
     <div
       ref={ref}
-      className="bg-white border border-slate-200 rounded-xl shadow-card-md p-4 w-64 animate-slide-in"
+      className="bg-white border border-slate-200 rounded-xl shadow-card-md p-4 pb-6 w-64 max-h-[80vh] overflow-y-auto animate-slide-in"
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
