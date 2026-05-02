@@ -3,8 +3,8 @@ import { CheckCircle, PackageOpen, RotateCcw } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
+import { useSampleTransactionStore, type SampleTransaction } from '@/stores/sampleTransactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
-import EmptyState from '@/components/shared/EmptyState'
 import type { Transaction } from '@/types'
 import type { CreditCard } from '@/types'
 import { normalizeMerchantName, merchantSearchText } from '@/lib/merchantNormalize'
@@ -51,6 +51,8 @@ export default function ReturnsPage() {
   const [refundSelections, setRefundSelections] = useState<Record<string, string>>({})
   const [refundSearches, setRefundSearches] = useState<Record<string, string>>({})
   const [refundFilters, setRefundFilters] = useState<Record<string, RefundFilters>>({})
+  const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
+  const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const cardMap = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards])
 
   const requestedTab = searchParams.get('tab')
@@ -118,15 +120,11 @@ export default function ReturnsPage() {
 
   if (transactions.length === 0) {
     return (
-      <EmptyState
-        icon={PackageOpen}
-        title="No transactions yet"
-        description="Upload a statement and mark transactions for returns."
-        action={
-          <Link to="/app/transactions" className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700">
-            View Transactions
-          </Link>
-        }
+      <SampleReturnsPage
+        tab={tab}
+        onSwitchTab={switchTab}
+        returns={sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)}
+        fallback={sampleTransactions[2]}
       />
     )
   }
@@ -492,5 +490,165 @@ export default function ReturnsPage() {
         </>
       )}
     </div>
+  )
+}
+
+function SampleReturnsPage({
+  tab,
+  onSwitchTab,
+  returns,
+  fallback,
+}: {
+  tab: Tab
+  onSwitchTab: (tab: Tab) => void
+  returns: SampleTransaction[]
+  fallback: SampleTransaction
+}) {
+  const expectedRows = returns.length > 0 ? returns : [fallback]
+  const reviewRow = returns[0] ?? fallback
+  const completedRow = returns[0] ?? fallback
+
+  return (
+    <div className="flex flex-col gap-5 max-w-5xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Returns</h1>
+          <p className="mt-1 text-sm text-slate-500">Example data</p>
+        </div>
+        <Link
+          to="/app/transactions"
+          className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+        >
+          Practice on Transactions
+        </Link>
+      </div>
+
+      <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-700">
+        Mark a sample transaction with the return icon on Transactions to see it appear here. Example data disappears once real transactions exist.
+      </div>
+
+      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+        <SampleTabButton active={tab === 'expected'} icon={PackageOpen} label="Expected Returns" onClick={() => onSwitchTab('expected')} />
+        <SampleTabButton active={tab === 'review'} icon={RotateCcw} label="Refund Review" onClick={() => onSwitchTab('review')} />
+        <SampleTabButton active={tab === 'completed'} icon={CheckCircle} label="Completed Returns" onClick={() => onSwitchTab('completed')} />
+      </div>
+
+      {tab === 'expected' && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Merchant</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400">Charged</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400">Expected</th>
+                <th className="px-4 py-3 text-xs font-semibold text-slate-400">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {expectedRows.map((transaction) => (
+                <tr key={transaction.id} className="bg-accent-50/30">
+                  <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-medium text-slate-800">{transaction.merchant}</p>
+                    <p className="text-xs text-slate-400">{transaction.description}</p>
+                  </td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">{formatCurrency(transaction.amount)}</td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-purple-600">{formatCurrency(transaction.amount)}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">Pending</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'review' && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Merchant</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400">Refund</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Match Purchase</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="bg-accent-50/30">
+                <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{reviewRow.date}</td>
+                <td className="px-4 py-3">
+                  <p className="text-sm font-medium text-slate-800">{reviewRow.merchant} credit</p>
+                  <p className="text-xs text-slate-400">Sample refund waiting for review</p>
+                </td>
+                <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(reviewRow.amount)}</td>
+                <td className="px-4 py-3">
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Needs match</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'completed' && (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Refund Date</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Refund Merchant</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Original Purchase</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-400">Refund</th>
+                <th className="px-4 py-3 text-xs font-semibold text-slate-400">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="bg-accent-50/30">
+                <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{completedRow.date}</td>
+                <td className="px-4 py-3">
+                  <p className="text-sm font-medium text-slate-800">{completedRow.merchant} refund</p>
+                  <p className="text-xs text-slate-400">Sample matched refund</p>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-700">{completedRow.merchant}</td>
+                <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(completedRow.amount)}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <CheckCircle size={11} /> Completed
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SampleTabButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean
+  icon: typeof PackageOpen
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+        active ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+      }`}
+    >
+      <Icon size={14} />
+      {label}
+    </button>
   )
 }

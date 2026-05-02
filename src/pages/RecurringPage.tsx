@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import { RefreshCw, Upload, AlertTriangle, Scan, Loader2 } from 'lucide-react'
+import { AlertTriangle, Scan, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
+import { useSampleTransactionStore } from '@/stores/sampleTransactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
-import EmptyState from '@/components/shared/EmptyState'
 import { parseISO, differenceInDays } from 'date-fns'
 import { runRecurringDetector } from '@/services/recurringDetector'
 
@@ -111,6 +111,8 @@ function getMonthlyEstimate(frequency: string, amount: number): number {
 export default function RecurringPage() {
   const { transactions, updateMany } = useTransactionStore()
   const { cards } = useCardStore()
+  const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
+  const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<number | null>(null)
@@ -249,17 +251,83 @@ export default function RecurringPage() {
   }, [recurringServices])
 
   if (transactions.length === 0) {
+    const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring)
+    const preview = sampleRecurring.length > 0 ? sampleRecurring : [sampleTransactions[0]]
+    const sampleMonthly = preview.reduce((sum, transaction) => sum + transaction.amount, 0)
+    const sampleAnnual = sampleMonthly * 12
+
     return (
-      <EmptyState
-        icon={RefreshCw}
-        title="No recurring charges yet"
-        description="Upload statements to get started. Recurring charges are detected automatically from your transaction history."
-        action={
-          <Link to="/app/upload" className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700">
-            <Upload size={15} /> Upload Statement
+      <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Recurring Charges</h1>
+            <p className="mt-1 text-sm text-slate-500">Example data</p>
+          </div>
+          <Link
+            to="/app/transactions"
+            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+          >
+            Practice on Transactions
           </Link>
-        }
-      />
+        </div>
+
+        <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-700">
+          Mark a sample transaction with the recurring icon to see it appear here. Example data disappears once real transactions exist.
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs text-slate-500">Est. monthly</p>
+            <p className="mt-1 text-xl font-bold text-slate-800">{formatCurrency(sampleMonthly)}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-xs text-slate-500">Est. annual</p>
+            <p className="mt-1 text-xl font-bold text-slate-800">{formatCurrency(sampleAnnual)}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Merchant</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Type</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Category</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Card</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Frequency</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Amount</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Annual Est.</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {preview.map((transaction) => {
+                  const type = getRecurringType(transaction.category, transaction.merchant)
+                  return (
+                    <tr key={transaction.id} className="bg-accent-50/30">
+                      <td className="px-4 py-3 font-medium text-slate-800">{transaction.merchant}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_STYLES[type]}`}>
+                          {TYPE_LABELS[type]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                          {transaction.category}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{transaction.card}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">Monthly</td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-800">{formatCurrency(transaction.amount)}</td>
+                      <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(transaction.amount * 12)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     )
   }
 

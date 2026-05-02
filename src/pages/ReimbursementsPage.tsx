@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import { AlertCircle, DollarSign, CheckCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { useSampleTransactionStore } from '@/stores/sampleTransactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
-import EmptyState from '@/components/shared/EmptyState'
 
 export default function ReimbursementsPage() {
   const { transactions, update, updateMany } = useTransactionStore()
+  const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
+  const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const [settlingUp, setSettlingUp] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -62,17 +64,77 @@ export default function ReimbursementsPage() {
   }
 
   if (transactions.length === 0) {
+    const sampleReimbursements = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
+    const preview = sampleReimbursements.length > 0 ? sampleReimbursements : [sampleTransactions[1]]
+    const outstanding = preview.reduce((sum, transaction) => sum + transaction.amount / 2, 0)
+
     return (
-      <EmptyState
-        icon={DollarSign}
-        title="No transactions yet"
-        description="Upload a statement and mark transactions for reimbursement."
-        action={
-          <Link to="/app/transactions" className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700">
-            View Transactions
+      <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Reimbursements</h1>
+            <p className="mt-1 text-sm text-slate-500">Example data</p>
+          </div>
+          <Link
+            to="/app/transactions"
+            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+          >
+            Practice on Transactions
           </Link>
-        }
-      />
+        </div>
+
+        <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-700">
+          Mark a sample transaction with the reimbursement icon to see it appear here. Example data disappears once real transactions exist.
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center text-accent-700 font-bold text-sm">
+                N
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800">Nada</p>
+                <p className="text-xs text-slate-500">
+                  Outstanding: {formatCurrency(outstanding)} · Paid: {formatCurrency(0)}
+                </p>
+              </div>
+            </div>
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-medium">
+              <CheckCircle size={13} />
+              Settle Up
+            </span>
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100">
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-400">Date</th>
+                <th className="text-left px-4 py-2 text-xs font-semibold text-slate-400">Description</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-400">Total</th>
+                <th className="text-right px-4 py-2 text-xs font-semibold text-slate-400">Reimbursable</th>
+                <th className="px-4 py-2 text-xs font-semibold text-slate-400">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {preview.map((transaction) => (
+                <tr key={transaction.id} className="bg-accent-50/30">
+                  <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
+                  <td className="px-4 py-2.5">
+                    <p className="text-sm text-slate-800">{transaction.merchant}</p>
+                    <p className="text-xs text-slate-400">{transaction.description}</p>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-sm font-medium text-slate-700">{formatCurrency(transaction.amount)}</td>
+                  <td className="px-4 py-2.5 text-right text-sm font-semibold text-orange-600">{formatCurrency(transaction.amount / 2)}</td>
+                  <td className="px-4 py-2.5">
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Unpaid</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     )
   }
 

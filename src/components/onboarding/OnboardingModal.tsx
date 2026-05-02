@@ -17,6 +17,8 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { useSampleTransactionStore } from '@/stores/sampleTransactionStore'
+import { formatCurrency } from '@/utils/formatters'
 
 type OnboardingStep = {
   title: string
@@ -206,6 +208,8 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const [stepIndex, setStepIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [activeTransactionIcon, setActiveTransactionIcon] = useState<TransactionGuideIcon>('recurring')
+  const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
+  const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const step = STEPS[stepIndex]
   const Icon = step.icon
   const isFirst = stepIndex === 0
@@ -214,6 +218,13 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const isReturnsStep = step.title === 'Returns'
   const isReimbursementsStep = step.title === 'Reimbursements'
   const isRecurringStep = step.title === 'Recurring'
+  const sampleReturns = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)
+  const sampleReimbursements = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
+  const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring)
+  const returnsPreview = sampleReturns.length > 0 ? sampleReturns : [sampleTransactions[2]]
+  const reimbursementsPreview = sampleReimbursements.length > 0 ? sampleReimbursements : [sampleTransactions[1]]
+  const recurringPreview = sampleRecurring.length > 0 ? sampleRecurring : [sampleTransactions[0]]
+  const recurringMonthlyTotal = recurringPreview.reduce((sum, transaction) => sum + transaction.amount, 0)
 
   const finish = async () => {
     setSaving(true)
@@ -336,20 +347,24 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                   <div className="px-2 py-1.5 text-center">Review</div>
                   <div className="px-2 py-1.5 text-center">Completed</div>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">Headphones return</p>
-                      <p className="text-xs text-slate-400">Expected refund · pending</p>
-                    </div>
-                    <span className="text-sm font-semibold text-purple-600">$129.00</span>
+                <div className="grid gap-2 p-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-600">Expected</p>
+                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview[0]?.merchant ?? 'Return item'}</p>
+                    <p className="text-xs text-slate-400">Pending refund</p>
+                    <p className="mt-1 text-sm font-semibold text-purple-600">{formatCurrency(returnsPreview[0]?.amount ?? 129)}</p>
                   </div>
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">Amazon credit</p>
-                      <p className="text-xs text-slate-400">Needs match review</p>
-                    </div>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Review</span>
+                  <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Review</p>
+                    <p className="mt-1 truncate text-sm font-medium text-slate-800">Refund credit</p>
+                    <p className="text-xs text-slate-400">Needs match review</p>
+                    <span className="mt-2 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Match</span>
+                  </div>
+                  <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
+                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview[0]?.merchant ?? 'Matched refund'}</p>
+                    <p className="text-xs text-slate-400">Refund received</p>
+                    <span className="mt-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Completed</span>
                   </div>
                 </div>
               </div>
@@ -368,20 +383,15 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                   <span className="rounded-lg bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white">Settle Up</span>
                 </div>
                 <div className="divide-y divide-slate-100">
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">Dinner split</p>
-                      <p className="text-xs text-slate-400">Half of group dinner</p>
+                  {reimbursementsPreview.map((transaction) => (
+                    <div key={transaction.id} className="flex items-center justify-between px-3 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{transaction.merchant}</p>
+                        <p className="text-xs text-slate-400">{transaction.description}</p>
+                      </div>
+                      <span className="text-sm font-semibold text-orange-600">{formatCurrency(transaction.amount / 2)}</span>
                     </div>
-                    <span className="text-sm font-semibold text-orange-600">$42.50</span>
-                  </div>
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">Rideshare</p>
-                      <p className="text-xs text-slate-400">Airport pickup</p>
-                    </div>
-                    <span className="text-sm font-semibold text-orange-600">$32.00</span>
-                  </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -393,29 +403,30 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-white p-3 shadow-sm">
                   <p className="text-xs text-slate-400">Monthly total</p>
-                  <p className="text-lg font-bold text-slate-800">$85.99</p>
+                  <p className="text-lg font-bold text-slate-800">{formatCurrency(recurringMonthlyTotal)}</p>
                 </div>
                 <div className="rounded-xl bg-white p-3 shadow-sm">
                   <p className="text-xs text-slate-400">Annual estimate</p>
-                  <p className="text-lg font-bold text-slate-800">$1,031</p>
+                  <p className="text-lg font-bold text-slate-800">{formatCurrency(recurringMonthlyTotal * 12)}</p>
                 </div>
               </div>
               <div className="mt-2 divide-y divide-slate-100 rounded-xl bg-white shadow-sm">
-                <div className="flex items-center justify-between px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">Streaming Bundle</p>
-                    <p className="text-xs text-slate-400">Monthly · Subscription</p>
+                {recurringPreview.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{transaction.merchant}</p>
+                      <p className="text-xs text-slate-400">Monthly · {transaction.category}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-800">{formatCurrency(transaction.amount)}</span>
                   </div>
-                  <span className="text-sm font-semibold text-slate-800">$46.99</span>
-                </div>
-                <div className="flex items-center justify-between px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">Gym Membership</p>
-                    <p className="text-xs text-slate-400">Monthly · Membership</p>
-                  </div>
-                  <span className="text-sm font-semibold text-slate-800">$39.00</span>
-                </div>
+                ))}
               </div>
+            </div>
+          )}
+
+          {(isReturnsStep || isReimbursementsStep || isRecurringStep) && !showExampleData && (
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+              Your real transaction data is available now, so example cards are hidden.
             </div>
           )}
 

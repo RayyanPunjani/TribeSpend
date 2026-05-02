@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
+import { useSampleTransactionStore, type SampleFlag } from '@/stores/sampleTransactionStore'
 import FilterBar from '@/components/transactions/FilterBar'
 import TransactionRow from '@/components/transactions/TransactionRow'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal'
@@ -31,52 +32,6 @@ interface SortState {
   key: SortKey
   dir: SortDir
 }
-
-type SampleFlag = 'recurring' | 'reimbursement' | 'return' | 'hidden' | 'notes'
-
-type SampleTransaction = {
-  id: string
-  date: string
-  merchant: string
-  description: string
-  category: string
-  card: string
-  person: string
-  amount: number
-}
-
-const SAMPLE_TRANSACTIONS: SampleTransaction[] = [
-  {
-    id: 'sample-streaming',
-    date: 'May 1',
-    merchant: 'Streaming Bundle',
-    description: 'Monthly entertainment subscription',
-    category: 'Entertainment',
-    card: 'Example Card',
-    person: 'Rayyan',
-    amount: 46.99,
-  },
-  {
-    id: 'sample-dinner',
-    date: 'Apr 28',
-    merchant: 'Urban Cafe',
-    description: 'Group dinner with friends',
-    category: 'Dining',
-    card: 'Example Card',
-    person: 'Rayyan',
-    amount: 84.2,
-  },
-  {
-    id: 'sample-headphones',
-    date: 'Apr 24',
-    merchant: 'Headphones Store',
-    description: 'Return expected after drop-off',
-    category: 'Shopping',
-    card: 'Example Card',
-    person: 'Rayyan',
-    amount: 129,
-  },
-]
 
 // Default direction when first clicking a column
 const DEFAULT_DIR: Record<SortKey, SortDir> = {
@@ -153,9 +108,12 @@ export default function TransactionsPage() {
   const { transactions, filters, setFilters } = useTransactionStore()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
-  const [sampleFlags, setSampleFlags] = useState<Record<string, Partial<Record<SampleFlag, boolean>>>>({})
-  const [sampleNotes, setSampleNotes] = useState<Record<string, string>>({})
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
+  const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
+  const sampleFlags = useSampleTransactionStore((state) => state.flags)
+  const sampleNotes = useSampleTransactionStore((state) => state.notes)
+  const toggleSampleFlag = useSampleTransactionStore((state) => state.toggleFlag)
+  const setSampleNote = useSampleTransactionStore((state) => state.setNote)
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
 
@@ -219,6 +177,7 @@ export default function TransactionsPage() {
         <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
           <p className="text-sm font-semibold text-accent-900">Example data</p>
           <p className="mt-1 text-sm text-accent-700">
+            Example transactions are for practice and will disappear once you upload or sync your first real transactions.
             Try the row actions below. These interactions are UI-only and are not saved.
           </p>
         </div>
@@ -238,14 +197,11 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {SAMPLE_TRANSACTIONS.map((sample) => {
+                {sampleTransactions.map((sample) => {
                   const flags = sampleFlags[sample.id] ?? {}
                   const note = sampleNotes[sample.id] ?? ''
                   const toggleFlag = (flag: SampleFlag) => {
-                    setSampleFlags((prev) => ({
-                      ...prev,
-                      [sample.id]: { ...prev[sample.id], [flag]: !prev[sample.id]?.[flag] },
-                    }))
+                    toggleSampleFlag(sample.id, flag)
                     if (flag === 'notes') {
                       setSampleEditingNote((current) => current === sample.id ? null : sample.id)
                     }
@@ -290,7 +246,7 @@ export default function TransactionsPage() {
                               <div className="mt-2 flex max-w-sm gap-2">
                                 <input
                                   value={note}
-                                  onChange={(e) => setSampleNotes((prev) => ({ ...prev, [sample.id]: e.target.value }))}
+                                  onChange={(e) => setSampleNote(sample.id, e.target.value)}
                                   placeholder="Add a sample note..."
                                   className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500"
                                 />
