@@ -236,7 +236,7 @@ export default function AppShell() {
         <OnboardingModal
           onDismiss={dismissOnboarding}
           onFinish={finishOnboarding}
-          showExampleData={transactions.length === 0}
+          hasRealTransactions={transactions.length > 0}
         />
       )}
       <Routes>

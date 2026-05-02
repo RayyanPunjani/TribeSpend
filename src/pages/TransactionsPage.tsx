@@ -536,15 +536,13 @@ function SampleReimbursementModal({
       </p>
       <label className="block">
         <span className="block text-xs text-slate-500 mb-1">Who owes you?</span>
-        <select
+        <input
+          type="text"
           value={person}
           onChange={(event) => setPerson(event.target.value)}
+          placeholder="Alex, Roommate, Work"
           className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500"
-        >
-          <option value="Nada">Nada</option>
-          <option value="Rayyan">Rayyan</option>
-          <option value="Other">Other</option>
-        </select>
+        />
       </label>
       <label className="block">
         <span className="block text-xs text-slate-500 mb-1">Reimbursable amount ($)</span>

@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { AlertCircle, DollarSign, X, Check, Loader2 } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { useTransactionStore } from '@/stores/transactionStore'
-import { usePersonStore } from '@/stores/personStore'
 
 interface Props {
   transaction: Transaction
@@ -11,7 +10,6 @@ interface Props {
 
 export default function ReimbursementPopover({ transaction: t, onClose }: Props) {
   const { update } = useTransactionStore()
-  const { persons } = usePersonStore()
 
   const [status, setStatus] = useState(t.reimbursementStatus)
   const [amount, setAmount] = useState(t.reimbursementAmount?.toString() ?? '')
@@ -126,17 +124,13 @@ export default function ReimbursementPopover({ transaction: t, onClose }: Props)
 
             <div>
               <label className="block text-xs text-slate-500 mb-1">Who owes you?</label>
-              <select
+              <input
+                type="text"
                 value={person}
                 onChange={(e) => setPerson(e.target.value)}
+                placeholder="Alex, Roommate, Work"
                 className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500"
-              >
-                <option value="">Select person</option>
-                {persons.map((p) => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))}
-                <option value="Other">Other</option>
-              </select>
+              />
             </div>
 
             <div>

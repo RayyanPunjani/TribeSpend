@@ -239,10 +239,10 @@ const STEPS: OnboardingStep[] = [
 interface OnboardingModalProps {
   onDismiss: (path?: string) => void
   onFinish: () => Promise<void> | void
-  showExampleData: boolean
+  hasRealTransactions: boolean
 }
 
-export default function OnboardingModal({ onDismiss, onFinish, showExampleData }: OnboardingModalProps) {
+export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactions }: OnboardingModalProps) {
   const [stepIndex, setStepIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [activeTransactionIcon, setActiveTransactionIcon] = useState<TransactionGuideIcon>('recurring')
@@ -322,6 +322,12 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
               <p className="mt-2 text-sm leading-6 text-slate-500">{step.copy}</p>
             </div>
           </div>
+
+          {hasRealTransactions && (
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+              You&apos;re now using your real data. Examples below show how features work.
+            </div>
+          )}
 
           {isTransactionsStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
@@ -449,7 +455,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {isReturnsStep && showExampleData && (
+          {isReturnsStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
               <div className="rounded-xl bg-white shadow-sm overflow-hidden">
@@ -482,7 +488,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {isReimbursementsStep && showExampleData && (
+          {isReimbursementsStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
               <div className="rounded-xl bg-white shadow-sm overflow-hidden">
@@ -508,7 +514,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {isRecurringStep && showExampleData && (
+          {isRecurringStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
               <div className="grid grid-cols-2 gap-2">
@@ -535,13 +541,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {(isReturnsStep || isReimbursementsStep || isRecurringStep) && !showExampleData && (
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-              Your real transaction data is available now, so example cards are hidden.
-            </div>
-          )}
-
-          {step.example && showExampleData && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
+          {step.example && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">{step.example.label}</p>
               <div className="space-y-1.5">
@@ -555,12 +555,6 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {step.example && !showExampleData && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-              Your real transaction data is available now, so example cards are hidden.
             </div>
           )}
 

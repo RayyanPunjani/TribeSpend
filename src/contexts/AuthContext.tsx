@@ -68,6 +68,19 @@ function getProfileNameFromUser(user: User): string {
   return metadataName || fullName || emailPrefix || 'New User'
 }
 
+function normalizePersonName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function getAccountHolderPersonName(profile: Profile, user: User): string {
+  const metadata = user.user_metadata ?? {}
+  const metadataName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
+  const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : ''
+  const profileName = profile.name?.trim() ?? ''
+  const emailPrefix = user.email?.split('@')[0]?.trim() ?? ''
+  return metadataName || fullName || profileName || emailPrefix || 'New User'
+}
+
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false
   return ['42703', 'PGRST204', 'PGRST205'].includes(error.code ?? '')
@@ -173,6 +186,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null
   }, [fetchProfile])
 
+  const ensureAccountHolderPerson = useCallback(async (profile: Profile, user: User) => {
+    if (!profile.household_id) return
+
+    const name = getAccountHolderPersonName(profile, user)
+    const normalizedName = normalizePersonName(name)
+
+    try {
+      const { data, error } = await supabase
+        .from('people')
+        .select('id, name')
+        .eq('household_id', profile.household_id)
+
+      if (error) {
+        console.warn('[Auth] Unable to check account holder person:', error.message)
+        return
+      }
+
+      const alreadyExists = (data ?? []).some((person) =>
+        normalizePersonName(String(person.name ?? '')) === normalizedName,
+      )
+      if (alreadyExists) return
+
+      const { error: insertError } = await supabase.from('people').insert({
+        id: crypto.randomUUID(),
+        household_id: profile.household_id,
+        name,
+        color: profile.color || '#14b8a6',
+      })
+
+      if (insertError) {
+        console.warn('[Auth] Unable to create account holder person:', insertError.message)
+      }
+    } catch (error) {
+      console.warn('[Auth] Account holder person setup failed:', error)
+    }
+  }, [])
+
   const refreshProfile = useCallback(async () => {
     const currentUser = sessionRef.current?.user
     if (!currentUser) return
@@ -182,8 +232,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       PROFILE_FETCH_TIMEOUT_MS,
       'Manual profile refresh',
     )
-    if (p) setProfileState(p)
-  }, [fetchProfileWithRetry, setProfileState])
+    if (p) {
+      await withTimeout(
+        ensureAccountHolderPerson(p, currentUser),
+        2500,
+        'Account holder person setup',
+      )
+      setProfileState(p)
+    }
+  }, [ensureAccountHolderPerson, fetchProfileWithRetry, setProfileState])
 
   useEffect(() => {
     let mounted = true
@@ -225,6 +282,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!mounted || requestId !== authFlowId.current) return
         if (p) {
+          await withTimeout(
+            ensureAccountHolderPerson(p, authUser),
+            2500,
+            'Account holder person setup',
+          )
+          if (!mounted || requestId !== authFlowId.current) return
           setProfileState(p)
         }
       } catch (err) {
@@ -280,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [fetchProfileWithRetry, setProfileState, setSessionState])
+  }, [ensureAccountHolderPerson, fetchProfileWithRetry, setProfileState, setSessionState])
 
   useEffect(() => {
     if (!loading) return
