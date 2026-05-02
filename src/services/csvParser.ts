@@ -1,5 +1,7 @@
 import Papa from 'papaparse'
 import type { CsvBankFormat, CsvParsedRow, CsvColumnMapping, CsvFieldRole } from '@/types'
+import { normalizeMerchantName } from '@/lib/merchantNormalize'
+import { classifyCreditAndPayment } from '@/services/transactionClassifier'
 // CSV mappings stored in localStorage
 const CSV_MAPPINGS_KEY = 'tribespend_csv_mappings'
 
@@ -55,11 +57,7 @@ function cleanMerchant(raw: string): string {
   // Strip AplPay / Apple Pay prefix
   s = s.replace(/^AplPay\s+/i, '')
   s = s.replace(/^Apple Pay\s+/i, '')
-  // Proper case first letter of each word
-  return s
-    .toLowerCase()
-    .replace(/\b(\w)/g, (c) => c.toUpperCase())
-    .trim()
+  return normalizeMerchantName(s)
 }
 
 // ─── Balance Payment Detection ────────────────────────────────────────────────
@@ -80,6 +78,26 @@ const BALANCE_PAYMENT_PATTERNS = [
 function isBalancePayment(description: string, isPayment: boolean): boolean {
   if (!isPayment) return false
   return BALANCE_PAYMENT_PATTERNS.some((p) => p.test(description))
+}
+
+function applyCreditPaymentClassification(row: CsvParsedRow): CsvParsedRow {
+  const classification = classifyCreditAndPayment({
+    description: row.description,
+    amount: row.amount,
+    categoryHint: row.category,
+    isPaymentHint: row.isPayment,
+    isCreditHint: row.isCredit,
+    isBalancePaymentHint: row.isBalancePayment,
+  })
+
+  return {
+    ...row,
+    category: classification.category ?? row.category,
+    isPayment: classification.isPayment,
+    isCredit: classification.isCredit,
+    isBalancePayment: classification.isBalancePayment,
+    refundReviewPending: classification.refundReviewPending,
+  }
 }
 
 // ─── Known Format Definitions ─────────────────────────────────────────────────
@@ -283,7 +301,7 @@ function mapChaseCategory(cat: string): string {
     'Entertainment': 'Entertainment',
     'Health & Wellness': 'Health & Medical',
     'Home': 'Home & Utilities',
-    'Professional Services': 'Miscellaneous',
+    'Professional Services': 'Other',
     'Personal': 'Personal Care',
     'Education': 'Education',
     'Utilities': 'Home & Utilities',
@@ -404,7 +422,7 @@ export function parseRowsWithFormat(
   const out: CsvParsedRow[] = []
   for (const row of rows) {
     const parsed = fmt.parse(row)
-    if (parsed && parsed.transDate) out.push(parsed)
+    if (parsed && parsed.transDate) out.push(applyCreditPaymentClassification(parsed))
   }
   return out
 }
@@ -461,7 +479,7 @@ export function parseRowsWithMapping(
     const isPayment = /payment|autopay/i.test(desc) && amount <= 0
     const isCredit = amount < 0 && !isPayment
 
-    out.push({
+    out.push(applyCreditPaymentClassification({
       transDate: parseDate(rawDate),
       postDate: parseDate((postDateCol ? row[postDateCol] : rawDate) ?? rawDate),
       description: desc,
@@ -473,7 +491,7 @@ export function parseRowsWithMapping(
       isBalancePayment: isBalancePayment(desc, isPayment),
       cardLastFour: cardCol ? String(row[cardCol] ?? '').slice(-4) : undefined,
       cardholderName: holderCol ? row[holderCol] : undefined,
-    })
+    }))
   }
   return out
 }

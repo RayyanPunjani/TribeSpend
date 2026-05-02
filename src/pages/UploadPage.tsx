@@ -151,8 +151,6 @@ export default function UploadPage() {
       csvRows = parseRowsWithFormat(format as any, rows)
     }
 
-    csvRows = csvRows.filter((r) => !r.isBalancePayment)
-
     csvRows = await categorizeCsvRows(
       csvRows,
       rules,
@@ -237,7 +235,7 @@ export default function UploadPage() {
           source: 'csv',
           refundForId: null,
           hasRefund: false,
-          refundReviewPending: false,
+          refundReviewPending: row.isBalancePayment ? false : row.refundReviewPending === true,
         })
       }
     }

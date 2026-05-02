@@ -71,7 +71,7 @@ export default function ReturnsPage() {
   )
 
   const pendingRefundReviews = useMemo(
-    () => transactions.filter((t) => t.refundReviewPending && !t.deleted),
+    () => transactions.filter((t) => t.isCredit && t.refundReviewPending && !t.isBalancePayment && !t.deleted),
     [transactions],
   )
 

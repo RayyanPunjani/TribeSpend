@@ -8,6 +8,7 @@ import type { CsvParsedRow, CategoryRule } from '@/types'
 import { findMatchingRule } from './categoryMatcher'
 import { suggestCategory } from './keywordCategorizer'
 import { CATEGORIES as ALL_CATEGORIES } from '@/utils/categories'
+import { normalizeCategory, FALLBACK_CATEGORY } from '@/utils/categoryFallback'
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 // Exclude meta-categories from AI classification targets
@@ -30,24 +31,21 @@ export async function categorizeCsvRows(
 
   // Step 1: Apply saved rules
   for (const row of result) {
-    if (row.isPayment || row.isBalancePayment) {
-      row.category = 'Payment'
+    if (row.isBalancePayment || row.isPayment) {
+      row.category = 'Credit Card Payment'
+      row.isPayment = true
+      row.isCredit = false
+      row.refundReviewPending = false
       continue
     }
     if (row.isCredit) {
-      // User rule takes priority; otherwise auto-assign
-      const rule = findMatchingRule(row.description, rules)
-      if (rule) {
-        row.category = rule.category
-        row.cleanDescription = rule.cleanDescription
-      } else {
-        row.category = 'Refunds & Credits'
-      }
+      row.category = row.category === 'Transfer' ? 'Transfer' : 'Refunds & Credits'
+      row.refundReviewPending = true
       continue
     }
     if (row.category !== 'Needs Review') continue // already set by bank mapping
 
-    const rule = findMatchingRule(row.description, rules)
+    const rule = findMatchingRule(`${row.description} ${row.cleanDescription}`, rules)
     if (rule) {
       row.category = rule.category
       row.cleanDescription = rule.cleanDescription
@@ -57,7 +55,7 @@ export async function categorizeCsvRows(
   // Step 1.5: Keyword matching for still-unknown transactions (no API call needed)
   for (const row of result) {
     if (row.category !== 'Needs Review' || row.isPayment || row.isBalancePayment) continue
-    const suggested = suggestCategory(row.description)
+    const suggested = suggestCategory(`${row.description} ${row.cleanDescription}`)
     if (suggested) {
       row.category = suggested
     }
@@ -69,7 +67,12 @@ export async function categorizeCsvRows(
   )
   const uniqueMerchants = [...new Set(needsCategorization.map((r) => r.cleanDescription || r.description))]
 
-  if (uniqueMerchants.length === 0 || !apiKey) return result
+  const withFallbacks = () => result.map((row) => ({
+    ...row,
+    category: normalizeCategory(row.category === 'Needs Review' ? FALLBACK_CATEGORY : row.category),
+  }))
+
+  if (uniqueMerchants.length === 0 || !apiKey) return withFallbacks()
 
   // Step 3: Batch Claude call with only merchant names
   try {
@@ -85,10 +88,10 @@ export async function categorizeCsvRows(
       }
     }
   } catch (err) {
-    console.warn('[csvCategorizer] AI batch categorization failed, leaving as Needs Review:', err)
+    console.warn('[csvCategorizer] AI batch categorization failed, falling back to Other:', err)
   }
 
-  return result
+  return withFallbacks()
 }
 
 async function batchCategorizeMerchants(
@@ -106,7 +109,7 @@ ${merchants.map((m, i) => `${i + 1}. ${m}`).join('\n')}
 Return ONLY valid JSON object mapping merchant name to category. Example:
 {"Walmart": "Groceries", "Uber": "Transportation"}
 
-If unsure about a merchant, use "Miscellaneous". Never use a category not in the list.`
+If unsure about a merchant, use "Other". Never use a category not in the list.`
 
   const resp = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',

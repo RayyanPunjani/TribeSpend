@@ -30,7 +30,7 @@ export default function AddTransactionModal({ onClose }: Props) {
     postDate: '',
     description: '',
     amount: '',
-    category: 'Needs Review',
+    category: 'Other',
     personId: '',
     cardId: '',
     notes: '',

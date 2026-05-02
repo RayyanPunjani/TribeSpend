@@ -176,6 +176,7 @@ export interface CsvParsedRow {
   isPayment: boolean
   isCredit: boolean
   isBalancePayment: boolean
+  refundReviewPending?: boolean
   cardLastFour?: string
   cardholderName?: string
   notes?: string

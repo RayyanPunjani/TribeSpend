@@ -18,6 +18,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
+import { useCategoryStore } from '@/stores/categoryStore'
+import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   isSampleTransactionId,
   useSampleTransactionStore,
@@ -29,6 +32,8 @@ import FilterBar from '@/components/transactions/FilterBar'
 import TransactionRow from '@/components/transactions/TransactionRow'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal'
 import { formatCurrency } from '@/utils/formatters'
+import { suggestMerchantPattern } from '@/services/categoryMatcher'
+import { isReviewCategory } from '@/utils/categoryFallback'
 import type { Transaction } from '@/types'
 import type { CreditCard, Person } from '@/types'
 
@@ -113,9 +118,17 @@ function sortTransactions(
 
 export default function TransactionsPage() {
   const { transactions, filters, setFilters } = useTransactionStore()
+  const updateMany = useTransactionStore((state) => state.updateMany)
+  const categoryNames = useCategoryStore((state) => state.categoryNames)
+  const addRule = useCategoryRuleStore((state) => state.add)
+  const { householdId } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
+  const [selectedReviewIds, setSelectedReviewIds] = useState<string[]>([])
+  const [bulkCategory, setBulkCategory] = useState('Dining')
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkMessage, setBulkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
   const [samplePopover, setSamplePopover] = useState<{ id: string; type: 'reimbursement' | 'return' } | null>(null)
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
@@ -151,8 +164,21 @@ export default function TransactionsPage() {
   )
 
   const needsReviewCount = useMemo(
-    () => transactions.filter((t) => t.category === 'Needs Review' && !t.isPayment && !t.deleted).length,
+    () => transactions.filter((t) => isReviewCategory(t.category) && !t.isPayment && !t.isCredit && !t.deleted).length,
     [transactions],
+  )
+
+  const visibleReviewRows = useMemo(
+    () => sorted.filter((t) => isReviewCategory(t.category) && !t.isPayment && !t.isCredit && !t.deleted),
+    [sorted],
+  )
+  const visibleReviewIds = useMemo(() => visibleReviewRows.map((t) => t.id), [visibleReviewRows])
+  const showBulkReview = visibleReviewRows.length > 0
+  const selectedVisibleReviewIds = selectedReviewIds.filter((id) => visibleReviewIds.includes(id))
+  const allVisibleReviewSelected = visibleReviewIds.length > 0 && visibleReviewIds.every((id) => selectedReviewIds.includes(id))
+  const bulkCategories = useMemo(
+    () => categoryNames.filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category)),
+    [categoryNames],
   )
 
   const { totalSpend, totalReimbursable } = useMemo(() => {
@@ -177,6 +203,62 @@ export default function TransactionsPage() {
         ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
         : { key, dir: DEFAULT_DIR[key] },
     )
+  }
+
+  const toggleReviewSelection = (id: string) => {
+    setSelectedReviewIds((current) =>
+      current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id],
+    )
+  }
+
+  const toggleAllVisibleReview = () => {
+    setSelectedReviewIds((current) => {
+      if (allVisibleReviewSelected) {
+        return current.filter((id) => !visibleReviewIds.includes(id))
+      }
+      return Array.from(new Set([...current, ...visibleReviewIds]))
+    })
+  }
+
+  const handleBulkApplyCategory = async () => {
+    if (!householdId || selectedVisibleReviewIds.length === 0 || !bulkCategory) return
+    setBulkSaving(true)
+    setBulkMessage(null)
+
+    const selectedTransactions = transactions.filter((transaction) => selectedVisibleReviewIds.includes(transaction.id))
+    const rulesByPattern = new Map<string, Transaction>()
+
+    for (const transaction of selectedTransactions) {
+      const pattern = suggestMerchantPattern(transaction.cleanDescription || transaction.description)
+      if (pattern) rulesByPattern.set(pattern, transaction)
+    }
+
+    for (const [pattern, transaction] of rulesByPattern) {
+      try {
+        await addRule(householdId, {
+          merchantPattern: pattern,
+          rawDescriptionExample: transaction.description,
+          cleanDescription: transaction.cleanDescription || transaction.description,
+          category: bulkCategory,
+          source: 'user_correction',
+        })
+      } catch (error) {
+        console.warn('[TransactionsPage] Could not save merchant category rule:', error)
+      }
+    }
+
+    const ok = await updateMany(selectedVisibleReviewIds, { category: bulkCategory })
+    setBulkSaving(false)
+
+    if (ok) {
+      setBulkMessage({
+        type: 'success',
+        text: `Updated ${selectedVisibleReviewIds.length} transaction${selectedVisibleReviewIds.length === 1 ? '' : 's'} and saved merchant rules.`,
+      })
+      setSelectedReviewIds((current) => current.filter((id) => !selectedVisibleReviewIds.includes(id)))
+    } else {
+      setBulkMessage({ type: 'error', text: 'Could not update selected transactions. Please try again.' })
+    }
   }
 
   const isActive = (key: SortKey) => sort.key === key
@@ -434,7 +516,7 @@ export default function TransactionsPage() {
           <AlertCircle size={16} className="text-amber-600 shrink-0" />
           <span className="text-sm text-amber-700">
             <strong>{needsReviewCount} transaction{needsReviewCount > 1 ? 's' : ''}</strong> need
-            a category — click here to review them
+            category review — click here to see Other and Needs Review
           </span>
         </button>
       )}
@@ -466,6 +548,44 @@ export default function TransactionsPage() {
         })}
       </div>
 
+      {showBulkReview && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Bulk category review</p>
+            <p className="text-xs text-amber-700">
+              Select Other or Needs Review rows, apply a category, and TribeSpend will remember similar merchants next time.
+            </p>
+            {bulkMessage && (
+              <p className={`mt-1 text-xs ${bulkMessage.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                {bulkMessage.text}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-amber-800">
+              {selectedVisibleReviewIds.length} selected
+            </span>
+            <select
+              value={bulkCategory}
+              onChange={(event) => setBulkCategory(event.target.value)}
+              className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            >
+              {bulkCategories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleBulkApplyCategory}
+              disabled={selectedVisibleReviewIds.length === 0 || bulkSaving}
+              className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {bulkSaving ? 'Applying...' : 'Apply to selected'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
@@ -477,6 +597,17 @@ export default function TransactionsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
+                  {showBulkReview && (
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleReviewSelected}
+                        onChange={toggleAllVisibleReview}
+                        aria-label="Select all visible review transactions"
+                        className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+                      />
+                    </th>
+                  )}
                   <SortHeader label="Date"        colKey="date"        sort={sort} onClick={handleHeaderClick} />
                   <SortHeader label="Description" colKey="description" sort={sort} onClick={handleHeaderClick} />
                   <SortHeader label="Category"    colKey="category"    sort={sort} onClick={handleHeaderClick} />
@@ -496,6 +627,19 @@ export default function TransactionsPage() {
                       transaction={t}
                       card={card}
                       person={person}
+                      selectionControl={showBulkReview ? (
+                        isReviewCategory(t.category) && !t.deleted && !t.isPayment && !t.isCredit ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedReviewIds.includes(t.id)}
+                            onChange={() => toggleReviewSelection(t.id)}
+                            aria-label={`Select ${t.cleanDescription || t.description}`}
+                            className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+                          />
+                        ) : (
+                          <span className="block h-4 w-4" />
+                        )
+                      ) : undefined}
                     />
                   )
                 })}

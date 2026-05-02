@@ -55,7 +55,7 @@ export default function Sidebar() {
     || profile?.subscription_status === 'active'
     || profile?.subscription_status === 'trialing'
   const pendingRefundReviews = useTransactionStore((s) =>
-    s.transactions.filter((t) => t.refundReviewPending && !t.deleted).length,
+    s.transactions.filter((t) => t.isCredit && t.refundReviewPending && !t.isBalancePayment && !t.deleted).length,
   )
 
   return (

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Transaction, TransactionFilters } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { normalizeCategory, isReviewCategory } from '@/utils/categoryFallback'
 
 const BUDGET_ALERTS_URL = 'https://okqniovbcybhtfjexnay.functions.supabase.co/budget-alerts'
 
@@ -69,7 +70,7 @@ function fromRow(r: Record<string, unknown>): Transaction {
     description: r.description as string,
     cleanDescription: (r.clean_description as string) || (r.description as string),
     amount: Number(r.amount),
-    category: r.category as string,
+    category: normalizeCategory(r.category as string | undefined),
     cardId: (r.card_id as string) || '',
     cardholderName: (r.cardholder_name as string) || '',
     isPayment: r.is_payment as boolean,
@@ -108,7 +109,7 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.description !== undefined) row.description = t.description
   if (t.cleanDescription !== undefined) row.clean_description = t.cleanDescription
   if (t.amount !== undefined) row.amount = t.amount
-  if (t.category !== undefined) row.category = t.category
+  if (t.category !== undefined) row.category = normalizeCategory(t.category)
   if (t.cardId !== undefined) row.card_id = t.cardId
   if (t.cardholderName !== undefined) row.cardholder_name = t.cardholderName
   if (t.isPayment !== undefined) row.is_payment = t.isPayment
@@ -256,7 +257,7 @@ export function applyFilters(
     if (!filters.showPayments && (t.isPayment || t.isCredit) && !t.isBalancePayment) return false
     if (filters.cardIds.length > 0 && !filters.cardIds.includes(t.cardId)) return false
     if (filters.categories.length > 0 && !filters.categories.includes(t.category)) return false
-    if (filters.needsReviewOnly && t.category !== 'Needs Review') return false
+    if (filters.needsReviewOnly && !isReviewCategory(t.category)) return false
     if (filters.recurringOnly && !t.isRecurring) return false
     if (filters.dateStart && t.transDate < filters.dateStart) return false
     if (filters.dateEnd && t.transDate > filters.dateEnd) return false

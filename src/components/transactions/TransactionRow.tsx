@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type RefObject } from 'react'
+import { useEffect, useState, useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { DollarSign, RefreshCw, StickyNote, AlertCircle, EyeOff, PackageOpen, Undo2 } from 'lucide-react'
@@ -11,16 +11,18 @@ import ExpectedReturnPopover from './ExpectedReturnPopover'
 import CategoryRuleModal from '@/components/shared/CategoryRuleModal'
 import Tooltip from '@/components/shared/Tooltip'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { isReviewCategory } from '@/utils/categoryFallback'
 
 interface Props {
   transaction: Transaction
   card?: CreditCard
   person?: Person
+  selectionControl?: ReactNode
 }
 
 type OpenPopover = 'reimb' | 'return' | 'note' | null
 
-export default function TransactionRow({ transaction: t, card, person }: Props) {
+export default function TransactionRow({ transaction: t, card, person, selectionControl }: Props) {
   const { update, transactions } = useTransactionStore()
   const [openPopover, setOpenPopover] = useState<OpenPopover>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -71,7 +73,7 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
     await update(t.id, { deleted: false })
   }
 
-  const isNeedsReview = t.category === 'Needs Review'
+  const isNeedsReview = isReviewCategory(t.category)
   const textClass = t.deleted ? 'opacity-45 grayscale' : ''
   const hasDistinctPostDate = Boolean(t.postDate) && t.postDate !== t.transDate
   const popoverOpensUp = anchorRect
@@ -98,6 +100,11 @@ export default function TransactionRow({ transaction: t, card, person }: Props) 
           isNeedsReview && !t.deleted ? 'ring-1 ring-inset ring-amber-300' : ''
         }`}
       >
+        {selectionControl && (
+          <td className="px-3 py-2.5 align-middle">
+            {selectionControl}
+          </td>
+        )}
         {/* Date */}
         <td className={`px-4 py-2.5 whitespace-nowrap ${textClass}`}>
           <div className="flex flex-col gap-1">

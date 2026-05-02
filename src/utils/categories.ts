@@ -18,7 +18,10 @@ export const CATEGORIES = [
   'Personal Care',
   'Pets',
   'Gifts',
+  'Other',
   'Miscellaneous',
+  'Transfer',
+  'Credit Card Payment',
   'Refunds & Credits',
   'Needs Review',
 ] as const
@@ -45,7 +48,10 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Personal Care': '💆',
   'Pets': '🐾',
   'Gifts': '🎁',
+  'Other': '📦',
   'Miscellaneous': '📦',
+  'Transfer': '↔️',
+  'Credit Card Payment': '💳',
   'Refunds & Credits': '↩️',
   'Needs Review': '⚠️',
 }
@@ -70,7 +76,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Personal Care':      '#d946ef',
   'Pets':               '#78716c',
   'Gifts':              '#fb923c',
+  'Other':              '#94a3b8',
   'Miscellaneous':      '#94a3b8',
+  'Transfer':           '#0ea5e9',
+  'Credit Card Payment':'#64748b',
   'Refunds & Credits':  '#10b981',
   'Needs Review':       '#f59e0b',
 }

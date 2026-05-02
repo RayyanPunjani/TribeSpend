@@ -130,7 +130,7 @@ export default function FilterBar() {
                 onChange={(e) => setFilters({ needsReviewOnly: e.target.checked })}
                 className="rounded border-slate-300 text-accent-600"
               />
-              Needs review only
+              Category review only
             </label>
             <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
               <input

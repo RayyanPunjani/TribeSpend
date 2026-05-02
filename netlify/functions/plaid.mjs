@@ -21,7 +21,7 @@ const PLAID_CATEGORY_MAP = {
   RENT_AND_UTILITIES: 'Home & Utilities',
   HOME_IMPROVEMENT: 'Home & Utilities',
   GOVERNMENT_AND_NON_PROFIT: 'Government & Fees',
-  GENERAL_SERVICES: 'Miscellaneous',
+  GENERAL_SERVICES: 'Other',
   EDUCATION: 'Education',
   CHARITABLE_GIVING: 'Donations & Charity',
   TELECOMMUNICATION_SERVICES: 'Telecom',
@@ -32,9 +32,9 @@ const PLAID_CATEGORY_MAP = {
   CAR_RENTAL_AND_TAXI: 'Transportation',
   DIGITAL_PURCHASES: 'Subscriptions',
   SUBSCRIPTION: 'Subscriptions',
-  LOAN_PAYMENTS: 'exclude',
-  CREDIT_CARD_PAYMENTS: 'exclude',
-  TRANSFER_IN: 'exclude',
+  LOAN_PAYMENTS: 'Credit Card Payment',
+  CREDIT_CARD_PAYMENTS: 'Credit Card Payment',
+  TRANSFER_IN: 'Transfer',
   TRANSFER_OUT: 'exclude',
   BANK_FEES: 'exclude',
 }
@@ -239,11 +239,134 @@ async function hasConnectionCapacity(supabase, householdId, additionalAccounts =
   )
 }
 
-function mapPlaidCategory(category) {
-  if (!category) return 'Miscellaneous'
-  const detailed = String(category.detailed || '').toUpperCase().replace(/[^A-Z_]/g, '_')
-  const primary = String(category.primary || '').toUpperCase().replace(/[^A-Z_]/g, '_')
-  return PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary] || 'Miscellaneous'
+const PLAID_KEYWORD_CATEGORY_RULES = [
+  {
+    category: 'Gas & EV Charging',
+    keywords: ['SHELL', 'EXXON', 'CHEVRON', 'MOBIL', 'BP ', 'SUNOCO', 'CIRCLE K', 'FUEL', 'SUPERCHARGER', 'CHARGEPOINT'],
+  },
+  {
+    category: 'Dining',
+    keywords: ['RESTAURANT', 'CAFE', 'COFFEE', 'STARBUCKS', 'CHIPOTLE', 'MCDONALD', 'DOORDASH', 'UBER EATS', 'GRUBHUB'],
+  },
+  {
+    category: 'Groceries',
+    keywords: ['KROGER', 'HEB', 'H-E-B', 'ALDI', 'PUBLIX', 'SAFEWAY', 'TRADER JOE', 'WHOLE FOODS', 'GROCERY'],
+  },
+  {
+    category: 'Shopping',
+    keywords: ['AMAZON', 'AMZN', 'TARGET', 'WALMART', 'COSTCO', 'BEST BUY', 'APPLE.COM', 'EBAY', 'ETSY'],
+  },
+  {
+    category: 'Travel',
+    keywords: ['AIRLINE', 'DELTA', 'UNITED', 'SOUTHWEST', 'AMERICAN AIR', 'HOTEL', 'MARRIOTT', 'HILTON', 'AIRBNB'],
+  },
+  {
+    category: 'Transportation',
+    keywords: ['UBER', 'LYFT', 'PARKING', 'TOLL', 'TRANSIT', 'METRO'],
+  },
+  {
+    category: 'Subscriptions',
+    keywords: ['NETFLIX', 'SPOTIFY', 'HULU', 'DISNEY', 'YOUTUBE PREMIUM', 'APPLE.COM/BILL', 'AUDIBLE', 'OPENAI', 'ANTHROPIC'],
+  },
+  {
+    category: 'Health & Medical',
+    keywords: ['CVS', 'WALGREEN', 'PHARMACY', 'HOSPITAL', 'MEDICAL', 'DENTAL', 'DOCTOR'],
+  },
+  {
+    category: 'Insurance',
+    keywords: ['GEICO', 'STATE FARM', 'ALLSTATE', 'PROGRESSIVE', 'INSURANCE'],
+  },
+  {
+    category: 'Home & Utilities',
+    keywords: ['ELECTRIC', 'UTILITY', 'WATER', 'GAS BILL', 'HOME DEPOT', 'LOWES', "LOWE'S"],
+  },
+]
+
+const PLAID_BALANCE_PAYMENT_CATEGORIES = new Set([
+  'CREDIT_CARD_PAYMENT',
+  'CREDIT_CARD_PAYMENTS',
+  'LOAN_PAYMENT',
+  'LOAN_PAYMENTS',
+])
+
+const PLAID_TRANSFER_IN_CATEGORIES = new Set(['TRANSFER_IN'])
+
+const INCOMING_CREDIT_PATTERN = /\b(zelle|venmo|paypal|cash\s*app|cashapp|refund|returned|ach\s+credit|credit\s+received|deposit)\b/i
+const REFUND_PATTERN = /\b(refund|returned|credit\s+adj|credit\s+adjustment)\b/i
+const BALANCE_PAYMENT_PATTERN = /\b(autopay|auto\s+pay|payment\s+thank\s+you|thank\s+you.*payment|credit\s+card|card\s+payment|online\s+payment|payment\s+received|balance\s+transfer|payment)\b/i
+
+function plaidCategoryKeys(category) {
+  return [
+    String(category?.detailed || '').toUpperCase().replace(/[^A-Z_]/g, '_'),
+    String(category?.primary || '').toUpperCase().replace(/[^A-Z_]/g, '_'),
+  ].filter(Boolean)
+}
+
+function keywordCategoryForPlaid(txn) {
+  const text = [
+    txn?.merchant_name,
+    txn?.name,
+    txn?.original_description,
+  ].filter(Boolean).join(' ').toUpperCase()
+
+  if (!text) return null
+
+  for (const rule of PLAID_KEYWORD_CATEGORY_RULES) {
+    if (rule.keywords.some((keyword) => text.includes(keyword))) return rule.category
+  }
+
+  return null
+}
+
+function mapPlaidCategory(category, txn) {
+  if (!category) return keywordCategoryForPlaid(txn) || 'Other'
+  const [detailed, primary] = plaidCategoryKeys(category)
+  return PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary] || keywordCategoryForPlaid(txn) || 'Other'
+}
+
+function classifyPlaidTransaction(txn) {
+  const amount = Number(txn.amount) || 0
+  const keys = plaidCategoryKeys(txn.personal_finance_category)
+  const description = [
+    txn.merchant_name,
+    txn.name,
+    txn.original_description,
+  ].filter(Boolean).join(' ')
+
+  const isBalancePaymentCategory = keys.some((key) => PLAID_BALANCE_PAYMENT_CATEGORIES.has(key))
+  const isTransferInCategory = keys.some((key) => PLAID_TRANSFER_IN_CATEGORIES.has(key))
+  const hasIncomingKeyword = INCOMING_CREDIT_PATTERN.test(description)
+  const isIncomingCredit =
+    !isBalancePaymentCategory &&
+    (isTransferInCategory || amount < 0 || (amount <= 0 && hasIncomingKeyword))
+
+  if (isIncomingCredit) {
+    return {
+      category: REFUND_PATTERN.test(description) ? 'Refunds & Credits' : 'Transfer',
+      isPayment: false,
+      isCredit: true,
+      isBalancePayment: false,
+      refundReviewPending: true,
+    }
+  }
+
+  if (isBalancePaymentCategory || BALANCE_PAYMENT_PATTERN.test(description)) {
+    return {
+      category: 'Credit Card Payment',
+      isPayment: true,
+      isCredit: false,
+      isBalancePayment: true,
+      refundReviewPending: false,
+    }
+  }
+
+  return {
+    category: mapPlaidCategory(txn.personal_finance_category, txn),
+    isPayment: false,
+    isCredit: false,
+    isBalancePayment: false,
+    refundReviewPending: false,
+  }
 }
 
 function formatDateYmd(date) {
@@ -309,8 +432,8 @@ async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, 
   seenPlaidIds.add(txn.transaction_id)
   if (existingTransaction) return false
 
-  const category = mapPlaidCategory(txn.personal_finance_category)
-  if (category === 'exclude') return false
+  const classification = classifyPlaidTransaction(txn)
+  if (classification.category === 'exclude') return false
 
   const mapping = accountMap.get(txn.account_id)
   added.push({
@@ -320,12 +443,12 @@ async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, 
     description: txn.original_description || txn.name,
     cleanDescription: txn.merchant_name || txn.name,
     amount: Number(txn.amount),
-    category,
+    category: classification.category,
     cardId: mapping?.card_id ?? null,
     cardholderName: '',
-    isPayment: false,
-    isCredit: Number(txn.amount) < 0,
-    isBalancePayment: false,
+    isPayment: classification.isPayment,
+    isCredit: classification.isCredit,
+    isBalancePayment: classification.isBalancePayment,
     statementId: `plaid-${item.id}`,
     reimbursementStatus: 'none',
     reimbursementPaid: false,
@@ -333,7 +456,7 @@ async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, 
     plaidTransactionId: txn.transaction_id,
     refundForId: null,
     hasRefund: false,
-    refundReviewPending: false,
+    refundReviewPending: classification.refundReviewPending,
   })
   return true
 }
