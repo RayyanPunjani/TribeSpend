@@ -3,11 +3,15 @@ import {
   BarChart3,
   CreditCard,
   Crown,
+  DollarSign,
+  EyeOff,
   HandCoins,
+  PackageOpen,
   PieChart,
   ReceiptText,
   Repeat2,
   RotateCcw,
+  StickyNote,
   Target,
   Trophy,
   Upload,
@@ -26,7 +30,7 @@ type OnboardingStep = {
   }
 }
 
-type TransactionGuideIcon = 'recurring' | 'reimbursement' | 'return'
+type TransactionGuideIcon = 'recurring' | 'reimbursement' | 'return' | 'hide' | 'notes'
 
 const TRANSACTION_ICON_GUIDE: Array<{
   id: TransactionGuideIcon
@@ -46,15 +50,29 @@ const TRANSACTION_ICON_GUIDE: Array<{
     id: 'reimbursement',
     label: 'Reimbursement',
     tooltip: 'Track money others owe you',
-    icon: HandCoins,
+    icon: DollarSign,
     colorClass: 'text-emerald-600 bg-emerald-50 ring-emerald-200',
   },
   {
     id: 'return',
     label: 'Return',
     tooltip: 'Track refunds or expected returns',
-    icon: RotateCcw,
+    icon: PackageOpen,
     colorClass: 'text-amber-600 bg-amber-50 ring-amber-200',
+  },
+  {
+    id: 'hide',
+    label: 'Hide',
+    tooltip: "Hide transactions you don't want counted in totals.",
+    icon: EyeOff,
+    colorClass: 'text-slate-600 bg-slate-100 ring-slate-300',
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    tooltip: 'Add notes so you remember context later.',
+    icon: StickyNote,
+    colorClass: 'text-purple-600 bg-purple-50 ring-purple-200',
   },
 ]
 
@@ -88,8 +106,8 @@ const STEPS: OnboardingStep[] = [
     },
   },
   {
-    title: 'Returns & Reimbursements',
-    copy: 'Track money owed back, expected returns, and matched refunds so credits do not get lost in the shuffle.',
+    title: 'Returns',
+    copy: 'Track expected returns, refund review, and completed returns so credits do not get lost in the shuffle.',
     path: '/app/returns',
     cta: 'View Returns',
     icon: RotateCcw,
@@ -98,6 +116,20 @@ const STEPS: OnboardingStep[] = [
       rows: [
         { name: 'Headphones return', detail: 'Expected refund', value: '$129.00' },
         { name: 'Dinner split', detail: 'Reimbursement pending', value: '$42.50' },
+      ],
+    },
+  },
+  {
+    title: 'Reimbursements',
+    copy: 'Track money others owe you and settle shared spending without digging through old transactions.',
+    path: '/app/reimbursements',
+    cta: 'View Reimbursements',
+    icon: HandCoins,
+    example: {
+      label: 'Example data',
+      rows: [
+        { name: 'Nada', detail: '2 unpaid reimbursements', value: '$74.50' },
+        { name: 'Dinner split', detail: 'Marked reimbursable', value: '$42.50' },
       ],
     },
   },
@@ -179,6 +211,9 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
   const isTransactionsStep = step.title === 'Transactions'
+  const isReturnsStep = step.title === 'Returns'
+  const isReimbursementsStep = step.title === 'Reimbursements'
+  const isRecurringStep = step.title === 'Recurring'
 
   const finish = async () => {
     setSaving(true)
@@ -292,7 +327,99 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {step.example && showExampleData && !isTransactionsStep && (
+          {isReturnsStep && showExampleData && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 text-[11px] font-semibold text-slate-500">
+                  <div className="rounded-lg bg-white px-2 py-1.5 text-center text-slate-800 shadow-sm">Expected</div>
+                  <div className="px-2 py-1.5 text-center">Review</div>
+                  <div className="px-2 py-1.5 text-center">Completed</div>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Headphones return</p>
+                      <p className="text-xs text-slate-400">Expected refund · pending</p>
+                    </div>
+                    <span className="text-sm font-semibold text-purple-600">$129.00</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Amazon credit</p>
+                      <p className="text-xs text-slate-400">Needs match review</p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Review</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isReimbursementsStep && showExampleData && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Nada</p>
+                    <p className="text-xs text-slate-400">Outstanding: $74.50 · Paid: $0.00</p>
+                  </div>
+                  <span className="rounded-lg bg-green-600 px-2.5 py-1 text-[11px] font-semibold text-white">Settle Up</span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Dinner split</p>
+                      <p className="text-xs text-slate-400">Half of group dinner</p>
+                    </div>
+                    <span className="text-sm font-semibold text-orange-600">$42.50</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">Rideshare</p>
+                      <p className="text-xs text-slate-400">Airport pickup</p>
+                    </div>
+                    <span className="text-sm font-semibold text-orange-600">$32.00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isRecurringStep && showExampleData && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl bg-white p-3 shadow-sm">
+                  <p className="text-xs text-slate-400">Monthly total</p>
+                  <p className="text-lg font-bold text-slate-800">$85.99</p>
+                </div>
+                <div className="rounded-xl bg-white p-3 shadow-sm">
+                  <p className="text-xs text-slate-400">Annual estimate</p>
+                  <p className="text-lg font-bold text-slate-800">$1,031</p>
+                </div>
+              </div>
+              <div className="mt-2 divide-y divide-slate-100 rounded-xl bg-white shadow-sm">
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Streaming Bundle</p>
+                    <p className="text-xs text-slate-400">Monthly · Subscription</p>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">$46.99</span>
+                </div>
+                <div className="flex items-center justify-between px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">Gym Membership</p>
+                    <p className="text-xs text-slate-400">Monthly · Membership</p>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-800">$39.00</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {step.example && showExampleData && !isTransactionsStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">{step.example.label}</p>
               <div className="space-y-1.5">
@@ -309,7 +436,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {step.example && !showExampleData && !isTransactionsStep && (
+          {step.example && !showExampleData && !isTransactionsStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
               Your real transaction data is available now, so example cards are hidden.
             </div>

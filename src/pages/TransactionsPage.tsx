@@ -1,5 +1,18 @@
-import { useMemo, useState } from 'react'
-import { AlertCircle, Upload, Plus, List, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import {
+  AlertCircle,
+  Upload,
+  Plus,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  DollarSign,
+  EyeOff,
+  PackageOpen,
+  RefreshCw,
+  StickyNote,
+  Undo2,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
@@ -7,7 +20,6 @@ import { usePersonStore } from '@/stores/personStore'
 import FilterBar from '@/components/transactions/FilterBar'
 import TransactionRow from '@/components/transactions/TransactionRow'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal'
-import EmptyState from '@/components/shared/EmptyState'
 import { formatCurrency } from '@/utils/formatters'
 import type { Transaction } from '@/types'
 import type { CreditCard, Person } from '@/types'
@@ -19,6 +31,52 @@ interface SortState {
   key: SortKey
   dir: SortDir
 }
+
+type SampleFlag = 'recurring' | 'reimbursement' | 'return' | 'hidden' | 'notes'
+
+type SampleTransaction = {
+  id: string
+  date: string
+  merchant: string
+  description: string
+  category: string
+  card: string
+  person: string
+  amount: number
+}
+
+const SAMPLE_TRANSACTIONS: SampleTransaction[] = [
+  {
+    id: 'sample-streaming',
+    date: 'May 1',
+    merchant: 'Streaming Bundle',
+    description: 'Monthly entertainment subscription',
+    category: 'Entertainment',
+    card: 'Example Card',
+    person: 'Rayyan',
+    amount: 46.99,
+  },
+  {
+    id: 'sample-dinner',
+    date: 'Apr 28',
+    merchant: 'Urban Cafe',
+    description: 'Group dinner with friends',
+    category: 'Dining',
+    card: 'Example Card',
+    person: 'Rayyan',
+    amount: 84.2,
+  },
+  {
+    id: 'sample-headphones',
+    date: 'Apr 24',
+    merchant: 'Headphones Store',
+    description: 'Return expected after drop-off',
+    category: 'Shopping',
+    card: 'Example Card',
+    person: 'Rayyan',
+    amount: 129,
+  },
+]
 
 // Default direction when first clicking a column
 const DEFAULT_DIR: Record<SortKey, SortDir> = {
@@ -95,6 +153,9 @@ export default function TransactionsPage() {
   const { transactions, filters, setFilters } = useTransactionStore()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
+  const [sampleFlags, setSampleFlags] = useState<Record<string, Partial<Record<SampleFlag, boolean>>>>({})
+  const [sampleNotes, setSampleNotes] = useState<Record<string, string>>({})
+  const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
 
@@ -140,20 +201,147 @@ export default function TransactionsPage() {
 
   if (transactions.length === 0) {
     return (
-      <EmptyState
-        icon={List}
-        title="No transactions yet"
-        description="Upload your first credit card statement to see transactions here."
-        action={
+      <div className="flex flex-col gap-4 max-w-full">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Transactions</h1>
+            <p className="text-sm text-slate-500 mt-1">Example transactions you can explore before importing your own data.</p>
+          </div>
           <Link
             to="/app/upload"
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
           >
             <Upload size={15} />
-            Upload Statement
+            Upload CSV
           </Link>
-        }
-      />
+        </div>
+
+        <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
+          <p className="text-sm font-semibold text-accent-900">Example data</p>
+          <p className="mt-1 text-sm text-accent-700">
+            Try the row actions below. These interactions are UI-only and are not saved.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto overflow-y-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Description</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Category</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Card</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Person</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500">Amount</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SAMPLE_TRANSACTIONS.map((sample) => {
+                  const flags = sampleFlags[sample.id] ?? {}
+                  const note = sampleNotes[sample.id] ?? ''
+                  const toggleFlag = (flag: SampleFlag) => {
+                    setSampleFlags((prev) => ({
+                      ...prev,
+                      [sample.id]: { ...prev[sample.id], [flag]: !prev[sample.id]?.[flag] },
+                    }))
+                    if (flag === 'notes') {
+                      setSampleEditingNote((current) => current === sample.id ? null : sample.id)
+                    }
+                  }
+
+                  return (
+                    <tr
+                      key={sample.id}
+                      className={`border-b border-slate-100 bg-accent-50/60 transition-all ${flags.hidden ? 'opacity-45 grayscale' : ''}`}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="text-sm font-medium text-slate-800">{sample.date}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400">Purchased</p>
+                      </td>
+                      <td className="px-4 py-3 max-w-xs">
+                        <div className="flex items-start gap-1.5">
+                          {flags.return && <PackageOpen size={13} className="mt-0.5 shrink-0 text-purple-500" />}
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="text-sm font-medium text-slate-800 truncate">{sample.merchant}</p>
+                              <span className="rounded bg-slate-100 px-1 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                example
+                              </span>
+                              {flags.recurring && (
+                                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                  Recurring
+                                </span>
+                              )}
+                              {flags.reimbursement && (
+                                <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                                  Reimbursable
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-400 truncate">{sample.description}</p>
+                            {note && (
+                              <p className="mt-1 text-xs text-accent-700">
+                                Note: {note}
+                              </p>
+                            )}
+                            {sampleEditingNote === sample.id && (
+                              <div className="mt-2 flex max-w-sm gap-2">
+                                <input
+                                  value={note}
+                                  onChange={(e) => setSampleNotes((prev) => ({ ...prev, [sample.id]: e.target.value }))}
+                                  placeholder="Add a sample note..."
+                                  className="min-w-0 flex-1 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500"
+                                />
+                                <button
+                                  onClick={() => setSampleEditingNote(null)}
+                                  className="rounded-lg bg-accent-600 px-2 py-1 text-xs font-medium text-white"
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-white px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+                          {sample.category}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{sample.card}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{sample.person}</td>
+                      <td className="px-4 py-3 text-right text-sm font-semibold text-slate-800">
+                        {formatCurrency(sample.amount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <SampleAction active={flags.reimbursement === true} label="Reimbursement" onClick={() => toggleFlag('reimbursement')}>
+                            <DollarSign size={14} />
+                          </SampleAction>
+                          <SampleAction active={flags.return === true} label="Return / refund" onClick={() => toggleFlag('return')}>
+                            <PackageOpen size={14} />
+                          </SampleAction>
+                          <SampleAction active={flags.recurring === true} label="Recurring" onClick={() => toggleFlag('recurring')}>
+                            <RefreshCw size={14} />
+                          </SampleAction>
+                          <SampleAction active={sampleEditingNote === sample.id || !!note} label="Notes" onClick={() => toggleFlag('notes')}>
+                            <StickyNote size={14} />
+                          </SampleAction>
+                          <SampleAction active={flags.hidden === true} label={flags.hidden ? 'Unhide' : 'Hide'} onClick={() => toggleFlag('hidden')}>
+                            {flags.hidden ? <Undo2 size={14} /> : <EyeOff size={14} />}
+                          </SampleAction>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -297,5 +485,33 @@ function SortHeader({ label, colKey, sort, onClick, align = 'left' }: SortHeader
         />
       </span>
     </th>
+  )
+}
+
+function SampleAction({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className={`rounded-lg p-1.5 transition-colors ${
+        active
+          ? 'bg-accent-100 text-accent-700'
+          : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
+      }`}
+      aria-label={label}
+    >
+      {children}
+    </button>
   )
 }
