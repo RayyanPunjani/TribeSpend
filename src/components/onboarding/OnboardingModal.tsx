@@ -8,6 +8,7 @@ import {
   HandCoins,
   PackageOpen,
   PieChart,
+  Plus,
   ReceiptText,
   Repeat2,
   RotateCcw,
@@ -457,32 +458,58 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
           )}
 
           {isLast ? (
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => onDismiss('/app/upload')}
-                disabled={saving}
-                className="rounded-xl border border-accent-200 bg-white px-4 py-3 text-left hover:bg-accent-50 disabled:opacity-50"
-              >
-                <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Free</span>
-                <span className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Upload size={16} /> Upload CSV
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">Import statements manually at no cost.</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onDismiss('/app/wallet?tab=linkedAccounts')}
-                disabled={saving}
-                className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100/70 disabled:opacity-50"
-              >
-                <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Premium</span>
-                <span className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                  <Crown size={16} /> Connect bank automatically
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-slate-600">Automatically sync transactions through Plaid.</span>
-              </button>
-            </div>
+            <>
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => onDismiss('/app/transactions?action=add')}
+                  disabled={saving}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-left hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">Manual</span>
+                  <span className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Plus size={16} /> Add transactions manually
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Enter purchases one at a time when you need to.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDismiss('/app/upload')}
+                  disabled={saving}
+                  className="rounded-xl border border-accent-200 bg-white px-4 py-3 text-left hover:bg-accent-50 disabled:opacity-50"
+                >
+                  <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Free</span>
+                  <span className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Upload size={16} /> Upload CSV
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">Import statements manually at no cost.</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDismiss('/app/wallet?tab=linkedAccounts')}
+                  disabled={saving}
+                  className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100/70 disabled:opacity-50"
+                >
+                  <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Premium</span>
+                  <span className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Crown size={16} /> Connect bank automatically
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600">Automatically sync transactions through Plaid.</span>
+                </button>
+              </div>
+              <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
+                You can revisit this guide anytime in{' '}
+                <button
+                  type="button"
+                  onClick={() => onDismiss('/app/help')}
+                  disabled={saving}
+                  className="font-semibold text-accent-700 hover:text-accent-800 disabled:opacity-50"
+                >
+                  Help &amp; Support
+                </button>
+                .
+              </p>
+            </>
           ) : (
             step.path && step.cta && (
               <button

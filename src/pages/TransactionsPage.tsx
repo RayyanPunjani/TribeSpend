@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   Upload,
@@ -14,7 +14,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -113,6 +113,7 @@ function sortTransactions(
 
 export default function TransactionsPage() {
   const { transactions, filters, setFilters } = useTransactionStore()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
@@ -131,6 +132,14 @@ export default function TransactionsPage() {
   const clearSampleReturn = useSampleTransactionStore((state) => state.clearReturn)
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+
+  useEffect(() => {
+    if (searchParams.get('action') !== 'add') return
+    setShowAddModal(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('action')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
@@ -178,15 +187,33 @@ export default function TransactionsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Transactions</h1>
-            <p className="text-sm text-slate-500 mt-1">Example transactions you can explore before importing your own data.</p>
+            <p className="text-sm text-slate-500 mt-1">No transactions yet. Add one manually or import a CSV to get started.</p>
           </div>
-          <Link
-            to="/app/upload"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
-          >
-            <Upload size={15} />
-            Upload CSV
-          </Link>
+          <HeaderActions onAdd={() => setShowAddModal(true)} addLabel="Add your first transaction" />
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <p className="text-lg font-semibold text-slate-800">No transactions yet</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Upload a statement for free, or add a transaction manually to try your first real entry.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              to="/app/upload"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
+            >
+              <Upload size={15} />
+              Upload CSV
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              <Plus size={15} />
+              Add your first transaction
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
@@ -388,6 +415,7 @@ export default function TransactionsPage() {
             }}
           />
         )}
+        {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
       </div>
     )
   }
@@ -407,13 +435,7 @@ export default function TransactionsPage() {
               </span>
             )}
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors"
-          >
-            <Plus size={15} />
-            Add
-          </button>
+          <HeaderActions onAdd={() => setShowAddModal(true)} />
         </div>
       </div>
 
@@ -703,6 +725,34 @@ function SampleModalShell({
           {children}
         </div>
       </div>
+    </div>
+  )
+}
+
+function HeaderActions({
+  onAdd,
+  addLabel = '+ Add Transaction',
+}: {
+  onAdd: () => void
+  addLabel?: string
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={onAdd}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-accent-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700"
+      >
+        <Plus size={15} />
+        {addLabel}
+      </button>
+      <Link
+        to="/app/upload"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+      >
+        <Upload size={15} />
+        Upload CSV
+      </Link>
     </div>
   )
 }
