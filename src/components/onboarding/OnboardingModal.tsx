@@ -109,7 +109,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'Returns',
-    copy: 'Track expected returns, refund review, and completed returns so credits do not get lost in the shuffle.',
+    copy: 'Track expected returns, review suggested refund matches, and confirm completed returns so credits do not get lost.',
     path: '/app/returns',
     cta: 'View Returns',
     icon: RotateCcw,
@@ -137,7 +137,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'Recurring',
-    copy: 'Spot subscriptions and repeating charges so you can review what keeps coming back every month.',
+    copy: 'Spot subscriptions and repeating charges. TribeSpend can detect recurring transactions automatically as your history grows.',
     path: '/app/recurring',
     cta: 'View Recurring',
     icon: Repeat2,
@@ -210,6 +210,8 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const [activeTransactionIcon, setActiveTransactionIcon] = useState<TransactionGuideIcon>('recurring')
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
+  const sampleReimbursements = useSampleTransactionStore((state) => state.reimbursements)
+  const sampleReturnDetails = useSampleTransactionStore((state) => state.returns)
   const step = STEPS[stepIndex]
   const Icon = step.icon
   const isFirst = stepIndex === 0
@@ -218,11 +220,12 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
   const isReturnsStep = step.title === 'Returns'
   const isReimbursementsStep = step.title === 'Reimbursements'
   const isRecurringStep = step.title === 'Recurring'
-  const sampleReturns = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)
-  const sampleReimbursements = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
-  const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring)
+  const visibleSampleTransactions = sampleTransactions.filter((transaction) => !sampleFlags[transaction.id]?.hidden)
+  const sampleReturns = visibleSampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)
+  const sampleReimbursementRows = visibleSampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
+  const sampleRecurring = visibleSampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring)
   const returnsPreview = sampleReturns.length > 0 ? sampleReturns : [sampleTransactions[2]]
-  const reimbursementsPreview = sampleReimbursements.length > 0 ? sampleReimbursements : [sampleTransactions[1]]
+  const reimbursementsPreview = sampleReimbursementRows.length > 0 ? sampleReimbursementRows : [sampleTransactions[1]]
   const recurringPreview = sampleRecurring.length > 0 ? sampleRecurring : [sampleTransactions[0]]
   const recurringMonthlyTotal = recurringPreview.reduce((sum, transaction) => sum + transaction.amount, 0)
 
@@ -350,9 +353,9 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                 <div className="grid gap-2 p-3 sm:grid-cols-3">
                   <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-purple-600">Expected</p>
-                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview[0]?.merchant ?? 'Return item'}</p>
+                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview.find((transaction) => (sampleReturnDetails[transaction.id]?.status ?? 'expected') === 'expected')?.merchant ?? returnsPreview[0]?.merchant ?? 'Return item'}</p>
                     <p className="text-xs text-slate-400">Pending refund</p>
-                    <p className="mt-1 text-sm font-semibold text-purple-600">{formatCurrency(returnsPreview[0]?.amount ?? 129)}</p>
+                    <p className="mt-1 text-sm font-semibold text-purple-600">{formatCurrency(sampleReturnDetails[returnsPreview[0]?.id]?.amount ?? returnsPreview[0]?.amount ?? 129)}</p>
                   </div>
                   <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Review</p>
@@ -362,7 +365,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                   </div>
                   <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Completed</p>
-                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview[0]?.merchant ?? 'Matched refund'}</p>
+                    <p className="mt-1 truncate text-sm font-medium text-slate-800">{returnsPreview.find((transaction) => sampleReturnDetails[transaction.id]?.status === 'completed')?.merchant ?? returnsPreview[0]?.merchant ?? 'Matched refund'}</p>
                     <p className="text-xs text-slate-400">Refund received</p>
                     <span className="mt-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Completed</span>
                   </div>
@@ -387,9 +390,9 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
                     <div key={transaction.id} className="flex items-center justify-between px-3 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-slate-800">{transaction.merchant}</p>
-                        <p className="text-xs text-slate-400">{transaction.description}</p>
+                        <p className="text-xs text-slate-400">{sampleReimbursements[transaction.id]?.note || transaction.description}</p>
                       </div>
-                      <span className="text-sm font-semibold text-orange-600">{formatCurrency(transaction.amount / 2)}</span>
+                      <span className="text-sm font-semibold text-orange-600">{formatCurrency(sampleReimbursements[transaction.id]?.amount ?? transaction.amount / 2)}</span>
                     </div>
                   ))}
                 </div>

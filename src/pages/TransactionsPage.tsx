@@ -12,12 +12,19 @@ import {
   RefreshCw,
   StickyNote,
   Undo2,
+  X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore, applyFilters } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
-import { useSampleTransactionStore, type SampleFlag } from '@/stores/sampleTransactionStore'
+import {
+  isSampleTransactionId,
+  useSampleTransactionStore,
+  type SampleReimbursementDetails,
+  type SampleReturnDetails,
+  type SampleReturnStatus,
+} from '@/stores/sampleTransactionStore'
 import FilterBar from '@/components/transactions/FilterBar'
 import TransactionRow from '@/components/transactions/TransactionRow'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal'
@@ -109,11 +116,19 @@ export default function TransactionsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
+  const [samplePopover, setSamplePopover] = useState<{ id: string; type: 'reimbursement' | 'return' } | null>(null)
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const sampleNotes = useSampleTransactionStore((state) => state.notes)
-  const toggleSampleFlag = useSampleTransactionStore((state) => state.toggleFlag)
+  const sampleReimbursements = useSampleTransactionStore((state) => state.reimbursements)
+  const sampleReturns = useSampleTransactionStore((state) => state.returns)
+  const toggleSampleRecurring = useSampleTransactionStore((state) => state.toggleRecurring)
+  const toggleSampleHidden = useSampleTransactionStore((state) => state.toggleHidden)
   const setSampleNote = useSampleTransactionStore((state) => state.setNote)
+  const setSampleReimbursement = useSampleTransactionStore((state) => state.setReimbursement)
+  const clearSampleReimbursement = useSampleTransactionStore((state) => state.clearReimbursement)
+  const setSampleReturn = useSampleTransactionStore((state) => state.setReturn)
+  const clearSampleReturn = useSampleTransactionStore((state) => state.clearReturn)
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
 
@@ -200,12 +215,9 @@ export default function TransactionsPage() {
                 {sampleTransactions.map((sample) => {
                   const flags = sampleFlags[sample.id] ?? {}
                   const note = sampleNotes[sample.id] ?? ''
-                  const toggleFlag = (flag: SampleFlag) => {
-                    toggleSampleFlag(sample.id, flag)
-                    if (flag === 'notes') {
-                      setSampleEditingNote((current) => current === sample.id ? null : sample.id)
-                    }
-                  }
+                  const reimbursement = sampleReimbursements[sample.id]
+                  const returnDetails = sampleReturns[sample.id]
+                  const isSample = isSampleTransactionId(sample.id)
 
                   return (
                     <tr
@@ -232,11 +244,30 @@ export default function TransactionsPage() {
                               )}
                               {flags.reimbursement && (
                                 <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
-                                  Reimbursable
+                                  {reimbursement?.paid ? 'Paid back' : `Owed by ${reimbursement?.person ?? 'someone'}`}
+                                </span>
+                              )}
+                              {returnDetails && (
+                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                                  {returnDetails.status === 'completed'
+                                    ? 'Return received'
+                                    : returnDetails.status === 'review'
+                                    ? 'Needs match'
+                                    : 'Return expected'}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-slate-400 truncate">{sample.description}</p>
+                            {reimbursement?.note && (
+                              <p className="mt-1 text-xs text-orange-700">
+                                Reimbursement note: {reimbursement.note}
+                              </p>
+                            )}
+                            {returnDetails?.note && (
+                              <p className="mt-1 text-xs text-purple-700">
+                                Return note: {returnDetails.note}
+                              </p>
+                            )}
                             {note && (
                               <p className="mt-1 text-xs text-accent-700">
                                 Note: {note}
@@ -273,19 +304,49 @@ export default function TransactionsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <SampleAction active={flags.reimbursement === true} label="Reimbursement" onClick={() => toggleFlag('reimbursement')}>
+                          <SampleAction
+                            active={flags.reimbursement === true}
+                            label="Reimbursement"
+                            onClick={() => {
+                              if (isSample) setSamplePopover({ id: sample.id, type: 'reimbursement' })
+                            }}
+                          >
                             <DollarSign size={14} />
                           </SampleAction>
-                          <SampleAction active={flags.return === true} label="Return / refund" onClick={() => toggleFlag('return')}>
+                          <SampleAction
+                            active={flags.return === true}
+                            label="Return / refund"
+                            onClick={() => {
+                              if (isSample) setSamplePopover({ id: sample.id, type: 'return' })
+                            }}
+                          >
                             <PackageOpen size={14} />
                           </SampleAction>
-                          <SampleAction active={flags.recurring === true} label="Recurring" onClick={() => toggleFlag('recurring')}>
+                          <SampleAction
+                            active={flags.recurring === true}
+                            label={flags.recurring ? 'Not recurring' : 'Recurring'}
+                            onClick={() => {
+                              if (isSample) toggleSampleRecurring(sample.id)
+                            }}
+                          >
                             <RefreshCw size={14} />
                           </SampleAction>
-                          <SampleAction active={sampleEditingNote === sample.id || !!note} label="Notes" onClick={() => toggleFlag('notes')}>
+                          <SampleAction
+                            active={sampleEditingNote === sample.id || !!note}
+                            label="Notes"
+                            onClick={() => {
+                              if (isSample) setSampleEditingNote((current) => current === sample.id ? null : sample.id)
+                            }}
+                          >
                             <StickyNote size={14} />
                           </SampleAction>
-                          <SampleAction active={flags.hidden === true} label={flags.hidden ? 'Unhide' : 'Hide'} onClick={() => toggleFlag('hidden')}>
+                          <SampleAction
+                            active={flags.hidden === true}
+                            label={flags.hidden ? 'Unhide' : 'Hide'}
+                            onClick={() => {
+                              if (isSample) toggleSampleHidden(sample.id)
+                            }}
+                          >
                             {flags.hidden ? <Undo2 size={14} /> : <EyeOff size={14} />}
                           </SampleAction>
                         </div>
@@ -297,6 +358,36 @@ export default function TransactionsPage() {
             </table>
           </div>
         </div>
+        {samplePopover?.type === 'reimbursement' && (
+          <SampleReimbursementModal
+            transaction={sampleTransactions.find((sample) => sample.id === samplePopover.id)}
+            details={sampleReimbursements[samplePopover.id]}
+            onClose={() => setSamplePopover(null)}
+            onSave={(details) => {
+              if (isSampleTransactionId(samplePopover.id)) setSampleReimbursement(samplePopover.id, details)
+              setSamplePopover(null)
+            }}
+            onClear={() => {
+              if (isSampleTransactionId(samplePopover.id)) clearSampleReimbursement(samplePopover.id)
+              setSamplePopover(null)
+            }}
+          />
+        )}
+        {samplePopover?.type === 'return' && (
+          <SampleReturnModal
+            transaction={sampleTransactions.find((sample) => sample.id === samplePopover.id)}
+            details={sampleReturns[samplePopover.id]}
+            onClose={() => setSamplePopover(null)}
+            onSave={(details) => {
+              if (isSampleTransactionId(samplePopover.id)) setSampleReturn(samplePopover.id, details)
+              setSamplePopover(null)
+            }}
+            onClear={() => {
+              if (isSampleTransactionId(samplePopover.id)) clearSampleReturn(samplePopover.id)
+              setSamplePopover(null)
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -406,6 +497,212 @@ export default function TransactionsPage() {
         </div>
       )}
       {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
+    </div>
+  )
+}
+
+function SampleReimbursementModal({
+  transaction,
+  details,
+  onClose,
+  onSave,
+  onClear,
+}: {
+  transaction?: { amount: number; merchant: string }
+  details?: SampleReimbursementDetails
+  onClose: () => void
+  onSave: (details: SampleReimbursementDetails) => void
+  onClear: () => void
+}) {
+  const [person, setPerson] = useState(details?.person ?? 'Nada')
+  const [amount, setAmount] = useState(String(details?.amount ?? ((transaction?.amount ?? 0) / 2)))
+  const [note, setNote] = useState(details?.note ?? '')
+  const [paid, setPaid] = useState(details?.paid ?? false)
+
+  if (!transaction) return null
+
+  return (
+    <SampleModalShell title="Sample reimbursement" onClose={onClose}>
+      <p className="text-xs text-slate-500">
+        This practices the real reimbursement flow for {transaction.merchant}. Nothing is saved to Supabase.
+      </p>
+      <label className="block">
+        <span className="block text-xs text-slate-500 mb-1">Who owes you?</span>
+        <select
+          value={person}
+          onChange={(event) => setPerson(event.target.value)}
+          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500"
+        >
+          <option value="Nada">Nada</option>
+          <option value="Rayyan">Rayyan</option>
+          <option value="Other">Other</option>
+        </select>
+      </label>
+      <label className="block">
+        <span className="block text-xs text-slate-500 mb-1">Reimbursable amount ($)</span>
+        <input
+          type="number"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          step="0.01"
+          min="0"
+          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-xs text-slate-500 mb-1">Note (optional)</span>
+        <input
+          type="text"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="e.g., split dinner"
+          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-accent-500"
+        />
+      </label>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={paid}
+          onChange={(event) => setPaid(event.target.checked)}
+          className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+        />
+        <span className="text-xs text-slate-600">Already paid back</span>
+      </label>
+      <div className="flex items-center gap-2 pt-1">
+        {details && (
+          <button type="button" onClick={onClear} className="text-xs font-medium text-red-500 hover:text-red-600">
+            Clear
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onSave({
+            person,
+            amount: parseFloat(amount) || transaction.amount / 2,
+            note,
+            paid,
+          })}
+          className="flex-1 rounded-lg bg-accent-600 px-3 py-2 text-xs font-semibold text-white hover:bg-accent-700"
+        >
+          Save sample
+        </button>
+      </div>
+    </SampleModalShell>
+  )
+}
+
+function SampleReturnModal({
+  transaction,
+  details,
+  onClose,
+  onSave,
+  onClear,
+}: {
+  transaction?: { amount: number; merchant: string }
+  details?: SampleReturnDetails
+  onClose: () => void
+  onSave: (details: SampleReturnDetails) => void
+  onClear: () => void
+}) {
+  const [amount, setAmount] = useState(String(details?.amount ?? transaction?.amount ?? 0))
+  const [note, setNote] = useState(details?.note ?? '')
+  const [status, setStatus] = useState<SampleReturnStatus>(details?.status ?? 'expected')
+
+  if (!transaction) return null
+
+  return (
+    <SampleModalShell title="Sample return / refund" onClose={onClose}>
+      <p className="text-xs text-slate-500">
+        This practices the real return flow for {transaction.merchant}. Nothing is saved to Supabase.
+      </p>
+      <label className="block">
+        <span className="block text-xs text-slate-500 mb-1">Expected refund amount ($)</span>
+        <input
+          type="number"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          step="0.01"
+          min="0"
+          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-xs text-slate-500 mb-1">Note / reason (optional)</span>
+        <input
+          type="text"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="e.g., Returned after drop-off"
+          className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+        />
+      </label>
+      <div>
+        <span className="block text-xs text-slate-500 mb-1">Sample state</span>
+        <div className="grid grid-cols-3 gap-1">
+          {([
+            ['expected', 'Expected'],
+            ['review', 'Review'],
+            ['completed', 'Received'],
+          ] as Array<[SampleReturnStatus, string]>).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setStatus(value)}
+              className={`rounded-lg border px-2 py-1.5 text-xs font-medium ${
+                status === value
+                  ? 'border-purple-500 bg-purple-50 text-purple-700'
+                  : 'border-slate-200 text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        {details && (
+          <button type="button" onClick={onClear} className="text-xs font-medium text-red-500 hover:text-red-600">
+            Clear
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onSave({
+            amount: parseFloat(amount) || transaction.amount,
+            note,
+            status,
+          })}
+          className="flex-1 rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-700"
+        >
+          Save sample
+        </button>
+      </div>
+    </SampleModalShell>
+  )
+}
+
+function SampleModalShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string
+  onClose: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/30 p-4">
+      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-800">{title}</p>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="flex flex-col gap-3">
+          {children}
+        </div>
+      </div>
     </div>
   )
 }

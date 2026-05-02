@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { MockAuthProvider } from '@/contexts/AuthContextMock'
 import { RequireAuth, RedirectIfAuth } from '@/components/RouteGuards'
+import { SampleTransactionProvider } from '@/stores/sampleTransactionStore'
 import AppShell from '@/components/layout/AppShell'
 import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
@@ -28,7 +29,7 @@ export default function App() {
 
           {/* Protected routes — require login */}
           <Route element={<RequireAuth />}>
-            <Route path="/app/*" element={<AppShell />} />
+            <Route path="/app/*" element={<SampleTransactionProvider><AppShell /></SampleTransactionProvider>} />
           </Route>
 
           {/* Catch-all */}

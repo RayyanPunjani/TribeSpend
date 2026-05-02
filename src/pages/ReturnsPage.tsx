@@ -3,7 +3,7 @@ import { CheckCircle, PackageOpen, RotateCcw } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
-import { useSampleTransactionStore, type SampleTransaction } from '@/stores/sampleTransactionStore'
+import { useSampleTransactionStore, type SampleReturnDetails, type SampleTransaction } from '@/stores/sampleTransactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import type { Transaction } from '@/types'
 import type { CreditCard } from '@/types'
@@ -53,6 +53,7 @@ export default function ReturnsPage() {
   const [refundFilters, setRefundFilters] = useState<Record<string, RefundFilters>>({})
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
+  const sampleReturnDetails = useSampleTransactionStore((state) => state.returns)
   const cardMap = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards])
 
   const requestedTab = searchParams.get('tab')
@@ -123,7 +124,8 @@ export default function ReturnsPage() {
       <SampleReturnsPage
         tab={tab}
         onSwitchTab={switchTab}
-        returns={sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)}
+        returns={sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return && !sampleFlags[transaction.id]?.hidden)}
+        details={sampleReturnDetails}
         fallback={sampleTransactions[2]}
       />
     )
@@ -497,16 +499,21 @@ function SampleReturnsPage({
   tab,
   onSwitchTab,
   returns,
+  details,
   fallback,
 }: {
   tab: Tab
   onSwitchTab: (tab: Tab) => void
   returns: SampleTransaction[]
+  details: Record<string, SampleReturnDetails>
   fallback: SampleTransaction
 }) {
-  const expectedRows = returns.length > 0 ? returns : [fallback]
-  const reviewRow = returns[0] ?? fallback
-  const completedRow = returns[0] ?? fallback
+  const expectedRows = returns.filter((transaction) => (details[transaction.id]?.status ?? 'expected') === 'expected')
+  const reviewRows = returns.filter((transaction) => details[transaction.id]?.status === 'review')
+  const completedRows = returns.filter((transaction) => details[transaction.id]?.status === 'completed')
+  const expectedPreview = expectedRows.length > 0 ? expectedRows : [fallback]
+  const reviewPreview = reviewRows.length > 0 ? reviewRows : [fallback]
+  const completedPreview = completedRows.length > 0 ? completedRows : [fallback]
 
   return (
     <div className="flex flex-col gap-5 max-w-5xl mx-auto">
@@ -546,20 +553,23 @@ function SampleReturnsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {expectedRows.map((transaction) => (
+              {expectedPreview.map((transaction) => {
+                const returnDetails = details[transaction.id]
+                return (
                 <tr key={transaction.id} className="bg-accent-50/30">
                   <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-slate-800">{transaction.merchant}</p>
-                    <p className="text-xs text-slate-400">{transaction.description}</p>
+                    <p className="text-xs text-slate-400">{returnDetails?.note || transaction.description}</p>
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-medium text-slate-700">{formatCurrency(transaction.amount)}</td>
-                  <td className="px-4 py-3 text-right text-sm font-semibold text-purple-600">{formatCurrency(transaction.amount)}</td>
+                  <td className="px-4 py-3 text-right text-sm font-semibold text-purple-600">{formatCurrency(returnDetails?.amount ?? transaction.amount)}</td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">Pending</span>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -577,17 +587,22 @@ function SampleReturnsPage({
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-accent-50/30">
-                <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{reviewRow.date}</td>
-                <td className="px-4 py-3">
-                  <p className="text-sm font-medium text-slate-800">{reviewRow.merchant} credit</p>
-                  <p className="text-xs text-slate-400">Sample refund waiting for review</p>
-                </td>
-                <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(reviewRow.amount)}</td>
-                <td className="px-4 py-3">
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Needs match</span>
-                </td>
-              </tr>
+              {reviewPreview.map((transaction) => {
+                const returnDetails = details[transaction.id]
+                return (
+                  <tr key={transaction.id} className="bg-accent-50/30">
+                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-slate-800">{transaction.merchant} credit</p>
+                      <p className="text-xs text-slate-400">{returnDetails?.note || 'Sample refund waiting for review'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(returnDetails?.amount ?? transaction.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Needs match</span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -606,20 +621,25 @@ function SampleReturnsPage({
               </tr>
             </thead>
             <tbody>
-              <tr className="bg-accent-50/30">
-                <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{completedRow.date}</td>
-                <td className="px-4 py-3">
-                  <p className="text-sm font-medium text-slate-800">{completedRow.merchant} refund</p>
-                  <p className="text-xs text-slate-400">Sample matched refund</p>
-                </td>
-                <td className="px-4 py-3 text-sm text-slate-700">{completedRow.merchant}</td>
-                <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(completedRow.amount)}</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                    <CheckCircle size={11} /> Completed
-                  </span>
-                </td>
-              </tr>
+              {completedPreview.map((transaction) => {
+                const returnDetails = details[transaction.id]
+                return (
+                  <tr key={transaction.id} className="bg-accent-50/30">
+                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-medium text-slate-800">{transaction.merchant} refund</p>
+                      <p className="text-xs text-slate-400">{returnDetails?.note || 'Sample matched refund'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{transaction.merchant}</td>
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-green-600">{formatCurrency(returnDetails?.amount ?? transaction.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                        <CheckCircle size={11} /> Completed
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

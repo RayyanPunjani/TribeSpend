@@ -9,6 +9,7 @@ export default function ReimbursementsPage() {
   const { transactions, update, updateMany } = useTransactionStore()
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
+  const sampleReimbursementDetails = useSampleTransactionStore((state) => state.reimbursements)
   const [settlingUp, setSettlingUp] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -64,9 +65,17 @@ export default function ReimbursementsPage() {
   }
 
   if (transactions.length === 0) {
-    const sampleReimbursements = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
+    const sampleReimbursements = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement && !sampleFlags[transaction.id]?.hidden)
     const preview = sampleReimbursements.length > 0 ? sampleReimbursements : [sampleTransactions[1]]
-    const outstanding = preview.reduce((sum, transaction) => sum + transaction.amount / 2, 0)
+    const outstanding = preview.reduce((sum, transaction) => {
+      const details = sampleReimbursementDetails[transaction.id]
+      return sum + (details?.paid ? 0 : details?.amount ?? transaction.amount / 2)
+    }, 0)
+    const paidTotal = preview.reduce((sum, transaction) => {
+      const details = sampleReimbursementDetails[transaction.id]
+      return sum + (details?.paid ? details.amount : 0)
+    }, 0)
+    const person = sampleReimbursementDetails[preview[0]?.id]?.person ?? 'Nada'
 
     return (
       <div className="flex flex-col gap-5 max-w-4xl mx-auto">
@@ -91,12 +100,12 @@ export default function ReimbursementsPage() {
           <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center text-accent-700 font-bold text-sm">
-                N
+                {person.charAt(0)}
               </div>
               <div>
-                <p className="font-semibold text-slate-800">Nada</p>
+                <p className="font-semibold text-slate-800">{person}</p>
                 <p className="text-xs text-slate-500">
-                  Outstanding: {formatCurrency(outstanding)} · Paid: {formatCurrency(0)}
+                  Outstanding: {formatCurrency(outstanding)} · Paid: {formatCurrency(paidTotal)}
                 </p>
               </div>
             </div>
@@ -117,20 +126,30 @@ export default function ReimbursementsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {preview.map((transaction) => (
-                <tr key={transaction.id} className="bg-accent-50/30">
-                  <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
-                  <td className="px-4 py-2.5">
-                    <p className="text-sm text-slate-800">{transaction.merchant}</p>
-                    <p className="text-xs text-slate-400">{transaction.description}</p>
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-sm font-medium text-slate-700">{formatCurrency(transaction.amount)}</td>
-                  <td className="px-4 py-2.5 text-right text-sm font-semibold text-orange-600">{formatCurrency(transaction.amount / 2)}</td>
-                  <td className="px-4 py-2.5">
-                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">Unpaid</span>
-                  </td>
-                </tr>
-              ))}
+              {preview.map((transaction) => {
+                const details = sampleReimbursementDetails[transaction.id]
+                const reimbursable = details?.amount ?? transaction.amount / 2
+                return (
+                  <tr key={transaction.id} className={`bg-accent-50/30 ${details?.paid ? 'opacity-60' : ''}`}>
+                    <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">{transaction.date}</td>
+                    <td className="px-4 py-2.5">
+                      <p className="text-sm text-slate-800">{transaction.merchant}</p>
+                      <p className="text-xs text-slate-400">{details?.note || transaction.description}</p>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-sm font-medium text-slate-700">{formatCurrency(transaction.amount)}</td>
+                    <td className={`px-4 py-2.5 text-right text-sm font-semibold ${details?.paid ? 'text-green-600 line-through' : 'text-orange-600'}`}>
+                      {formatCurrency(reimbursable)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        details?.paid ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                      }`}>
+                        {details?.paid ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

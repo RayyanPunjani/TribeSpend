@@ -22,6 +22,7 @@ interface RecurringCharge {
   isPriceChanged: boolean
   isMissing: boolean
   isAutoDetected: boolean
+  transactionIds: string[]
 }
 
 interface RecurringService {
@@ -175,6 +176,7 @@ export default function RecurringPage() {
         isPriceChanged,
         isMissing,
         isAutoDetected: sorted.some((t) => t.recurringAutoDetected),
+        transactionIds: sorted.map((t) => t.id),
       })
     }
 
@@ -251,7 +253,7 @@ export default function RecurringPage() {
   }, [recurringServices])
 
   if (transactions.length === 0) {
-    const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring)
+    const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring && !sampleFlags[transaction.id]?.hidden)
     const preview = sampleRecurring.length > 0 ? sampleRecurring : [sampleTransactions[0]]
     const sampleMonthly = preview.reduce((sum, transaction) => sum + transaction.amount, 0)
     const sampleAnnual = sampleMonthly * 12
@@ -401,6 +403,7 @@ export default function RecurringPage() {
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Annual Est.</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Last Charged</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500">Flags</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -478,6 +481,18 @@ export default function RecurringPage() {
                           )}
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => updateMany(charge.transactionIds, {
+                            isRecurring: false,
+                            recurringDismissed: true,
+                          })}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                        >
+                          Remove from recurring
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -493,6 +508,7 @@ export default function RecurringPage() {
                   <td className="px-4 py-3 text-right text-xs font-semibold text-slate-700">
                     {formatCurrency(annualTotal)}/yr
                   </td>
+                  <td />
                   <td />
                   <td />
                 </tr>
