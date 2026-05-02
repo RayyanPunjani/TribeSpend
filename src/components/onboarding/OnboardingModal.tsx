@@ -3,6 +3,7 @@ import {
   BarChart3,
   CreditCard,
   Crown,
+  HandCoins,
   PieChart,
   ReceiptText,
   Repeat2,
@@ -24,6 +25,38 @@ type OnboardingStep = {
     rows: Array<{ name: string; detail: string; value?: string }>
   }
 }
+
+type TransactionGuideIcon = 'recurring' | 'reimbursement' | 'return'
+
+const TRANSACTION_ICON_GUIDE: Array<{
+  id: TransactionGuideIcon
+  label: string
+  tooltip: string
+  icon: typeof Repeat2
+  colorClass: string
+}> = [
+  {
+    id: 'recurring',
+    label: 'Recurring',
+    tooltip: 'Mark subscriptions and repeating charges',
+    icon: Repeat2,
+    colorClass: 'text-blue-600 bg-blue-50 ring-blue-200',
+  },
+  {
+    id: 'reimbursement',
+    label: 'Reimbursement',
+    tooltip: 'Track money others owe you',
+    icon: HandCoins,
+    colorClass: 'text-emerald-600 bg-emerald-50 ring-emerald-200',
+  },
+  {
+    id: 'return',
+    label: 'Return',
+    tooltip: 'Track refunds or expected returns',
+    icon: RotateCcw,
+    colorClass: 'text-amber-600 bg-amber-50 ring-amber-200',
+  },
+]
 
 const STEPS: OnboardingStep[] = [
   {
@@ -140,10 +173,12 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ onDismiss, onFinish, showExampleData }: OnboardingModalProps) {
   const [stepIndex, setStepIndex] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [activeTransactionIcon, setActiveTransactionIcon] = useState<TransactionGuideIcon>('recurring')
   const step = STEPS[stepIndex]
   const Icon = step.icon
   const isFirst = stepIndex === 0
   const isLast = stepIndex === STEPS.length - 1
+  const isTransactionsStep = step.title === 'Transactions'
 
   const finish = async () => {
     setSaving(true)
@@ -199,7 +234,65 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           </div>
 
-          {step.example && showExampleData && (
+          {isTransactionsStep && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="relative overflow-visible rounded-xl bg-white p-3 shadow-sm">
+                <div className="absolute inset-0 rounded-xl bg-slate-900/5 pointer-events-none" />
+                <div className="relative flex items-center gap-3">
+                  <div className={`min-w-0 flex-1 transition-opacity ${activeTransactionIcon ? 'opacity-45' : ''}`}>
+                    <p className="truncate text-sm font-semibold text-slate-800">Streaming Bundle</p>
+                    <p className="truncate text-xs text-slate-400">Entertainment · Example Card · $46.99</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {TRANSACTION_ICON_GUIDE.map(({ id, label, tooltip, icon: GuideIcon, colorClass }) => {
+                      const active = activeTransactionIcon === id
+                      return (
+                        <div key={id} className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTransactionIcon(id)}
+                            className={`relative z-10 flex h-9 w-9 items-center justify-center rounded-lg ring-1 transition-all ${
+                              active
+                                ? `${colorClass} scale-105 shadow-lg opacity-100`
+                                : 'bg-white text-slate-400 ring-slate-200 opacity-35 hover:opacity-80'
+                            }`}
+                            aria-label={label}
+                          >
+                            <GuideIcon size={16} />
+                          </button>
+                          {active && (
+                            <div className="absolute right-0 top-11 z-20 w-44 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium leading-5 text-white shadow-xl">
+                              {tooltip}
+                              <span className="absolute -top-1.5 right-3 h-3 w-3 rotate-45 bg-slate-900" />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-12 flex flex-wrap gap-1.5">
+                {TRANSACTION_ICON_GUIDE.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setActiveTransactionIcon(id)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                      activeTransactionIcon === id
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-white text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step.example && showExampleData && !isTransactionsStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">{step.example.label}</p>
               <div className="space-y-1.5">
@@ -216,7 +309,7 @@ export default function OnboardingModal({ onDismiss, onFinish, showExampleData }
             </div>
           )}
 
-          {step.example && !showExampleData && (
+          {step.example && !showExampleData && !isTransactionsStep && (
             <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">
               Your real transaction data is available now, so example cards are hidden.
             </div>
