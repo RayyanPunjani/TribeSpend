@@ -8,7 +8,7 @@ import type { CsvParsedRow, CategoryRule } from '@/types'
 import { findMatchingRule } from './categoryMatcher'
 import { suggestCategory } from './keywordCategorizer'
 import { CATEGORIES as ALL_CATEGORIES } from '@/utils/categories'
-import { normalizeCategory, FALLBACK_CATEGORY } from '@/utils/categoryFallback'
+import { normalizeCategory } from '@/utils/categoryFallback'
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
 // Exclude meta-categories from AI classification targets
@@ -28,9 +28,12 @@ export async function categorizeCsvRows(
 ): Promise<CsvParsedRow[]> {
   const result = rows.map((row) => ({ ...row }))
   const aiCategories = categories.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
+  const ruleMatchedRows = new Set<CsvParsedRow>()
 
   // Step 1: Apply saved rules
   for (const row of result) {
+    row.category = normalizeCategory(row.category)
+
     if (row.isBalancePayment || row.isPayment) {
       row.category = 'Credit Card Payment'
       row.isPayment = true
@@ -43,7 +46,6 @@ export async function categorizeCsvRows(
       row.refundReviewPending = true
       continue
     }
-    if (row.category !== 'Needs Review') continue // already set by bank mapping
 
     const rule = findMatchingRule(`${row.description} ${row.cleanDescription}`, rules)
     if (rule) {
@@ -51,12 +53,13 @@ export async function categorizeCsvRows(
       row.cleanDescription = rule.cleanDescription
       row.cardId = rule.cardId
       row.personId = rule.personId
+      ruleMatchedRows.add(row)
     }
   }
 
-  // Step 1.5: Keyword matching for still-unknown transactions (no API call needed)
+  // Step 1.5: Merchant keyword overrides for imports. User-saved rules above stay authoritative.
   for (const row of result) {
-    if (row.category !== 'Needs Review' || row.isPayment || row.isBalancePayment) continue
+    if (ruleMatchedRows.has(row) || row.isPayment || row.isCredit || row.isBalancePayment) continue
     const suggested = suggestCategory(`${row.description} ${row.cleanDescription}`)
     if (suggested) {
       row.category = suggested
@@ -71,7 +74,7 @@ export async function categorizeCsvRows(
 
   const withFallbacks = () => result.map((row) => ({
     ...row,
-    category: normalizeCategory(row.category === 'Needs Review' ? FALLBACK_CATEGORY : row.category),
+    category: normalizeCategory(row.category),
   }))
 
   if (uniqueMerchants.length === 0 || !apiKey) return withFallbacks()
@@ -93,7 +96,12 @@ export async function categorizeCsvRows(
     console.warn('[csvCategorizer] AI batch categorization failed, falling back to Other:', err)
   }
 
-  return withFallbacks()
+  const categorized = withFallbacks()
+  if (import.meta.env.DEV) {
+    const blankCount = categorized.filter((row) => !row.category?.trim()).length
+    if (blankCount > 0) console.warn(`[csvCategorizer] ${blankCount} rows still have blank categories after fallback`)
+  }
+  return categorized
 }
 
 async function batchCategorizeMerchants(

@@ -242,19 +242,40 @@ async function hasConnectionCapacity(supabase, householdId, additionalAccounts =
 const PLAID_KEYWORD_CATEGORY_RULES = [
   {
     category: 'Gas & EV Charging',
-    keywords: ['SHELL', 'EXXON', 'CHEVRON', 'MOBIL', 'BP ', 'SUNOCO', 'CIRCLE K', 'FUEL', 'SUPERCHARGER', 'CHARGEPOINT'],
+    keywords: [
+      'TESLA', 'SUPERCHARGER', 'SUPERCHARGING', 'SHELL', 'EXXON',
+      'CHEVRON', 'MOBIL', 'BP ', 'BP-', 'BP#', '7 ELEVEN FUEL',
+      '7-ELEVEN FUEL', '7ELEVEN FUEL', 'SUNOCO', 'CIRCLE K',
+      'FUEL', 'GAS STATION', 'GAS PUMP', 'CHARGEPOINT',
+      'ELECTRIFY AMERICA', 'EV CHARGE', 'EVGO',
+    ],
+  },
+  {
+    category: 'Transfer',
+    keywords: ['ZELLE', 'VENMO', 'PAYPAL', 'CASH APP', 'CASHAPP'],
   },
   {
     category: 'Dining',
-    keywords: ['RESTAURANT', 'CAFE', 'COFFEE', 'STARBUCKS', 'CHIPOTLE', 'MCDONALD', 'DOORDASH', 'UBER EATS', 'GRUBHUB'],
+    keywords: [
+      'UBER EATS', 'UBEREATS', 'DOORDASH', 'DOOR DASH', 'GRUBHUB',
+      'RESTAURANT', 'CAFE', 'COFFEE', 'STARBUCKS', 'CHIPOTLE',
+      'MCDONALD', 'WENDY', 'BURGER KING', 'PANERA', 'CHICK-FIL',
+    ],
   },
   {
     category: 'Groceries',
-    keywords: ['KROGER', 'HEB', 'H-E-B', 'ALDI', 'PUBLIX', 'SAFEWAY', 'TRADER JOE', 'WHOLE FOODS', 'GROCERY'],
+    keywords: [
+      'WHOLE FOODS', 'WHOLEFOODS', 'KROGER', 'WALMART GROCERY',
+      'TRADER JOE', 'TRADER JOES', 'HEB ', 'H-E-B', 'ALDI',
+      'PUBLIX', 'SAFEWAY', 'GROCERY', 'SPROUTS', 'FOOD LION',
+    ],
   },
   {
     category: 'Shopping',
-    keywords: ['AMAZON', 'AMZN', 'TARGET', 'WALMART', 'COSTCO', 'BEST BUY', 'APPLE.COM', 'EBAY', 'ETSY'],
+    keywords: [
+      'AMAZON', 'AMAZON MKTPL', 'AMAZON MARKETPLACE', 'AMAZON.COM',
+      'AMZN', 'TARGET', 'WALMART.COM', 'BEST BUY', 'EBAY', 'ETSY',
+    ],
   },
   {
     category: 'Travel',
@@ -266,7 +287,12 @@ const PLAID_KEYWORD_CATEGORY_RULES = [
   },
   {
     category: 'Subscriptions',
-    keywords: ['NETFLIX', 'SPOTIFY', 'HULU', 'DISNEY', 'YOUTUBE PREMIUM', 'APPLE.COM/BILL', 'AUDIBLE', 'OPENAI', 'ANTHROPIC'],
+    keywords: [
+      'APPLE.COM/BILL', 'NETFLIX', 'SPOTIFY', 'AUDIBLE', 'ADOBE',
+      'HULU', 'DISNEY', 'YOUTUBE PREMIUM', 'APPLE ONE', 'ICLOUD',
+      'AMAZON PRIME', 'OPENAI', 'CHATGPT', 'ANTHROPIC', 'CLAUDE.AI',
+      'MICROSOFT 365', 'GOOGLE ONE', 'DROPBOX',
+    ],
   },
   {
     category: 'Health & Medical',
@@ -302,26 +328,59 @@ function plaidCategoryKeys(category) {
   ].filter(Boolean)
 }
 
+function normalizeCategory(category) {
+  const trimmed = String(category || '').trim()
+  return trimmed || 'Other'
+}
+
+function normalizeKeywordText(value) {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function keywordCategoryForPlaid(txn) {
   const text = [
     txn?.merchant_name,
     txn?.name,
     txn?.original_description,
-  ].filter(Boolean).join(' ').toUpperCase()
+  ].filter(Boolean).join(' ')
 
-  if (!text) return null
+  const normalized = ` ${normalizeKeywordText(text)} `
+  if (!normalized.trim()) return null
 
   for (const rule of PLAID_KEYWORD_CATEGORY_RULES) {
-    if (rule.keywords.some((keyword) => text.includes(keyword))) return rule.category
+    if (rule.keywords.some((keyword) => normalized.includes(` ${normalizeKeywordText(keyword)} `))) return rule.category
   }
 
   return null
 }
 
 function mapPlaidCategory(category, txn) {
-  if (!category) return keywordCategoryForPlaid(txn) || 'Other'
+  const keywordCategory = keywordCategoryForPlaid(txn)
+  if (keywordCategory) return keywordCategory
+  if (!category) return 'Other'
   const [detailed, primary] = plaidCategoryKeys(category)
-  return PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary] || keywordCategoryForPlaid(txn) || 'Other'
+  return normalizeCategory(PLAID_CATEGORY_MAP[detailed] || PLAID_CATEGORY_MAP[primary])
+}
+
+function findMatchingCategoryRule(description, rules) {
+  const normalized = normalizeKeywordText(description)
+  let bestRule = null
+  let bestLength = 0
+
+  for (const rule of rules || []) {
+    const pattern = normalizeKeywordText(rule.merchant_pattern)
+    if (!pattern || !normalized.includes(pattern)) continue
+    if (pattern.length > bestLength) {
+      bestRule = rule
+      bestLength = pattern.length
+    }
+  }
+
+  return bestRule
 }
 
 function classifyPlaidTransaction(txn) {
@@ -388,10 +447,10 @@ function transactionToRow(transaction, householdId) {
     description: transaction.description,
     clean_description: transaction.cleanDescription,
     amount: transaction.amount,
-    category: transaction.category,
+    category: normalizeCategory(transaction.category),
     card_id: transaction.cardId || null,
     cardholder_name: transaction.cardholderName || '',
-    person_id: null,
+    person_id: transaction.personId || null,
     is_payment: transaction.isPayment,
     is_credit: transaction.isCredit,
     is_balance_payment: transaction.isBalancePayment,
@@ -418,7 +477,7 @@ function transactionToRow(transaction, householdId) {
   }
 }
 
-async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds }) {
+async function appendPlaidTransaction({ supabase, item, txn, accountMap, categoryRules, added, seenPlaidIds }) {
   if (!txn?.transaction_id || seenPlaidIds.has(txn.transaction_id)) return false
 
   const { data: existingTransaction, error: existingError } = await supabase
@@ -436,15 +495,25 @@ async function appendPlaidTransaction({ supabase, item, txn, accountMap, added, 
   if (classification.category === 'exclude') return false
 
   const mapping = accountMap.get(txn.account_id)
+  const description = [
+    txn.merchant_name,
+    txn.name,
+    txn.original_description,
+  ].filter(Boolean).join(' ')
+  const matchingRule = classification.isPayment || classification.isCredit || classification.isBalancePayment
+    ? null
+    : findMatchingCategoryRule(description, categoryRules)
+
   added.push({
     id: crypto.randomUUID(),
     transDate: txn.date,
     postDate: txn.authorized_date || txn.date,
     description: txn.original_description || txn.name,
-    cleanDescription: txn.merchant_name || txn.name,
+    cleanDescription: matchingRule?.clean_description || txn.merchant_name || txn.name,
     amount: Number(txn.amount),
-    category: classification.category,
-    cardId: mapping?.card_id ?? null,
+    category: normalizeCategory(matchingRule?.category || classification.category),
+    cardId: matchingRule?.card_id ?? mapping?.card_id ?? null,
+    personId: matchingRule?.person_id ?? null,
     cardholderName: '',
     isPayment: classification.isPayment,
     isCredit: classification.isCredit,
@@ -548,6 +617,12 @@ async function syncItem(supabase, item) {
     .eq('enabled', true)
   if (accountsError) throw accountsError
 
+  const { data: categoryRules, error: categoryRulesError } = await supabase
+    .from('category_rules')
+    .select('merchant_pattern, clean_description, category, card_id, person_id')
+    .eq('household_id', item.household_id)
+  if (categoryRulesError) throw categoryRulesError
+
   const accountMap = new Map((mappings || []).map((mapping) => [mapping.account_id, mapping]))
   const added = []
   const seenPlaidIds = new Set()
@@ -585,7 +660,7 @@ async function syncItem(supabase, item) {
       totalTransactions = Number.isFinite(reportedTotal) ? reportedTotal : historicalFetched
 
       for (const txn of transactions) {
-        await appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds })
+        await appendPlaidTransaction({ supabase, item, txn, accountMap, categoryRules, added, seenPlaidIds })
       }
 
       offset += count
@@ -602,7 +677,7 @@ async function syncItem(supabase, item) {
     })
 
     for (const txn of data.added || []) {
-      await appendPlaidTransaction({ supabase, item, txn, accountMap, added, seenPlaidIds })
+      await appendPlaidTransaction({ supabase, item, txn, accountMap, categoryRules, added, seenPlaidIds })
     }
 
     for (const txn of data.modified || []) {

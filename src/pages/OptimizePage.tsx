@@ -8,6 +8,7 @@ import { usePersonStore } from '@/stores/personStore'
 import { resolveRewardCategory, useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { POINT_VALUE_CENTS, EXCLUDED_FROM_SPEND } from '@/lib/constants'
+import { normalizeMerchantCategoryText, suggestMerchantOverrideCategory } from '@/services/merchantCategoryOverrides'
 import type { CardRewardRule, CardCredit, CreditCard as CreditCardType, Transaction } from '@/types'
 
 function getEffectiveCashbackRate(rule: CardRewardRule): number {
@@ -64,6 +65,22 @@ function transactionMerchantText(transaction: Transaction): string {
   return `${transaction.cleanDescription ?? ''} ${transaction.description ?? ''}`.toUpperCase()
 }
 
+function merchantMatchesKeywords(transaction: Transaction, keywords: string[]): boolean {
+  const merchantText = ` ${normalizeMerchantCategoryText(transactionMerchantText(transaction))} `
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeMerchantCategoryText(keyword)
+    return normalizedKeyword && merchantText.includes(` ${normalizedKeyword} `)
+  })
+}
+
+function getRewardCategoryForTransaction(
+  transaction: Transaction,
+  categoryParentMap: Record<string, string>,
+): string {
+  const merchantCategory = suggestMerchantOverrideCategory(transactionMerchantText(transaction))
+  return merchantCategory ?? resolveRewardCategory(transaction.category, categoryParentMap)
+}
+
 function ruleIsActive(rule: CardRewardRule, today: string): boolean {
   if (!rule.isRotating) return true
   if (rule.activeStartDate && today < rule.activeStartDate) return false
@@ -80,14 +97,11 @@ function ruleMatchesTransaction(
 ): boolean {
   if (!ruleIsActive(rule, today)) return false
 
-  const rewardCategory = resolveRewardCategory(transaction.category, categoryParentMap)
-  if (rule.category !== rewardCategory) return false
-
   const keywords = inferredMerchantKeywords(rule, card)
-  if (keywords.length === 0) return true
+  if (keywords.length > 0) return merchantMatchesKeywords(transaction, keywords)
 
-  const merchantText = transactionMerchantText(transaction)
-  return keywords.some((keyword) => merchantText.includes(keyword))
+  const rewardCategory = getRewardCategoryForTransaction(transaction, categoryParentMap)
+  return rule.category === rewardCategory
 }
 
 function getRewardForTransaction(
