@@ -100,6 +100,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
   const linkedRefundOriginal = t.refundForId
     ? transactions.find((tx) => tx.id === t.refundForId)
     : undefined
+  const cardColor = card?.color ?? '#94a3b8'
   const cardLabel = card
     ? card.isPaymentMethod || !card.lastFour ? card.name : `...${card.lastFour}`
     : 'No card'
@@ -218,11 +219,18 @@ export default function TransactionRow({ transaction: t, card, person, selection
 
         {/* Card */}
         <td className="px-4 py-2.5">
-          <label className="relative inline-flex max-w-[150px] items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 pr-5 text-xs text-slate-600 transition-colors hover:border-slate-300 hover:bg-white focus-within:border-accent-300 focus-within:ring-1 focus-within:ring-accent-500">
+          <label
+            className="relative inline-flex max-w-[150px] items-center rounded-full border px-2 py-0.5 pr-5 text-xs transition-colors hover:opacity-80 focus-within:ring-1 focus-within:ring-accent-500"
+            style={{
+              backgroundColor: `${cardColor}22`,
+              borderColor: `${cardColor}55`,
+              color: cardColor,
+            }}
+          >
             <span className="flex min-w-0 items-center gap-1.5">
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: card?.color ?? '#94a3b8' }}
+                style={{ backgroundColor: cardColor }}
               />
               <span className="truncate">{cardLabel}</span>
               <span className="pointer-events-none absolute right-2 text-current opacity-50">▾</span>
@@ -245,7 +253,14 @@ export default function TransactionRow({ transaction: t, card, person, selection
 
         {/* Person */}
         <td className={`px-4 py-2.5 ${textClass}`}>
-          <label className="relative inline-flex max-w-[130px] items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 pr-5 text-xs text-slate-600 transition-colors hover:border-slate-300 hover:bg-white focus-within:border-accent-300 focus-within:ring-1 focus-within:ring-accent-500">
+          <label
+            className="relative inline-flex max-w-[130px] items-center rounded-full border px-2 py-0.5 pr-5 text-xs transition-colors hover:opacity-80 focus-within:ring-1 focus-within:ring-accent-500"
+            style={{
+              backgroundColor: `${personDotColor}22`,
+              borderColor: `${personDotColor}55`,
+              color: personDotColor,
+            }}
+          >
             <span className="flex min-w-0 items-center gap-1.5">
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full"

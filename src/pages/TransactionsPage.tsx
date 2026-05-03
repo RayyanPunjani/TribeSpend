@@ -179,8 +179,13 @@ export default function TransactionsPage() {
   const selectedVisibleTransactionIds = selectedIds.filter((id) => visibleTransactionIds.includes(id))
   const allVisibleTransactionsSelected = visibleTransactionIds.length > 0 && visibleTransactionIds.every((id) => selectedIds.includes(id))
   const visibleReviewIds = useMemo(() => visibleReviewRows.map((t) => t.id), [visibleReviewRows])
-  const showBulkReview = visibleReviewRows.length > 0
   const selectedVisibleReviewIds = selectedIds.filter((id) => visibleReviewIds.includes(id))
+  const isActivelyReviewingCategories =
+    filters.needsReviewOnly ||
+    filters.categories.some((category) => isReviewCategory(category))
+  const showBulkReview =
+    visibleReviewRows.length > 0 &&
+    (isActivelyReviewingCategories || selectedVisibleReviewIds.length > 0)
   const bulkCategories = useMemo(
     () => categoryNames.filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category)),
     [categoryNames],
