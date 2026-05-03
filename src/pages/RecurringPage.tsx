@@ -7,6 +7,7 @@ import { useSampleTransactionStore } from '@/stores/sampleTransactionStore'
 import { formatCurrency, formatDate } from '@/utils/formatters'
 import { parseISO, differenceInDays } from 'date-fns'
 import { runRecurringDetector } from '@/services/recurringDetector'
+import CategoryDropdown from '@/components/transactions/CategoryDropdown'
 
 interface RecurringCharge {
   merchant: string
@@ -17,9 +18,11 @@ interface RecurringCharge {
   dates: string[]
   latest: number
   latestDate: string
-  frequency: RecurringFrequency
-  annualEstimate: number
+  frequency: RecurringFrequency | null
+  annualEstimate: number | null
   hasSavedFrequency: boolean
+  isFrequencyAutoDetected: boolean
+  frequencyNeedsReview: boolean
   isPriceChanged: boolean
   isMissing: boolean
   isAutoDetected: boolean
@@ -34,10 +37,10 @@ interface RecurringService {
   amounts: number[]
   latest: number
   latestDate: string
-  frequency: RecurringFrequency
+  frequency: RecurringFrequency | null
   isPriceChanged: boolean
   isDuplicate: boolean
-  annualEstimate: number
+  annualEstimate: number | null
 }
 
 type RecurringType = 'subscription' | 'utility' | 'insurance' | 'membership' | 'other'
@@ -91,23 +94,39 @@ function getRecurringType(category: string, merchant: string): RecurringType {
   return 'other'
 }
 
-function getFrequency(dates: string[]): RecurringFrequency {
-  if (dates.length < 2) return 'monthly'
+interface FrequencyInference {
+  frequency: RecurringFrequency | null
+  confident: boolean
+}
+
+function getFrequencyInference(dates: string[]): FrequencyInference {
+  if (dates.length < 2) return { frequency: 'monthly', confident: false }
 
   const gaps = dates.slice(0, -1).map((d, i) =>
     differenceInDays(parseISO(d), parseISO(dates[i + 1])),
-  )
-  const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length
+  ).filter((gap) => Number.isFinite(gap) && gap > 0)
+  if (gaps.length === 0) return { frequency: 'monthly', confident: false }
 
-  if (avgGap < 10) return 'weekly'
-  if (avgGap < 75) return 'monthly'
-  if (avgGap < 150) return 'quarterly'
-  if (avgGap < 240) return 'semi_annually'
-  if (avgGap > 300) return 'yearly'
-  return 'monthly'
+  const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length
+  const closest = [
+    { frequency: 'weekly' as const, days: 7, tolerance: 3 },
+    { frequency: 'monthly' as const, days: 30, tolerance: 12 },
+    { frequency: 'quarterly' as const, days: 90, tolerance: 25 },
+    { frequency: 'semi_annually' as const, days: 180, tolerance: 45 },
+    { frequency: 'yearly' as const, days: 365, tolerance: 60 },
+  ]
+    .map((candidate) => ({
+      ...candidate,
+      delta: Math.abs(avgGap - candidate.days),
+    }))
+    .sort((a, b) => a.delta - b.delta)[0]
+
+  if (!closest || closest.delta > closest.tolerance) return { frequency: null, confident: false }
+  return { frequency: closest.frequency, confident: true }
 }
 
-function getAnnualEstimate(frequency: RecurringFrequency, amount: number): number {
+function getAnnualEstimate(frequency: RecurringFrequency | null, amount: number): number | null {
+  if (!frequency) return null
   if (frequency === 'weekly') return amount * 52
   if (frequency === 'monthly') return amount * 12
   if (frequency === 'quarterly') return amount * 4
@@ -115,7 +134,8 @@ function getAnnualEstimate(frequency: RecurringFrequency, amount: number): numbe
   return amount
 }
 
-function getMonthlyEstimate(frequency: RecurringFrequency, amount: number): number {
+function getMonthlyEstimate(frequency: RecurringFrequency | null, amount: number): number {
+  if (!frequency) return 0
   if (frequency === 'weekly') return amount * (52 / 12)
   if (frequency === 'monthly') return amount
   if (frequency === 'quarterly') return amount / 3
@@ -145,6 +165,7 @@ export default function RecurringPage() {
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<number | null>(null)
   const [savingFrequencyKey, setSavingFrequencyKey] = useState<string | null>(null)
+  const [frequencyError, setFrequencyError] = useState<string | null>(null)
 
   const handleScan = async () => {
     setScanning(true)
@@ -194,7 +215,8 @@ export default function RecurringPage() {
       const isMissing = daysSince > 45
 
       const savedFrequency = sorted.find((t) => t.recurringFrequency)?.recurringFrequency
-      const frequency = savedFrequency ?? getFrequency(dates)
+      const inferredFrequency = getFrequencyInference(dates)
+      const frequency = savedFrequency ?? inferredFrequency.frequency
 
       result.push({
         merchant: sorted[0].cleanDescription,
@@ -208,6 +230,8 @@ export default function RecurringPage() {
         frequency,
         annualEstimate: getAnnualEstimate(frequency, latest),
         hasSavedFrequency: Boolean(savedFrequency),
+        isFrequencyAutoDetected: !savedFrequency && inferredFrequency.confident,
+        frequencyNeedsReview: !frequency,
         isPriceChanged,
         isMissing,
         isAutoDetected: sorted.some((t) => t.recurringAutoDetected),
@@ -223,7 +247,7 @@ export default function RecurringPage() {
   }, [charges])
 
   const annualTotal = useMemo(
-    () => charges.reduce((s, c) => s + c.annualEstimate, 0),
+    () => charges.reduce((s, c) => s + (c.annualEstimate ?? 0), 0),
     [charges],
   )
 
@@ -256,7 +280,9 @@ export default function RecurringPage() {
       const cardIds = [...new Set(sorted.map((t) => t.cardId))]
       const isDuplicate = cardIds.length > 1
 
-      const frequency = sorted.find((t) => t.recurringFrequency)?.recurringFrequency ?? getFrequency(dates)
+      const savedFrequency = sorted.find((t) => t.recurringFrequency)?.recurringFrequency
+      const inferredFrequency = getFrequencyInference(dates)
+      const frequency = savedFrequency ?? inferredFrequency.frequency
 
       result.push({
         merchant: sorted[0].cleanDescription,
@@ -273,7 +299,7 @@ export default function RecurringPage() {
       })
     }
 
-    return result.sort((a, b) => b.annualEstimate - a.annualEstimate)
+    return result.sort((a, b) => (b.annualEstimate ?? 0) - (a.annualEstimate ?? 0))
   }, [recurring])
 
   const recurringServiceMap = useMemo(
@@ -299,11 +325,20 @@ export default function RecurringPage() {
   ) => {
     if (charge.frequency === frequency) return
     setSavingFrequencyKey(key)
+    setFrequencyError(null)
     try {
-      await updateMany(charge.transactionIds, { recurringFrequency: frequency })
+      const ok = await updateMany(charge.transactionIds, { recurringFrequency: frequency })
+      if (!ok) {
+        setFrequencyError('Frequency could not be saved. Please try again.')
+      }
     } finally {
       setSavingFrequencyKey(null)
     }
+  }
+
+  const handleCategoryChange = async (charge: RecurringCharge, category: string) => {
+    if (charge.category === category) return
+    await updateMany(charge.transactionIds, { category })
   }
 
   if (transactions.length === 0) {
@@ -429,6 +464,12 @@ export default function RecurringPage() {
         </div>
       )}
 
+      {frequencyError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {frequencyError}
+        </div>
+      )}
+
       {overlappingCategories.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-500 mt-0.5 shrink-0" />
@@ -502,9 +543,11 @@ export default function RecurringPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                          {charge.category}
-                        </span>
+                        <CategoryDropdown
+                          value={charge.category}
+                          onChange={(category) => handleCategoryChange(charge, category)}
+                          compact
+                        />
                       </td>
                       <td className="px-4 py-3">
                         {card ? (
@@ -520,36 +563,37 @@ export default function RecurringPage() {
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <label className={`relative inline-flex max-w-[120px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                        <label className={`relative inline-flex min-w-[150px] items-center justify-between gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                           isSavingFrequency
                             ? 'border-slate-200 bg-slate-50 text-slate-400'
                             : 'border-accent-200 bg-accent-50 text-accent-700 hover:border-accent-300 hover:bg-accent-100'
                         }`}>
-                          <span className="truncate">{FREQUENCY_LABELS[charge.frequency]}</span>
+                          <span>{charge.frequency ? FREQUENCY_LABELS[charge.frequency] : 'Set frequency'}</span>
                           <ChevronDown size={12} className="shrink-0" />
                           <select
                             aria-label={`Frequency for ${charge.merchant}`}
-                            value={charge.frequency}
+                            value={charge.frequency ?? ''}
                             disabled={isSavingFrequency}
                             onChange={(event) => handleFrequencyChange(charge, event.target.value as RecurringFrequency, rowKey)}
                             className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-wait"
                           >
+                            {!charge.frequency && <option value="" disabled>Set frequency</option>}
                             {FREQUENCY_OPTIONS.map((option) => (
                               <option key={option} value={option}>{FREQUENCY_LABELS[option]}</option>
                             ))}
                           </select>
                         </label>
-                        {!charge.hasSavedFrequency && (
-                          <span className="ml-2 align-middle text-[10px] font-medium text-amber-600">
-                            Set frequency
+                        {!charge.frequencyNeedsReview && charge.isFrequencyAutoDetected ? (
+                          <span className="ml-2 align-middle text-[10px] font-medium text-blue-500">
+                            Auto-detected
                           </span>
-                        )}
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-800">
                         {formatCurrency(charge.latest)}
                       </td>
                       <td className="px-4 py-3 text-right text-slate-600">
-                        {charge.annualEstimate > 0 ? formatCurrency(charge.annualEstimate) : '—'}
+                        {charge.annualEstimate && charge.annualEstimate > 0 ? formatCurrency(charge.annualEstimate) : '—'}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">
                         {formatDate(charge.latestDate)}

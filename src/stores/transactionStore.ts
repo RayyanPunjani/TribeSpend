@@ -62,6 +62,21 @@ function normalizeReimbursementStatus(value: unknown): Transaction['reimbursemen
   return 'none'
 }
 
+function normalizeRecurringFrequency(value: unknown): Transaction['recurringFrequency'] | undefined {
+  if (
+    value === 'weekly' ||
+    value === 'monthly' ||
+    value === 'quarterly' ||
+    value === 'semi_annually' ||
+    value === 'yearly'
+  ) {
+    return value
+  }
+  if (value === 'semi-annually' || value === 'semiannual' || value === 'semi_annual') return 'semi_annually'
+  if (value === 'annual') return 'yearly'
+  return undefined
+}
+
 function fromRow(r: Record<string, unknown>): Transaction {
   return {
     id: r.id as string,
@@ -84,7 +99,7 @@ function fromRow(r: Record<string, unknown>): Transaction {
     reimbursementPaid: Number(r.reimbursement_paid ?? 0) > 0,
     reimbursementNote: undefined,
     isRecurring: (r.is_recurring as boolean) || false,
-    recurringFrequency: r.recurring_frequency as Transaction['recurringFrequency'] | undefined,
+    recurringFrequency: normalizeRecurringFrequency(r.recurring_frequency),
     recurringAutoDetected: (r.recurring_auto_detected as boolean) || false,
     recurringDismissed: (r.recurring_dismissed as boolean) || false,
     notes: r.notes as string | undefined,
@@ -124,7 +139,7 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if ('reimbursementPerson' in t) row.reimbursement_to = t.reimbursementPerson ?? null
   if (t.reimbursementPaid !== undefined) row.reimbursement_paid = t.reimbursementPaid ? 1 : 0
   if (t.isRecurring !== undefined) row.is_recurring = t.isRecurring
-  if (t.recurringFrequency !== undefined) row.recurring_frequency = t.recurringFrequency
+  if (t.recurringFrequency !== undefined) row.recurring_frequency = normalizeRecurringFrequency(t.recurringFrequency)
   if (t.recurringAutoDetected !== undefined) row.recurring_auto_detected = t.recurringAutoDetected
   if (t.recurringDismissed !== undefined) row.recurring_dismissed = t.recurringDismissed
   if (t.notes !== undefined) row.notes = t.notes
