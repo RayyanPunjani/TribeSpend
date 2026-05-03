@@ -37,6 +37,12 @@ type OnboardingStep = {
 type TransactionGuideIcon = 'recurring' | 'reimbursement' | 'return' | 'hide' | 'notes'
 type WalletGuideSection = 'people' | 'cards' | 'linked'
 
+const INLINE_EDIT_PILLS = [
+  { label: 'Entertainment', color: '#f43f5e' },
+  { label: 'Example Card', color: '#14b8a6' },
+  { label: 'Rayyan', color: '#8b5cf6' },
+]
+
 const TRANSACTION_ICON_GUIDE: Array<{
   id: TransactionGuideIcon
   label: string
@@ -126,7 +132,7 @@ const STEPS: OnboardingStep[] = [
   },
   {
     title: 'Transactions',
-    copy: 'See every purchase in one place, with categories and spending visibility that make statements easier to understand.',
+    copy: 'See every purchase in one place, with categories and spending visibility that make statements easier to understand. You can change the category, card, or person for any transaction.',
     path: '/app/transactions',
     cta: 'View Transactions',
     icon: ReceiptText,
@@ -338,6 +344,26 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
                   <div className={`min-w-0 flex-1 transition-opacity ${activeTransactionIcon ? 'opacity-45' : ''}`}>
                     <p className="truncate text-sm font-semibold text-slate-800">Streaming Bundle</p>
                     <p className="truncate text-xs text-slate-400">Entertainment · Example Card · $46.99</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {INLINE_EDIT_PILLS.map((pill) => (
+                        <span
+                          key={pill.label}
+                          className="inline-flex max-w-[120px] items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                          style={{
+                            backgroundColor: `${pill.color}22`,
+                            borderColor: `${pill.color}55`,
+                            color: pill.color,
+                          }}
+                        >
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pill.color }} />
+                          <span className="truncate">{pill.label}</span>
+                          <span className="opacity-50">▾</span>
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Tap the category, card, or person pill to fix a transaction inline.
+                    </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
                     {TRANSACTION_ICON_GUIDE.map(({ id, label, tooltip, icon: GuideIcon, colorClass }) => {
@@ -434,7 +460,7 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
                 </div>
               </div>
               <p className="mt-14 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-600 shadow-sm">
-                Transactions are linked to people and cards to track spending and rewards.
+                Transactions are linked to people and cards to track spending and rewards. If multiple people use the same card, you can add authorized user cards.
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {WALLET_GUIDE.map(({ id, label, premium }) => (
