@@ -25,6 +25,7 @@ export interface Transaction {
   reimbursementNote?: string
   highlightColor?: string
   isRecurring?: boolean
+  recurringFrequency?: 'weekly' | 'monthly' | 'yearly'
   notes?: string
   categoryConfidence?: 'high' | 'medium' | 'low'
   ruleMatched?: boolean        // true if categorized via a local CategoryRule

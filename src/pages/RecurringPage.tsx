@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, Scan, Loader2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, Scan, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
@@ -17,8 +17,9 @@ interface RecurringCharge {
   dates: string[]
   latest: number
   latestDate: string
-  frequency: string
+  frequency: RecurringFrequency
   annualEstimate: number
+  hasSavedFrequency: boolean
   isPriceChanged: boolean
   isMissing: boolean
   isAutoDetected: boolean
@@ -33,13 +34,22 @@ interface RecurringService {
   amounts: number[]
   latest: number
   latestDate: string
-  frequency: string
+  frequency: RecurringFrequency
   isPriceChanged: boolean
   isDuplicate: boolean
   annualEstimate: number
 }
 
 type RecurringType = 'subscription' | 'utility' | 'insurance' | 'membership' | 'other'
+type RecurringFrequency = 'weekly' | 'monthly' | 'yearly'
+
+const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
+  weekly: 'Weekly',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+}
+
+const FREQUENCY_OPTIONS: RecurringFrequency[] = ['weekly', 'monthly', 'yearly']
 
 const TYPE_LABELS: Record<RecurringType, string> = {
   subscription: 'Subscription',
@@ -79,34 +89,29 @@ function getRecurringType(category: string, merchant: string): RecurringType {
   return 'other'
 }
 
-function getFrequency(dates: string[]): string {
-  if (dates.length < 2) return 'Monthly'
+function getFrequency(dates: string[]): RecurringFrequency {
+  if (dates.length < 2) return 'monthly'
 
   const gaps = dates.slice(0, -1).map((d, i) =>
     differenceInDays(parseISO(d), parseISO(dates[i + 1])),
   )
   const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length
 
-  if (avgGap < 10) return 'Weekly'
-  if (avgGap < 40) return 'Monthly'
-  if (avgGap < 100) return 'Quarterly'
-  return 'Annual'
+  if (avgGap < 10) return 'weekly'
+  if (avgGap > 300) return 'yearly'
+  return 'monthly'
 }
 
-function getAnnualEstimate(frequency: string, amount: number): number {
-  if (frequency === 'Weekly') return amount * 52
-  if (frequency === 'Monthly') return amount * 12
-  if (frequency === 'Quarterly') return amount * 4
-  if (frequency === 'Annual') return amount
-  return amount * 12
-}
-
-function getMonthlyEstimate(frequency: string, amount: number): number {
-  if (frequency === 'Weekly') return amount * (52 / 12)
-  if (frequency === 'Monthly') return amount
-  if (frequency === 'Quarterly') return amount / 3
-  if (frequency === 'Annual') return amount / 12
+function getAnnualEstimate(frequency: RecurringFrequency, amount: number): number {
+  if (frequency === 'weekly') return amount * 52
+  if (frequency === 'monthly') return amount * 12
   return amount
+}
+
+function getMonthlyEstimate(frequency: RecurringFrequency, amount: number): number {
+  if (frequency === 'weekly') return amount * (52 / 12)
+  if (frequency === 'monthly') return amount
+  return amount / 12
 }
 
 function getRecurringAmount(transaction: { id: string; amount: unknown; cleanDescription?: string; description?: string }): number | null {
@@ -130,6 +135,7 @@ export default function RecurringPage() {
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const [scanning, setScanning] = useState(false)
   const [scanResult, setScanResult] = useState<number | null>(null)
+  const [savingFrequencyKey, setSavingFrequencyKey] = useState<string | null>(null)
 
   const handleScan = async () => {
     setScanning(true)
@@ -178,7 +184,8 @@ export default function RecurringPage() {
       const daysSince = differenceInDays(now, parseISO(latestDate))
       const isMissing = daysSince > 45
 
-      const frequency = getFrequency(dates)
+      const savedFrequency = sorted.find((t) => t.recurringFrequency)?.recurringFrequency
+      const frequency = savedFrequency ?? getFrequency(dates)
 
       result.push({
         merchant: sorted[0].cleanDescription,
@@ -191,6 +198,7 @@ export default function RecurringPage() {
         latestDate,
         frequency,
         annualEstimate: getAnnualEstimate(frequency, latest),
+        hasSavedFrequency: Boolean(savedFrequency),
         isPriceChanged,
         isMissing,
         isAutoDetected: sorted.some((t) => t.recurringAutoDetected),
@@ -239,7 +247,7 @@ export default function RecurringPage() {
       const cardIds = [...new Set(sorted.map((t) => t.cardId))]
       const isDuplicate = cardIds.length > 1
 
-      const frequency = getFrequency(dates)
+      const frequency = sorted.find((t) => t.recurringFrequency)?.recurringFrequency ?? getFrequency(dates)
 
       result.push({
         merchant: sorted[0].cleanDescription,
@@ -274,6 +282,20 @@ export default function RecurringPage() {
       .filter(([, count]) => count >= 3)
       .map(([cat]) => cat)
   }, [recurringServices])
+
+  const handleFrequencyChange = async (
+    charge: RecurringCharge,
+    frequency: RecurringFrequency,
+    key: string,
+  ) => {
+    if (charge.frequency === frequency) return
+    setSavingFrequencyKey(key)
+    try {
+      await updateMany(charge.transactionIds, { recurringFrequency: frequency })
+    } finally {
+      setSavingFrequencyKey(null)
+    }
+  }
 
   if (transactions.length === 0) {
     const sampleRecurring = sampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.recurring && !sampleFlags[transaction.id]?.hidden)
@@ -342,7 +364,11 @@ export default function RecurringPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">{transaction.card}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">Monthly</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center rounded-full border border-accent-200 bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-700">
+                          Monthly
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-800">{formatCurrency(transaction.amount)}</td>
                       <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(transaction.amount * 12)}</td>
                     </tr>
@@ -425,7 +451,6 @@ export default function RecurringPage() {
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Amount</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Annual Est.</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Last Charged</th>
-                  <th className="px-4 py-3 text-xs font-semibold text-slate-500">Flags</th>
                   <th className="px-4 py-3 text-xs font-semibold text-slate-500">Action</th>
                 </tr>
               </thead>
@@ -433,15 +458,31 @@ export default function RecurringPage() {
                 {charges.map((charge, i) => {
                   const card = cardMap.get(charge.cardId)
                   const service = recurringServiceMap.get(charge.merchant.toLowerCase().trim())
+                  const rowKey = `${charge.merchant}-${charge.cardId}-${i}`
+                  const isSavingFrequency = savingFrequencyKey === rowKey
+                  const reviewReasons = [
+                    service?.isDuplicate ? 'Seen on multiple cards' : null,
+                    charge.isPriceChanged ? 'Amount changed from previous charge' : null,
+                    charge.isMissing ? 'Not seen in recent statements' : null,
+                  ].filter(Boolean)
+                  const needsReview = reviewReasons.length > 0
 
                   return (
-                    <tr key={`${charge.merchant}-${charge.cardId}-${i}`} className={`hover:bg-slate-50 ${charge.isMissing ? 'bg-red-50' : ''}`}>
+                    <tr key={rowKey} className="hover:bg-slate-50">
                       <td className="px-4 py-3 font-medium text-slate-800">
-                        <div className="flex items-center gap-1.5">
-                          {charge.merchant}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{charge.merchant}</span>
                           {charge.isAutoDetected && (
                             <span className="text-[10px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded-full font-medium shrink-0">
                               Auto
+                            </span>
+                          )}
+                          {needsReview && (
+                            <span
+                              title={reviewReasons.join(', ')}
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700"
+                            >
+                              <AlertTriangle size={10} /> Review
                             </span>
                           )}
                         </div>
@@ -465,7 +506,30 @@ export default function RecurringPage() {
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs text-slate-600">{charge.frequency}</span>
+                        <label className={`relative inline-flex max-w-[120px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          isSavingFrequency
+                            ? 'border-slate-200 bg-slate-50 text-slate-400'
+                            : 'border-accent-200 bg-accent-50 text-accent-700 hover:border-accent-300 hover:bg-accent-100'
+                        }`}>
+                          <span className="truncate">{FREQUENCY_LABELS[charge.frequency]}</span>
+                          <ChevronDown size={12} className="shrink-0" />
+                          <select
+                            aria-label={`Frequency for ${charge.merchant}`}
+                            value={charge.frequency}
+                            disabled={isSavingFrequency}
+                            onChange={(event) => handleFrequencyChange(charge, event.target.value as RecurringFrequency, rowKey)}
+                            className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-wait"
+                          >
+                            {FREQUENCY_OPTIONS.map((option) => (
+                              <option key={option} value={option}>{FREQUENCY_LABELS[option]}</option>
+                            ))}
+                          </select>
+                        </label>
+                        {!charge.hasSavedFrequency && (
+                          <span className="ml-2 align-middle text-[10px] font-medium text-amber-600">
+                            Set frequency
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-800">
                         {formatCurrency(charge.latest)}
@@ -475,34 +539,6 @@ export default function RecurringPage() {
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">
                         {formatDate(charge.latestDate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1.5 flex-wrap">
-                          {service?.isDuplicate && (
-                            <span
-                              title="Seen on multiple cards"
-                              className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"
-                            >
-                              <AlertTriangle size={10} /> Duplicate?
-                            </span>
-                          )}
-                          {charge.isPriceChanged && (
-                            <span
-                              title="Amount changed from previous"
-                              className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full"
-                            >
-                              <AlertTriangle size={10} /> Price ↑
-                            </span>
-                          )}
-                          {charge.isMissing && (
-                            <span
-                              title="Not seen in recent statements"
-                              className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full"
-                            >
-                              <AlertTriangle size={10} /> Missing
-                            </span>
-                          )}
-                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -531,7 +567,6 @@ export default function RecurringPage() {
                   <td className="px-4 py-3 text-right text-xs font-semibold text-slate-700">
                     {formatCurrency(annualTotal)}/yr
                   </td>
-                  <td />
                   <td />
                   <td />
                 </tr>
