@@ -49,6 +49,8 @@ export async function categorizeCsvRows(
     if (rule) {
       row.category = rule.category
       row.cleanDescription = rule.cleanDescription
+      row.cardId = rule.cardId
+      row.personId = rule.personId
     }
   }
 

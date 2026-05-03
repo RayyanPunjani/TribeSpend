@@ -21,6 +21,8 @@ function fromRow(r: Record<string, unknown>): CategoryRule {
     rawDescriptionExample: (r.raw_description_example as string) || '',
     cleanDescription: (r.clean_description as string) || '',
     category: r.category as string,
+    cardId: (r.card_id as string) || undefined,
+    personId: (r.person_id as string) || undefined,
     createdAt: r.created_at as string,
     source: (r.source as CategoryRule['source']) || 'user_correction',
     matchCount: (r.match_count as number) || 0,
@@ -35,6 +37,8 @@ function toRow(rule: Partial<CategoryRule>, householdId?: string): Record<string
   if (rule.rawDescriptionExample !== undefined) row.raw_description_example = rule.rawDescriptionExample
   if (rule.cleanDescription !== undefined) row.clean_description = rule.cleanDescription
   if (rule.category !== undefined) row.category = rule.category
+  if (rule.cardId !== undefined) row.card_id = rule.cardId || null
+  if (rule.personId !== undefined) row.person_id = rule.personId || null
   if (rule.source !== undefined) row.source = rule.source
   if (rule.matchCount !== undefined) row.match_count = rule.matchCount
   return row
@@ -80,7 +84,28 @@ export const useCategoryRuleStore = create<CategoryRuleState>((set, get) => ({
         const existing = get().rules.find(
           (r) => r.merchantPattern === rule.merchantPattern,
         )
-        if (existing) return existing
+        if (existing) {
+          const merged = {
+            ...existing,
+            cleanDescription: rule.cleanDescription,
+            category: rule.category,
+            cardId: rule.cardId,
+            personId: rule.personId,
+            source: rule.source,
+          }
+          const { error: updateError } = await supabase
+            .from('category_rules')
+            .update(toRow(merged))
+            .eq('id', existing.id)
+          if (updateError) {
+            console.warn('[categoryRuleStore] Could not update duplicate category rule:', updateError)
+            return existing
+          }
+          set((s) => ({
+            rules: s.rules.map((r) => (r.id === existing.id ? merged : r)),
+          }))
+          return merged
+        }
         return rule
       }
       console.error('Failed to add category rule:', error)

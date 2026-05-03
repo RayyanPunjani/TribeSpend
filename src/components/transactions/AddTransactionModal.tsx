@@ -44,7 +44,12 @@ export default function AddTransactionModal({ onClose }: Props) {
     if (!form.description.trim()) return
     const rule = findMatchingRule(form.description, rules)
     if (rule) {
-      setForm((f) => ({ ...f, category: rule.category }))
+      setForm((f) => ({
+        ...f,
+        category: rule.category,
+        personId: rule.personId ?? f.personId,
+        cardId: rule.cardId ?? f.cardId,
+      }))
     }
   }, [form.description, rules])
 

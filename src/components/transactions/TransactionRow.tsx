@@ -23,6 +23,12 @@ interface Props {
 }
 
 type OpenPopover = 'reimb' | 'return' | 'note' | null
+type PendingRuleChange = {
+  category?: string
+  cardId?: string
+  personId?: string
+  cardholderName?: string
+}
 
 export default function TransactionRow({ transaction: t, card, person, selectionControl }: Props) {
   const { update, transactions } = useTransactionStore()
@@ -31,7 +37,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
   const [openPopover, setOpenPopover] = useState<OpenPopover>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
-  const [pendingCategory, setPendingCategory] = useState<string | null>(null)
+  const [pendingRuleChange, setPendingRuleChange] = useState<PendingRuleChange | null>(null)
   const [noteText, setNoteText] = useState(t.notes ?? '')
   const [showHideConfirm, setShowHideConfirm] = useState(false)
 
@@ -59,22 +65,24 @@ export default function TransactionRow({ transaction: t, card, person, selection
 
   const handleCategoryChange = (newCat: string) => {
     if (newCat === t.category) return
-    setPendingCategory(newCat)
+    setPendingRuleChange({ category: newCat })
     setShowRuleModal(true)
   }
 
-  const handleCardChange = async (cardId: string) => {
+  const handleCardChange = (cardId: string) => {
     if (cardId === t.cardId) return
-    await update(t.id, { cardId })
+    setPendingRuleChange({ cardId })
+    setShowRuleModal(true)
   }
 
-  const handlePersonChange = async (personId: string) => {
+  const handlePersonChange = (personId: string) => {
     if (personId === (t.personId ?? '')) return
     const nextPerson = persons.find((p) => p.id === personId)
-    await update(t.id, {
+    setPendingRuleChange({
       personId,
       cardholderName: nextPerson?.name ?? '',
     })
+    setShowRuleModal(true)
   }
 
   const saveNote = async () => {
@@ -414,12 +422,15 @@ export default function TransactionRow({ transaction: t, card, person, selection
       </tr>
 
       {/* Category rule modal */}
-      {showRuleModal && pendingCategory && (
+      {showRuleModal && pendingRuleChange && (
         <CategoryRuleModal
           transaction={t}
-          newCategory={pendingCategory}
-          onClose={() => { setShowRuleModal(false); setPendingCategory(null) }}
-          onSaved={() => { setShowRuleModal(false); setPendingCategory(null) }}
+          newCategory={pendingRuleChange.category}
+          newCardId={pendingRuleChange.cardId}
+          newPersonId={pendingRuleChange.personId}
+          newCardholderName={pendingRuleChange.cardholderName}
+          onClose={() => { setShowRuleModal(false); setPendingRuleChange(null) }}
+          onSaved={() => { setShowRuleModal(false); setPendingRuleChange(null) }}
         />
       )}
 

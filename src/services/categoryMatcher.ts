@@ -1,4 +1,5 @@
 import type { CategoryRule, ParsedTransactionRaw } from '@/types'
+import { normalizeMerchantKey } from '@/lib/merchantNormalize'
 
 /**
  * Normalize a description for matching: lowercase, remove special chars, collapse spaces
@@ -17,7 +18,9 @@ export function normalizeDescription(desc: string): string {
 export function matchesRule(rawDescription: string, rule: CategoryRule): boolean {
   const normalized = normalizeDescription(rawDescription)
   const pattern = normalizeDescription(rule.merchantPattern)
-  return normalized.includes(pattern)
+  const merchantKey = normalizeMerchantKey(rawDescription)
+  const merchantPattern = normalizeMerchantKey(rule.merchantPattern)
+  return normalized.includes(pattern) || (!!merchantPattern && merchantKey.includes(merchantPattern))
 }
 
 /**

@@ -121,7 +121,7 @@ export default function TransactionsPage() {
   const updateMany = useTransactionStore((state) => state.updateMany)
   const categoryNames = useCategoryStore((state) => state.categoryNames)
   const addRule = useCategoryRuleStore((state) => state.add)
-  const { householdId } = useAuth()
+  const { householdId, profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
@@ -159,6 +159,9 @@ export default function TransactionsPage() {
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
+  const isPremium = profile?.plaid_access_enabled === true
+    || profile?.subscription_status === 'active'
+    || profile?.subscription_status === 'trialing'
 
   const filtered = useMemo(() => applyFilters(transactions, filters), [transactions, filters])
   const sorted = useMemo(
@@ -307,7 +310,7 @@ export default function TransactionsPage() {
             <h1 className="text-2xl font-bold text-slate-800">Transactions</h1>
             <p className="text-sm text-slate-500 mt-1">No transactions yet. Add one manually or import a CSV to get started.</p>
           </div>
-          <HeaderActions onAdd={() => setShowAddModal(true)} addLabel="Add your first transaction" />
+          <HeaderActions onAdd={() => setShowAddModal(true)} addLabel="Add your first transaction" isPremium={isPremium} />
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
@@ -315,9 +318,11 @@ export default function TransactionsPage() {
           <p className="mt-1 text-sm text-slate-500">
             Upload a statement for free, or add a transaction manually to try your first real entry.
           </p>
-          <p className="mt-1 text-sm text-slate-500">
-            Or upgrade to automatically sync your transactions by connecting your bank.
-          </p>
+          {!isPremium && (
+            <p className="mt-1 text-sm text-slate-500">
+              Want this automated? Connect your bank to automatically import and update transactions.
+            </p>
+          )}
         </div>
 
         <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3">
@@ -539,7 +544,7 @@ export default function TransactionsPage() {
               </span>
             )}
           </div>
-          <HeaderActions onAdd={() => setShowAddModal(true)} />
+          <HeaderActions onAdd={() => setShowAddModal(true)} isPremium={isPremium} />
         </div>
       </div>
 
@@ -953,12 +958,14 @@ function SampleModalShell({
 function HeaderActions({
   onAdd,
   addLabel = '+ Add Transaction',
+  isPremium = false,
 }: {
   onAdd: () => void
   addLabel?: string
+  isPremium?: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <button
         type="button"
         onClick={onAdd}
@@ -974,15 +981,28 @@ function HeaderActions({
         <Upload size={15} />
         Upload CSV
       </Link>
-      <Link
-        to="/app/wallet?tab=linkedAccounts"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100"
-      >
-        Connect Bank
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-          Premium
-        </span>
-      </Link>
+      <div className="flex flex-col items-start gap-1 sm:items-end">
+        <Link
+          to="/app/wallet?tab=linkedAccounts"
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+            isPremium
+              ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+          }`}
+        >
+          Connect Bank
+          {!isPremium && (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+              Premium
+            </span>
+          )}
+        </Link>
+        {!isPremium && (
+          <p className="max-w-[210px] text-right text-[11px] leading-4 text-slate-400">
+            Automatically import and update transactions.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

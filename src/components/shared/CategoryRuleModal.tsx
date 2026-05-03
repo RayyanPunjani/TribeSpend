@@ -4,22 +4,33 @@ import { useCategoryStore } from '@/stores/categoryStore'
 import { useCategoryRuleStore } from '@/stores/categoryRuleStore'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
-import { suggestMerchantPattern } from '@/services/categoryMatcher'
+import { normalizeMerchantKey, normalizeMerchantName } from '@/lib/merchantNormalize'
 import type { Transaction } from '@/types'
 
 interface Props {
   transaction: Transaction
-  newCategory: string
+  newCategory?: string
+  newCardId?: string
+  newPersonId?: string
+  newCardholderName?: string
   onClose: () => void
   onSaved?: () => void
 }
 
-export default function CategoryRuleModal({ transaction, newCategory, onClose, onSaved }: Props) {
+export default function CategoryRuleModal({
+  transaction,
+  newCategory,
+  newCardId,
+  newPersonId,
+  newCardholderName,
+  onClose,
+  onSaved,
+}: Props) {
   const [pattern, setPattern] = useState(
-    suggestMerchantPattern(transaction.cleanDescription),
+    normalizeMerchantKey(transaction.cleanDescription || transaction.description),
   )
-  const [cleanName, setCleanName] = useState(transaction.cleanDescription)
-  const [category, setCategory] = useState(newCategory)
+  const [cleanName, setCleanName] = useState(normalizeMerchantName(transaction.cleanDescription || transaction.description))
+  const [category, setCategory] = useState(newCategory ?? transaction.category)
   const [applying, setApplying] = useState(false)
 
   const { add: addRule } = useCategoryRuleStore()
@@ -29,6 +40,20 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
   const categoryOptions = category && !categoryNames.includes(category)
     ? [category, ...categoryNames]
     : categoryNames
+  const cardChanged = newCardId !== undefined && newCardId !== transaction.cardId
+  const personChanged = newPersonId !== undefined && newPersonId !== (transaction.personId ?? '')
+  const categoryChanged = newCategory !== undefined && newCategory !== transaction.category
+  const patch = {
+    ...(categoryChanged ? { category } : {}),
+    ...(cardChanged ? { cardId: newCardId } : {}),
+    ...(personChanged ? { personId: newPersonId, cardholderName: newCardholderName ?? '' } : {}),
+    cleanDescription: cleanName,
+    ruleMatched: true,
+  }
+
+  const matchingIds = transactions
+    .filter((t) => normalizeMerchantKey(t.cleanDescription || t.description) === normalizeMerchantKey(transaction.cleanDescription || transaction.description))
+    .map((t) => t.id)
 
   const handleSaveRule = async () => {
     setApplying(true)
@@ -38,24 +63,13 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
         rawDescriptionExample: transaction.description,
         cleanDescription: cleanName,
         category,
+        cardId: newCardId ?? transaction.cardId,
+        personId: newPersonId ?? transaction.personId,
         source: 'user_correction',
       })
 
-      // Retroactively apply to all matching transactions
-      const patternLower = pattern.toLowerCase().trim()
-      const matchingIds = transactions
-        .filter((t) =>
-          t.description.toLowerCase().includes(patternLower) ||
-          t.cleanDescription.toLowerCase().includes(patternLower),
-        )
-        .map((t) => t.id)
-
       if (matchingIds.length > 0) {
-        await updateMany(matchingIds, {
-          category,
-          cleanDescription: cleanName,
-          ruleMatched: true,
-        })
+        await updateMany(matchingIds, patch)
       }
 
       onSaved?.()
@@ -66,7 +80,7 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
   }
 
   const handleJustThisOnce = async () => {
-    await update(transaction.id, { category, cleanDescription: cleanName })
+    await update(transaction.id, patch)
     onClose()
   }
 
@@ -77,7 +91,7 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <BookMarked size={18} className="text-accent-600" />
-            <h3 className="font-semibold text-slate-800">Save Category Rule?</h3>
+            <h3 className="font-semibold text-slate-800">Apply to Similar?</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={18} />
@@ -86,13 +100,13 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
 
         <div className="px-5 py-4 flex flex-col gap-4">
           <p className="text-sm text-slate-600">
-            Auto-categorize future transactions from this merchant using a saved rule.
+            Apply to similar transactions and remember for next time?
           </p>
 
           {/* Merchant pattern */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
-              Match pattern (case-insensitive)
+              Merchant match
             </label>
             <input
               type="text"
@@ -102,7 +116,7 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
               placeholder="e.g., dallas masjid"
             />
             <p className="text-xs text-slate-400 mt-1">
-              Will match descriptions containing this text
+              Matches normalized merchant names, not one-off transaction codes.
             </p>
           </div>
 
@@ -148,7 +162,7 @@ export default function CategoryRuleModal({ transaction, newCategory, onClose, o
             disabled={applying || !pattern.trim()}
             className="flex-1 px-4 py-2 bg-accent-600 text-white rounded-lg text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-50"
           >
-            {applying ? 'Saving...' : 'Save Rule'}
+            {applying ? 'Saving...' : `Apply & Remember${matchingIds.length > 1 ? ` (${matchingIds.length})` : ''}`}
           </button>
         </div>
       </div>

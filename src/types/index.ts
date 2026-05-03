@@ -84,6 +84,8 @@ export interface CategoryRule {
   rawDescriptionExample: string
   cleanDescription: string     // User-confirmed clean name
   category: string
+  cardId?: string
+  personId?: string
   createdAt: string
   source: 'user_correction' | 'ai_confirmed'
   matchCount?: number          // How many transactions matched
@@ -178,6 +180,8 @@ export interface CsvParsedRow {
   isCredit: boolean
   isBalancePayment: boolean
   refundReviewPending?: boolean
+  cardId?: string
+  personId?: string
   cardLastFour?: string
   cardholderName?: string
   notes?: string
