@@ -11,6 +11,8 @@ import ExpectedReturnPopover from './ExpectedReturnPopover'
 import CategoryRuleModal from '@/components/shared/CategoryRuleModal'
 import Tooltip from '@/components/shared/Tooltip'
 import { useTransactionStore } from '@/stores/transactionStore'
+import { useCardStore } from '@/stores/cardStore'
+import { usePersonStore } from '@/stores/personStore'
 import { isReviewCategory } from '@/utils/categoryFallback'
 
 interface Props {
@@ -24,6 +26,8 @@ type OpenPopover = 'reimb' | 'return' | 'note' | null
 
 export default function TransactionRow({ transaction: t, card, person, selectionControl }: Props) {
   const { update, transactions } = useTransactionStore()
+  const { cards } = useCardStore()
+  const { persons } = usePersonStore()
   const [openPopover, setOpenPopover] = useState<OpenPopover>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [showRuleModal, setShowRuleModal] = useState(false)
@@ -59,6 +63,20 @@ export default function TransactionRow({ transaction: t, card, person, selection
     setShowRuleModal(true)
   }
 
+  const handleCardChange = async (cardId: string) => {
+    if (cardId === t.cardId) return
+    await update(t.id, { cardId })
+  }
+
+  const handlePersonChange = async (personId: string) => {
+    if (personId === (t.personId ?? '')) return
+    const nextPerson = persons.find((p) => p.id === personId)
+    await update(t.id, {
+      personId,
+      cardholderName: nextPerson?.name ?? '',
+    })
+  }
+
   const saveNote = async () => {
     await update(t.id, { notes: noteText || undefined })
     closeAll()
@@ -82,6 +100,11 @@ export default function TransactionRow({ transaction: t, card, person, selection
   const linkedRefundOriginal = t.refundForId
     ? transactions.find((tx) => tx.id === t.refundForId)
     : undefined
+  const cardLabel = card
+    ? card.isPaymentMethod || !card.lastFour ? card.name : `...${card.lastFour}`
+    : 'No card'
+  const personLabel = person?.name ?? t.cardholderName ?? 'Unassigned'
+  const personDotColor = person?.color ?? '#94a3b8'
 
   useEffect(() => {
     if (!openPopover) return
@@ -195,24 +218,54 @@ export default function TransactionRow({ transaction: t, card, person, selection
 
         {/* Card */}
         <td className="px-4 py-2.5">
-          {card ? (
-            <div className="flex items-center gap-1.5">
+          <label className="relative inline-flex max-w-[150px] items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 pr-5 text-xs text-slate-600 transition-colors hover:border-slate-300 hover:bg-white focus-within:border-accent-300 focus-within:ring-1 focus-within:ring-accent-500">
+            <span className="flex min-w-0 items-center gap-1.5">
               <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: card.color }}
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: card?.color ?? '#94a3b8' }}
               />
-              <span className="text-xs text-slate-600 truncate max-w-[100px]">
-                {card.isPaymentMethod || !card.lastFour ? card.name : `…${card.lastFour}`}
-              </span>
-            </div>
-          ) : (
-            <span className="text-xs text-slate-400">—</span>
-          )}
+              <span className="truncate">{cardLabel}</span>
+              <span className="pointer-events-none absolute right-2 text-current opacity-50">▾</span>
+            </span>
+            <select
+              value={t.cardId || ''}
+              onChange={(event) => handleCardChange(event.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0"
+              aria-label={`Card for ${t.cleanDescription || t.description}`}
+            >
+              <option value="">No card</option>
+              {cards.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.isPaymentMethod || !option.lastFour ? option.name : `${option.name} ...${option.lastFour}`}
+                </option>
+              ))}
+            </select>
+          </label>
         </td>
 
         {/* Person */}
         <td className={`px-4 py-2.5 ${textClass}`}>
-          <span className="text-xs text-slate-600">{person?.name ?? t.cardholderName}</span>
+          <label className="relative inline-flex max-w-[130px] items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 pr-5 text-xs text-slate-600 transition-colors hover:border-slate-300 hover:bg-white focus-within:border-accent-300 focus-within:ring-1 focus-within:ring-accent-500">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: personDotColor }}
+              />
+              <span className="truncate">{personLabel}</span>
+              <span className="pointer-events-none absolute right-2 text-current opacity-50">▾</span>
+            </span>
+            <select
+              value={t.personId || person?.id || ''}
+              onChange={(event) => handlePersonChange(event.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0"
+              aria-label={`Person for ${t.cleanDescription || t.description}`}
+            >
+              <option value="">Unassigned</option>
+              {persons.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
+          </label>
         </td>
 
         {/* Amount */}

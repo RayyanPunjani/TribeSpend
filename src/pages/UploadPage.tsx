@@ -224,6 +224,7 @@ export default function UploadPage() {
           amount: row.amount,
           category: row.category,
           cardId: assignment.cardId,
+          personId: assignment.personId || undefined,
           cardholderName: assignment.cardholderName || persons[0]?.name || '',
           isPayment: row.isPayment,
           isCredit: row.isCredit,

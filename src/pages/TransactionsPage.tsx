@@ -101,8 +101,8 @@ function sortTransactions(
       case 'person': {
         const aCard = cardMap.get(a.cardId)
         const bCard = cardMap.get(b.cardId)
-        const aName = aCard ? (personMap.get(aCard.owner)?.name ?? '') : ''
-        const bName = bCard ? (personMap.get(bCard.owner)?.name ?? '') : ''
+        const aName = personMap.get(a.personId ?? '')?.name || (aCard ? personMap.get(aCard.owner)?.name : '') || a.cardholderName || ''
+        const bName = personMap.get(b.personId ?? '')?.name || (bCard ? personMap.get(bCard.owner)?.name : '') || b.cardholderName || ''
         cmp = aName.toLowerCase().localeCompare(bName.toLowerCase())
         break
       }
@@ -125,9 +125,12 @@ export default function TransactionsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [showAddModal, setShowAddModal] = useState(false)
   const [sort, setSort] = useState<SortState>({ key: 'date', dir: 'desc' })
-  const [selectedReviewIds, setSelectedReviewIds] = useState<string[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkCategory, setBulkCategory] = useState('Dining')
+  const [bulkPersonId, setBulkPersonId] = useState('')
+  const [bulkCardId, setBulkCardId] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkAttributionSaving, setBulkAttributionSaving] = useState(false)
   const [bulkMessage, setBulkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
   const [samplePopover, setSamplePopover] = useState<{ id: string; type: 'reimbursement' | 'return' } | null>(null)
@@ -172,10 +175,12 @@ export default function TransactionsPage() {
     () => sorted.filter((t) => isReviewCategory(t.category) && !t.isPayment && !t.isCredit && !t.deleted),
     [sorted],
   )
+  const visibleTransactionIds = useMemo(() => sorted.map((t) => t.id), [sorted])
+  const selectedVisibleTransactionIds = selectedIds.filter((id) => visibleTransactionIds.includes(id))
+  const allVisibleTransactionsSelected = visibleTransactionIds.length > 0 && visibleTransactionIds.every((id) => selectedIds.includes(id))
   const visibleReviewIds = useMemo(() => visibleReviewRows.map((t) => t.id), [visibleReviewRows])
   const showBulkReview = visibleReviewRows.length > 0
-  const selectedVisibleReviewIds = selectedReviewIds.filter((id) => visibleReviewIds.includes(id))
-  const allVisibleReviewSelected = visibleReviewIds.length > 0 && visibleReviewIds.every((id) => selectedReviewIds.includes(id))
+  const selectedVisibleReviewIds = selectedIds.filter((id) => visibleReviewIds.includes(id))
   const bulkCategories = useMemo(
     () => categoryNames.filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category)),
     [categoryNames],
@@ -205,19 +210,45 @@ export default function TransactionsPage() {
     )
   }
 
-  const toggleReviewSelection = (id: string) => {
-    setSelectedReviewIds((current) =>
+  const toggleSelection = (id: string) => {
+    setSelectedIds((current) =>
       current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id],
     )
   }
 
-  const toggleAllVisibleReview = () => {
-    setSelectedReviewIds((current) => {
-      if (allVisibleReviewSelected) {
-        return current.filter((id) => !visibleReviewIds.includes(id))
+  const toggleAllVisible = () => {
+    setSelectedIds((current) => {
+      if (allVisibleTransactionsSelected) {
+        return current.filter((id) => !visibleTransactionIds.includes(id))
       }
-      return Array.from(new Set([...current, ...visibleReviewIds]))
+      return Array.from(new Set([...current, ...visibleTransactionIds]))
     })
+  }
+
+  const handleBulkAssignPerson = async () => {
+    if (selectedVisibleTransactionIds.length === 0) return
+    setBulkAttributionSaving(true)
+    setBulkMessage(null)
+    const person = persons.find((p) => p.id === bulkPersonId)
+    const ok = await updateMany(selectedVisibleTransactionIds, {
+      personId: bulkPersonId,
+      cardholderName: person?.name ?? '',
+    })
+    setBulkAttributionSaving(false)
+    setBulkMessage(ok
+      ? { type: 'success', text: `Updated person on ${selectedVisibleTransactionIds.length} transaction${selectedVisibleTransactionIds.length === 1 ? '' : 's'}.` }
+      : { type: 'error', text: 'Could not update selected transactions. Please try again.' })
+  }
+
+  const handleBulkAssignCard = async () => {
+    if (selectedVisibleTransactionIds.length === 0) return
+    setBulkAttributionSaving(true)
+    setBulkMessage(null)
+    const ok = await updateMany(selectedVisibleTransactionIds, { cardId: bulkCardId })
+    setBulkAttributionSaving(false)
+    setBulkMessage(ok
+      ? { type: 'success', text: `Updated card on ${selectedVisibleTransactionIds.length} transaction${selectedVisibleTransactionIds.length === 1 ? '' : 's'}.` }
+      : { type: 'error', text: 'Could not update selected transactions. Please try again.' })
   }
 
   const handleBulkApplyCategory = async () => {
@@ -255,7 +286,7 @@ export default function TransactionsPage() {
         type: 'success',
         text: `Updated ${selectedVisibleReviewIds.length} transaction${selectedVisibleReviewIds.length === 1 ? '' : 's'} and saved merchant rules.`,
       })
-      setSelectedReviewIds((current) => current.filter((id) => !selectedVisibleReviewIds.includes(id)))
+      setSelectedIds((current) => current.filter((id) => !selectedVisibleReviewIds.includes(id)))
     } else {
       setBulkMessage({ type: 'error', text: 'Could not update selected transactions. Please try again.' })
     }
@@ -548,6 +579,69 @@ export default function TransactionsPage() {
         })}
       </div>
 
+      {selectedVisibleTransactionIds.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Bulk attribution</p>
+            <p className="text-xs text-slate-500">
+              Assign a person or card to {selectedVisibleTransactionIds.length} selected transaction{selectedVisibleTransactionIds.length === 1 ? '' : 's'}.
+            </p>
+            {bulkMessage && (
+              <p className={`mt-1 text-xs ${bulkMessage.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                {bulkMessage.text}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={bulkPersonId}
+              onChange={(event) => setBulkPersonId(event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            >
+              <option value="">Unassigned person</option>
+              {persons.map((person) => (
+                <option key={person.id} value={person.id}>{person.name}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleBulkAssignPerson}
+              disabled={bulkAttributionSaving}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Assign person
+            </button>
+            <select
+              value={bulkCardId}
+              onChange={(event) => setBulkCardId(event.target.value)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+            >
+              <option value="">No card</option>
+              {cards.map((card) => (
+                <option key={card.id} value={card.id}>
+                  {card.isPaymentMethod || !card.lastFour ? card.name : `${card.name} ...${card.lastFour}`}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleBulkAssignCard}
+              disabled={bulkAttributionSaving}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Assign card
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds((current) => current.filter((id) => !visibleTransactionIds.includes(id)))}
+              className="px-2 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-600"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {showBulkReview && (
         <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -597,17 +691,15 @@ export default function TransactionsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  {showBulkReview && (
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 w-10">
-                      <input
-                        type="checkbox"
-                        checked={allVisibleReviewSelected}
-                        onChange={toggleAllVisibleReview}
-                        aria-label="Select all visible review transactions"
-                        className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
-                      />
-                    </th>
-                  )}
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleTransactionsSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all visible transactions"
+                      className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+                    />
+                  </th>
                   <SortHeader label="Date"        colKey="date"        sort={sort} onClick={handleHeaderClick} />
                   <SortHeader label="Description" colKey="description" sort={sort} onClick={handleHeaderClick} />
                   <SortHeader label="Category"    colKey="category"    sort={sort} onClick={handleHeaderClick} />
@@ -620,26 +712,22 @@ export default function TransactionsPage() {
               <tbody>
                 {sorted.map((t) => {
                   const card = cardMap.get(t.cardId)
-                  const person = card ? personMap.get(card.owner) : undefined
+                  const person = personMap.get(t.personId ?? '') ?? (card ? personMap.get(card.owner) : undefined)
                   return (
                     <TransactionRow
                       key={t.id}
                       transaction={t}
                       card={card}
                       person={person}
-                      selectionControl={showBulkReview ? (
-                        isReviewCategory(t.category) && !t.deleted && !t.isPayment && !t.isCredit ? (
-                          <input
-                            type="checkbox"
-                            checked={selectedReviewIds.includes(t.id)}
-                            onChange={() => toggleReviewSelection(t.id)}
-                            aria-label={`Select ${t.cleanDescription || t.description}`}
-                            className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
-                          />
-                        ) : (
-                          <span className="block h-4 w-4" />
-                        )
-                      ) : undefined}
+                      selectionControl={(
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(t.id)}
+                          onChange={() => toggleSelection(t.id)}
+                          aria-label={`Select ${t.cleanDescription || t.description}`}
+                          className="rounded border-slate-300 text-accent-600 focus:ring-accent-500"
+                        />
+                      )}
                     />
                   )
                 })}

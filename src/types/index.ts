@@ -12,6 +12,7 @@ export interface Transaction {
   exchangeRate?: number
   category: string
   cardId: string
+  personId?: string
   cardholderName: string
   isPayment: boolean
   isCredit: boolean

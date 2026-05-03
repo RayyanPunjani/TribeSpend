@@ -81,6 +81,7 @@ export default function AddTransactionModal({ onClose }: Props) {
       amount: Math.abs(amountRaw),
       category: form.category,
       cardId: form.cardId || 'manual',
+      personId: form.personId || undefined,
       cardholderName: selectedPerson?.name || '',
       isPayment: isCredit,
       isCredit: isCredit,

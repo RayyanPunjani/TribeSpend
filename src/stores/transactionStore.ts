@@ -72,6 +72,7 @@ function fromRow(r: Record<string, unknown>): Transaction {
     amount: Number(r.amount),
     category: normalizeCategory(r.category as string | undefined),
     cardId: (r.card_id as string) || '',
+    personId: (r.person_id as string) || '',
     cardholderName: (r.cardholder_name as string) || '',
     isPayment: r.is_payment as boolean,
     isCredit: r.is_credit as boolean,
@@ -110,7 +111,8 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.cleanDescription !== undefined) row.clean_description = t.cleanDescription
   if (t.amount !== undefined) row.amount = t.amount
   if (t.category !== undefined) row.category = normalizeCategory(t.category)
-  if (t.cardId !== undefined) row.card_id = t.cardId
+  if (t.cardId !== undefined) row.card_id = t.cardId || null
+  if (t.personId !== undefined) row.person_id = t.personId || null
   if (t.cardholderName !== undefined) row.cardholder_name = t.cardholderName
   if (t.isPayment !== undefined) row.is_payment = t.isPayment
   if (t.isCredit !== undefined) row.is_credit = t.isCredit
