@@ -104,7 +104,7 @@ export const MERCHANT_CATEGORY_OVERRIDES: MerchantCategoryOverride[] = [
     category: 'Insurance',
     keywords: [
       'geico', 'state farm', 'allstate', 'progressive', 'insurance',
-      'travelers ins', 'nationwide ins', 'farmers ins', 'liberty mutual',
+      'travelers ins', 'nationwide ins', 'farmers ins', 'farmers insurance', 'liberty mutual',
       'usaa insurance',
     ],
   },

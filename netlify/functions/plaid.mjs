@@ -300,7 +300,10 @@ const PLAID_KEYWORD_CATEGORY_RULES = [
   },
   {
     category: 'Insurance',
-    keywords: ['GEICO', 'STATE FARM', 'ALLSTATE', 'PROGRESSIVE', 'INSURANCE'],
+    keywords: [
+      'GEICO', 'STATE FARM', 'PROGRESSIVE', 'ALLSTATE',
+      'LIBERTY MUTUAL', 'FARMERS INSURANCE', 'FARMERS INS', 'INSURANCE',
+    ],
   },
   {
     category: 'Home & Utilities',

@@ -41,15 +41,17 @@ interface RecurringService {
 }
 
 type RecurringType = 'subscription' | 'utility' | 'insurance' | 'membership' | 'other'
-type RecurringFrequency = 'weekly' | 'monthly' | 'yearly'
+type RecurringFrequency = 'weekly' | 'monthly' | 'quarterly' | 'semi_annually' | 'yearly'
 
 const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
   weekly: 'Weekly',
   monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  semi_annually: 'Semi-annually',
   yearly: 'Yearly',
 }
 
-const FREQUENCY_OPTIONS: RecurringFrequency[] = ['weekly', 'monthly', 'yearly']
+const FREQUENCY_OPTIONS: RecurringFrequency[] = ['weekly', 'monthly', 'quarterly', 'semi_annually', 'yearly']
 
 const TYPE_LABELS: Record<RecurringType, string> = {
   subscription: 'Subscription',
@@ -98,6 +100,9 @@ function getFrequency(dates: string[]): RecurringFrequency {
   const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length
 
   if (avgGap < 10) return 'weekly'
+  if (avgGap < 75) return 'monthly'
+  if (avgGap < 150) return 'quarterly'
+  if (avgGap < 240) return 'semi_annually'
   if (avgGap > 300) return 'yearly'
   return 'monthly'
 }
@@ -105,12 +110,16 @@ function getFrequency(dates: string[]): RecurringFrequency {
 function getAnnualEstimate(frequency: RecurringFrequency, amount: number): number {
   if (frequency === 'weekly') return amount * 52
   if (frequency === 'monthly') return amount * 12
+  if (frequency === 'quarterly') return amount * 4
+  if (frequency === 'semi_annually') return amount * 2
   return amount
 }
 
 function getMonthlyEstimate(frequency: RecurringFrequency, amount: number): number {
   if (frequency === 'weekly') return amount * (52 / 12)
   if (frequency === 'monthly') return amount
+  if (frequency === 'quarterly') return amount / 3
+  if (frequency === 'semi_annually') return amount / 6
   return amount / 12
 }
 
@@ -499,9 +508,14 @@ export default function RecurringPage() {
                       </td>
                       <td className="px-4 py-3">
                         {card ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: card.color }} />
-                            <span className="text-xs text-slate-600">…{card.lastFour}</span>
+                          <div
+                            className="inline-flex max-w-[150px] items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200 bg-white px-2 py-1 align-middle"
+                            title={`${card.name}${card.lastFour ? ` • …${card.lastFour}` : ''}`}
+                          >
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: card.color }} />
+                            <span className="min-w-0 truncate text-xs font-medium text-slate-600">
+                              {card.lastFour ? `…${card.lastFour}` : card.name}
+                            </span>
                           </div>
                         ) : '—'}
                       </td>
