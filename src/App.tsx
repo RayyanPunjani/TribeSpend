@@ -9,6 +9,7 @@ import LoginPage from '@/pages/LoginPage'
 import PrivacyPage from '@/pages/PrivacyPage'
 import ResetPasswordPage from '@/pages/ResetPasswordPage'
 import SignupPage from '@/pages/SignupPage'
+import TermsPage from '@/pages/TermsPage'
 
 const ActiveAuthProvider = import.meta.env.VITE_USE_MOCK === 'true' ? MockAuthProvider : AuthProvider
 
@@ -18,6 +19,7 @@ export default function App() {
       <ActiveAuthProvider>
         <Routes>
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Public routes — redirect to /app if already logged in */}

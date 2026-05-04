@@ -29,8 +29,9 @@ import {
   type SampleReturnStatus,
 } from '@/stores/sampleTransactionStore'
 import FilterBar from '@/components/transactions/FilterBar'
-import TransactionRow from '@/components/transactions/TransactionRow'
+import TransactionRow, { type PendingRuleChange } from '@/components/transactions/TransactionRow'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal'
+import CategoryRuleModal from '@/components/shared/CategoryRuleModal'
 import { formatCurrency } from '@/utils/formatters'
 import { suggestMerchantPattern } from '@/services/categoryMatcher'
 import { isReviewCategory } from '@/utils/categoryFallback'
@@ -134,6 +135,10 @@ export default function TransactionsPage() {
   const [bulkMessage, setBulkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [sampleEditingNote, setSampleEditingNote] = useState<string | null>(null)
   const [samplePopover, setSamplePopover] = useState<{ id: string; type: 'reimbursement' | 'return' } | null>(null)
+  const [pendingRuleChange, setPendingRuleChange] = useState<{
+    transaction: Transaction
+    change: PendingRuleChange
+  } | null>(null)
   const sampleTransactions = useSampleTransactionStore((state) => state.transactions)
   const sampleFlags = useSampleTransactionStore((state) => state.flags)
   const sampleNotes = useSampleTransactionStore((state) => state.notes)
@@ -729,6 +734,7 @@ export default function TransactionsPage() {
                       transaction={t}
                       card={card}
                       person={person}
+                      onRuleChange={(transaction, change) => setPendingRuleChange({ transaction, change })}
                       selectionControl={(
                         <input
                           type="checkbox"
@@ -745,6 +751,17 @@ export default function TransactionsPage() {
             </table>
           </div>
         </div>
+      )}
+      {pendingRuleChange && (
+        <CategoryRuleModal
+          transaction={pendingRuleChange.transaction}
+          newCategory={pendingRuleChange.change.category}
+          newCardId={pendingRuleChange.change.cardId}
+          newPersonId={pendingRuleChange.change.personId}
+          newCardholderName={pendingRuleChange.change.cardholderName}
+          onClose={() => setPendingRuleChange(null)}
+          onSaved={() => setPendingRuleChange(null)}
+        />
       )}
       {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
     </div>

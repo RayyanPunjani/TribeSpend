@@ -57,9 +57,14 @@ export default function LandingPage() {
 
         <footer className="px-6 sm:px-10 py-6 border-t border-white/10 flex flex-col sm:flex-row gap-3 justify-between text-xs text-gray-500">
           <span>© 2026 TribeSpend</span>
-          <Link to="/privacy" className="hover:text-teal-300">
-            Privacy Policy
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link to="/privacy" className="hover:text-teal-300">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-teal-300">
+              Terms of Service
+            </Link>
+          </div>
         </footer>
       </div>
     </div>

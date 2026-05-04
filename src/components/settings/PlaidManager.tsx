@@ -667,6 +667,10 @@ export default function PlaidManager() {
             <Link to="/privacy" className="font-medium text-accent-600 hover:text-accent-700">
               Privacy Policy
             </Link>
+            {' '}and{' '}
+            <Link to="/terms" className="font-medium text-accent-600 hover:text-accent-700">
+              Terms of Service
+            </Link>
           </p>
         </div>
         <div className="flex items-center gap-2">

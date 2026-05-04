@@ -8,7 +8,6 @@ import { hexToRgba } from '@/utils/colors'
 import CategoryDropdown from './CategoryDropdown'
 import ReimbursementPopover from './ReimbursementPopover'
 import ExpectedReturnPopover from './ExpectedReturnPopover'
-import CategoryRuleModal from '@/components/shared/CategoryRuleModal'
 import Tooltip from '@/components/shared/Tooltip'
 import { useTransactionStore } from '@/stores/transactionStore'
 import { useCardStore } from '@/stores/cardStore'
@@ -20,24 +19,23 @@ interface Props {
   card?: CreditCard
   person?: Person
   selectionControl?: ReactNode
+  onRuleChange: (transaction: Transaction, change: PendingRuleChange) => void
 }
 
 type OpenPopover = 'reimb' | 'return' | 'note' | null
-type PendingRuleChange = {
+export type PendingRuleChange = {
   category?: string
   cardId?: string
   personId?: string
   cardholderName?: string
 }
 
-export default function TransactionRow({ transaction: t, card, person, selectionControl }: Props) {
+export default function TransactionRow({ transaction: t, card, person, selectionControl, onRuleChange }: Props) {
   const { update, transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
   const [openPopover, setOpenPopover] = useState<OpenPopover>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
-  const [showRuleModal, setShowRuleModal] = useState(false)
-  const [pendingRuleChange, setPendingRuleChange] = useState<PendingRuleChange | null>(null)
   const [noteText, setNoteText] = useState(t.notes ?? '')
   const [showHideConfirm, setShowHideConfirm] = useState(false)
 
@@ -65,24 +63,21 @@ export default function TransactionRow({ transaction: t, card, person, selection
 
   const handleCategoryChange = (newCat: string) => {
     if (newCat === t.category) return
-    setPendingRuleChange({ category: newCat })
-    setShowRuleModal(true)
+    onRuleChange(t, { category: newCat })
   }
 
   const handleCardChange = (cardId: string) => {
     if (cardId === t.cardId) return
-    setPendingRuleChange({ cardId })
-    setShowRuleModal(true)
+    onRuleChange(t, { cardId })
   }
 
   const handlePersonChange = (personId: string) => {
     if (personId === (t.personId ?? '')) return
     const nextPerson = persons.find((p) => p.id === personId)
-    setPendingRuleChange({
+    onRuleChange(t, {
       personId,
       cardholderName: nextPerson?.name ?? '',
     })
-    setShowRuleModal(true)
   }
 
   const saveNote = async () => {
@@ -420,19 +415,6 @@ export default function TransactionRow({ transaction: t, card, person, selection
           )}
         </td>
       </tr>
-
-      {/* Category rule modal */}
-      {showRuleModal && pendingRuleChange && (
-        <CategoryRuleModal
-          transaction={t}
-          newCategory={pendingRuleChange.category}
-          newCardId={pendingRuleChange.cardId}
-          newPersonId={pendingRuleChange.personId}
-          newCardholderName={pendingRuleChange.cardholderName}
-          onClose={() => { setShowRuleModal(false); setPendingRuleChange(null) }}
-          onSaved={() => { setShowRuleModal(false); setPendingRuleChange(null) }}
-        />
-      )}
 
       {/* Popover portal — renders outside the table to avoid overflow clipping */}
       {openPopover && anchorRect && createPortal(

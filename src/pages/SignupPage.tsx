@@ -73,9 +73,15 @@ export default function SignupPage() {
           <Link to="/login" className="text-teal-400 font-semibold text-sm hover:text-teal-300">
             Back to sign in
           </Link>
-          <Link to="/privacy" className="block text-gray-500 hover:text-teal-300 text-xs mt-5">
-            Privacy Policy
-          </Link>
+          <div className="mt-5 flex items-center justify-center gap-3 text-xs">
+            <Link to="/privacy" className="text-gray-500 hover:text-teal-300">
+              Privacy Policy
+            </Link>
+            <span className="text-gray-700">·</span>
+            <Link to="/terms" className="text-gray-500 hover:text-teal-300">
+              Terms
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -207,9 +213,13 @@ export default function SignupPage() {
             Sign in
           </Link>
         </p>
-        <p className="text-center text-xs text-gray-600 mt-4">
+        <p className="text-center text-xs text-gray-600 mt-4 flex items-center justify-center gap-3">
           <Link to="/privacy" className="text-gray-500 hover:text-teal-300">
             Privacy Policy
+          </Link>
+          <span className="text-gray-700">·</span>
+          <Link to="/terms" className="text-gray-500 hover:text-teal-300">
+            Terms
           </Link>
         </p>
       </div>
