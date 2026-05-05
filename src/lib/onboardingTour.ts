@@ -17,7 +17,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app',
     selector: "[data-tour='dashboard-overview']",
     title: 'See what TribeSpend can do',
-    description: 'Use example spending to explore tracking, budgeting, reimbursements, recurring charges, and card optimization.',
+    description: 'Preview the app with example spending. See how tracking, budgets, returns, and rewards fit together.',
     example: {
       label: 'Example data',
       rows: [
@@ -31,7 +31,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/transactions',
     selector: "[data-tour='transactions-actions']",
     title: 'Transactions',
-    description: 'See every purchase in one place, with categories and spending visibility that make statements easier to understand.',
+    description: 'Keep every purchase in one clear list. Fix categories, cards, and people as you review spending.',
     details: [
       'Change the category, card, or person for any transaction inline.',
       'Use row icons to mark recurring charges, reimbursements, returns, notes, or hidden transactions.',
@@ -42,7 +42,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/wallet',
     selector: "[data-tour='wallet-section']",
     title: 'Wallet Overview',
-    description: 'Set up the people, cards, and linked accounts that give each transaction useful context.',
+    description: 'Set up people, cards, and linked accounts. This makes each transaction easier to understand.',
     details: [
       'People track who is spending and who owes money.',
       'Payment methods power card attribution and rewards.',
@@ -54,7 +54,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/returns',
     selector: "[data-tour='returns-section']",
     title: 'Returns',
-    description: 'Track expected returns, review suggested refund matches, and confirm completed returns so credits do not get lost.',
+    description: 'Track refunds from expected to complete. Review suggested matches so credits do not get lost.',
     details: ['Credits and refunds can be automatically suggested for return review.'],
   },
   {
@@ -62,14 +62,14 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/reimbursements',
     selector: "[data-tour='reimbursements-section']",
     title: 'Reimbursements',
-    description: 'Track money others owe you and settle shared spending without digging through old transactions.',
+    description: 'Track money others owe you. Settle shared spending without digging through old statements.',
   },
   {
     id: 'recurring',
     route: '/app/recurring',
     selector: "[data-tour='recurring-section']",
     title: 'Recurring',
-    description: 'Spot subscriptions and repeating charges as your transaction history grows.',
+    description: 'Spot subscriptions and repeating charges. Catch recurring spend before it fades into the background.',
     details: ['Recurring transactions can be detected automatically, or marked manually from Transactions.'],
   },
   {
@@ -77,7 +77,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/analytics',
     selector: "[data-tour='analytics-chart']",
     title: 'Analytics',
-    description: 'Use charts, trends, and category or person filters to understand where spending is changing.',
+    description: 'See where your money is going. Track trends and spot changes over time.',
     example: {
       label: 'Example data',
       rows: [
@@ -91,7 +91,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/budgets',
     selector: "[data-tour='budgets-section']",
     title: 'Budgets',
-    description: 'Set spending limits for categories or people and get alerts before a budget gets away from you.',
+    description: 'Set simple spending limits. Get a heads-up before a category runs hot.',
     example: {
       label: 'Example budgets',
       rows: [
@@ -106,7 +106,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/optimize',
     selector: "[data-tour='optimize-card']",
     title: 'Optimize',
-    description: 'Find missed rewards and best-card recommendations so each purchase can work a little harder.',
+    description: 'Find missed rewards. See which card would have worked harder for each purchase.',
     example: {
       label: 'Example recommendations',
       rows: [
@@ -120,7 +120,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/transactions',
     selector: "[data-tour='transactions-actions']",
     title: 'Use your own data',
-    description: 'Upload CSV for free, add transactions manually, or upgrade to Premium to automatically sync transactions through Plaid.',
+    description: 'Upload CSV for free or add transactions manually. Upgrade when you want automatic bank syncing.',
     details: [
       'Sample examples are UI-only and never inserted into Supabase.',
       'Examples remain available in the guide even after real data exists.',
@@ -131,7 +131,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     route: '/app/help',
     selector: "[data-tour='help-support']",
     title: 'Help & Support',
-    description: 'You can reopen the guided tour, contact support, send feedback, or report bugs here.',
+    description: 'Come back here when you need help. Restart the tour, send feedback, or report a bug.',
   },
 ]
 

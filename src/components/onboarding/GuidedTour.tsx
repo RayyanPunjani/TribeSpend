@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { TOUR_CURRENT_STEP_KEY, TOUR_HAS_SEEN_KEY, TOUR_STEPS } from '@/lib/onboardingTour'
 
@@ -15,7 +15,15 @@ interface TargetRect {
   height: number
 }
 
+interface TooltipSize {
+  width: number
+  height: number
+}
+
 const TARGET_PADDING = 8
+const VIEWPORT_MARGIN = 12
+const ROUTE_RENDER_DELAY_MS = 320
+const STEP_FADE_MS = 180
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
@@ -26,17 +34,52 @@ function getStoredStep() {
   return Number.isFinite(value) ? clamp(value, 0, TOUR_STEPS.length - 1) : 0
 }
 
-function getTooltipPosition(rect: TargetRect) {
-  const width = Math.min(340, window.innerWidth - 24)
+function getTooltipPosition(rect: TargetRect, tooltipSize: TooltipSize) {
+  const width = Math.min(360, window.innerWidth - VIEWPORT_MARGIN * 2)
+  const height = Math.min(tooltipSize.height || 280, window.innerHeight - VIEWPORT_MARGIN * 2)
   const gap = 14
+  const spaceAbove = rect.top
   const spaceBelow = window.innerHeight - rect.top - rect.height
-  const top = spaceBelow > 210
-    ? rect.top + rect.height + gap
-    : Math.max(12, rect.top - 210 - gap)
+  const spaceRight = window.innerWidth - rect.left - rect.width
+  const spaceLeft = rect.left
+  const centeredLeft = clamp(rect.left + rect.width / 2 - width / 2, VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN)
+
+  if (spaceBelow >= height + gap + VIEWPORT_MARGIN) {
+    return {
+      width,
+      top: clamp(rect.top + rect.height + gap, VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN),
+      left: centeredLeft,
+    }
+  }
+
+  if (spaceAbove >= height + gap + VIEWPORT_MARGIN) {
+    return {
+      width,
+      top: clamp(rect.top - height - gap, VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN),
+      left: centeredLeft,
+    }
+  }
+
+  if (spaceRight >= width + gap + VIEWPORT_MARGIN) {
+    return {
+      width,
+      top: clamp(rect.top + rect.height / 2 - height / 2, VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN),
+      left: clamp(rect.left + rect.width + gap, VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN),
+    }
+  }
+
+  if (spaceLeft >= width + gap + VIEWPORT_MARGIN) {
+    return {
+      width,
+      top: clamp(rect.top + rect.height / 2 - height / 2, VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN),
+      left: clamp(rect.left - width - gap, VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN),
+    }
+  }
+
   return {
     width,
-    top,
-    left: clamp(rect.left, 12, window.innerWidth - width - 12),
+    top: clamp(window.innerHeight - height - VIEWPORT_MARGIN, VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN),
+    left: VIEWPORT_MARGIN,
   }
 }
 
@@ -46,7 +89,9 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null)
   const [targetMissing, setTargetMissing] = useState(false)
   const [stepVisible, setStepVisible] = useState(false)
+  const [tooltipSize, setTooltipSize] = useState<TooltipSize>({ width: 360, height: 280 })
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tooltipRef = useRef<HTMLElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const step = TOUR_STEPS[stepIndex]
@@ -58,7 +103,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     }
   }
 
-  const showStepAfterDelay = (delay = 150) => {
+  const showStepAfterDelay = (delay = STEP_FADE_MS) => {
     clearTransitionTimer()
     transitionTimerRef.current = setTimeout(() => {
       setStepVisible(true)
@@ -72,7 +117,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     transitionTimerRef.current = setTimeout(() => {
       setStepIndex(clamp(nextStep, 0, TOUR_STEPS.length - 1))
       transitionTimerRef.current = null
-    }, 150)
+    }, STEP_FADE_MS)
   }
 
   useEffect(() => {
@@ -80,6 +125,15 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     setStepIndex(getStoredStep())
     setStepVisible(false)
   }, [active])
+
+  useLayoutEffect(() => {
+    if (!active || !tooltipRef.current) return
+    const rect = tooltipRef.current.getBoundingClientRect()
+    setTooltipSize({
+      width: rect.width,
+      height: rect.height,
+    })
+  }, [active, stepIndex, targetRect, targetMissing])
 
   useEffect(() => () => clearTransitionTimer(), [])
 
@@ -99,6 +153,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
 
   useEffect(() => {
     if (!active || !step) return
+    if (location.pathname !== step.route) return
     let cancelled = false
     let attempts = 0
     let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -117,7 +172,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
         })
         setTargetMissing(false)
         element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
-        showStepAfterDelay(150)
+        showStepAfterDelay(STEP_FADE_MS)
         return
       }
 
@@ -125,13 +180,13 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
       if (attempts > 30) {
         setTargetRect(null)
         setTargetMissing(true)
-        showStepAfterDelay(150)
+        showStepAfterDelay(STEP_FADE_MS)
         return
       }
       timeoutId = setTimeout(update, 100)
     }
 
-    timeoutId = setTimeout(update, location.pathname === step.route ? 300 : 350)
+    timeoutId = setTimeout(update, ROUTE_RENDER_DELAY_MS)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
     return () => {
@@ -143,9 +198,15 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
   }, [active, location.pathname, step])
 
   const tooltipStyle = useMemo(() => {
-    if (!targetRect) return { width: Math.min(340, window.innerWidth - 24), top: 80, left: 12 }
-    return getTooltipPosition(targetRect)
-  }, [targetRect])
+    if (!targetRect) {
+      return {
+        width: Math.min(360, window.innerWidth - VIEWPORT_MARGIN * 2),
+        top: VIEWPORT_MARGIN,
+        left: VIEWPORT_MARGIN,
+      }
+    }
+    return getTooltipPosition(targetRect, tooltipSize)
+  }, [targetRect, tooltipSize])
 
   if (!active || !step) return null
 
@@ -178,33 +239,49 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
 
   return (
     <div className="fixed inset-0 z-[90] pointer-events-none">
+      <style>{`
+        @keyframes tribespendTourGlow {
+          0%, 100% { box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 0 2px rgba(45, 212, 191, 0.75), 0 0 18px rgba(45, 212, 191, 0.28); }
+          50% { box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 0 5px rgba(45, 212, 191, 0.32), 0 0 28px rgba(45, 212, 191, 0.42); }
+        }
+      `}</style>
       {targetRect ? (
         <div
-          className={`fixed rounded-2xl ring-2 ring-accent-400 pointer-events-none transition-all duration-150 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
+          className={`fixed rounded-2xl ring-2 ring-accent-400 pointer-events-none transition-all duration-200 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
           style={{
             top: targetRect.top,
             left: targetRect.left,
             width: targetRect.width,
             height: targetRect.height,
-            boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.55)',
+            boxShadow: '0 0 0 9999px rgba(15, 23, 42, 0.42), 0 0 18px rgba(45, 212, 191, 0.28)',
+            animation: stepVisible ? 'tribespendTourGlow 1.8s ease-in-out infinite' : undefined,
           }}
         />
       ) : (
-        <div className="fixed inset-0 bg-slate-950/55" />
+        <div className="fixed inset-0 bg-slate-950/40" />
       )}
 
       <section
-        className={`fixed rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl pointer-events-auto transition-opacity duration-150 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
+        ref={tooltipRef}
+        className={`fixed max-h-[calc(100vh-24px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl pointer-events-auto transition-opacity duration-200 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
         style={{
           top: tooltipStyle.top,
           left: tooltipStyle.left,
           width: tooltipStyle.width,
         }}
       >
-        <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-          Step {stepIndex + 1} of {TOUR_STEPS.length}
-        </p>
-        <h2 className="mt-1 text-base font-bold text-slate-900">{step.title}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+            Step {stepIndex + 1} of {TOUR_STEPS.length}
+          </p>
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-accent-500 transition-all duration-300"
+              style={{ width: `${((stepIndex + 1) / TOUR_STEPS.length) * 100}%` }}
+            />
+          </div>
+        </div>
+        <h2 className="mt-2 text-base font-bold text-slate-900">{step.title}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">{step.description}</p>
         {step.details && (
           <ul className="mt-3 space-y-1.5 text-xs leading-5 text-slate-500">

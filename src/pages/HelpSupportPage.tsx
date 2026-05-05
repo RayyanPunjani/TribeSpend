@@ -76,16 +76,10 @@ export default function HelpSupportPage() {
           steps to reproduce the issue. That helps us investigate quickly and reply with useful next steps.
         </p>
         <Link
-          to="/app/help?tour=resume"
-          className="mt-4 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-        >
-          Resume guided tour
-        </Link>
-        <Link
           to="/app/help?tour=1"
-          className="ml-0 mt-3 inline-flex items-center justify-center rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700 sm:ml-2"
+          className="mt-4 inline-flex items-center justify-center rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
         >
-          Restart guided tour
+          Take guided tour
         </Link>
       </section>
     </div>

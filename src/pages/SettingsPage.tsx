@@ -588,6 +588,8 @@ function DangerZone() {
   const [dangerError, setDangerError] = useState<string | null>(null)
 
   const hid = householdId!
+  const transactionConfirmPhrase = 'delete transactions'
+  const accountConfirmPhrase = 'delete my account'
 
   const handleDeleteTransactions = async () => {
     setIsWorking(true)
@@ -730,12 +732,12 @@ function DangerZone() {
                   You can run a Full Resync later to restore available Plaid transactions.
                 </p>
                 <p className="text-sm text-slate-500">
-                  Type <strong className="text-slate-700 font-mono">DELETE</strong> to confirm.
+                  To confirm transaction deletion, type <strong className="text-slate-700 font-mono">{transactionConfirmPhrase}</strong>.
                 </p>
                 <input
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="DELETE"
+                  placeholder={transactionConfirmPhrase}
                   autoFocus
                   className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
                 />
@@ -748,7 +750,7 @@ function DangerZone() {
                   </button>
                   <button
                     onClick={handleDeleteTransactions}
-                    disabled={confirmText !== 'DELETE' || isWorking}
+                    disabled={confirmText.trim().toLowerCase() !== transactionConfirmPhrase || isWorking}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-40 transition-colors"
                   >
                     {isWorking ? 'Deleting…' : 'Delete Transactions'}
@@ -781,12 +783,12 @@ function DangerZone() {
                   </ul>
                 </div>
                 <p className="text-sm text-slate-500">
-                  Type <strong className="text-slate-700 font-mono">DELETE</strong> to confirm.
+                  To confirm account deletion, type <strong className="text-slate-700 font-mono">{accountConfirmPhrase}</strong>.
                 </p>
                 <input
                   value={confirmText}
                   onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="DELETE"
+                  placeholder={accountConfirmPhrase}
                   autoFocus
                   className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-400"
                 />
@@ -804,7 +806,7 @@ function DangerZone() {
                   </button>
                   <button
                     onClick={handleDeleteAccount}
-                    disabled={confirmText !== 'DELETE' || isWorking}
+                    disabled={confirmText.trim().toLowerCase() !== accountConfirmPhrase || isWorking}
                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-40 transition-colors"
                   >
                     {isWorking ? 'Deleting…' : 'Delete Account'}

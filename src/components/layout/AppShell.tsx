@@ -270,7 +270,7 @@ export default function AppShell() {
       const savedStep = localStorage.getItem(TOUR_CURRENT_STEP_KEY)
       const completionKey = `tribespend_onboarding_completed_${profile.id}`
       const completedLocally = localStorage.getItem(completionKey) === 'true'
-      const completed = profile.onboarding_completed === true || completedLocally
+      const completed = profile.onboarding_completed === true || (profile.onboarding_completed !== false && completedLocally)
       if (!dismissed && (savedStep !== null || (!completed && !guidedTourDismissed))) {
         setShowGuidedTour(true)
       }
