@@ -67,6 +67,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
   }
 
   const handleCardChange = (cardId: string) => {
+    if (!cardId) return
     if (cardId === t.cardId) return
     onRuleChange(t, { cardId })
   }
@@ -244,7 +245,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
               className="absolute inset-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0"
               aria-label={`Card for ${t.cleanDescription || t.description}`}
             >
-              <option value="">No card</option>
+              <option value="" disabled>Select card</option>
               {cards.map((option) => (
                 <option key={option.id} value={option.id}>
                   {option.isPaymentMethod || !option.lastFour ? option.name : `${option.name} ...${option.lastFour}`}

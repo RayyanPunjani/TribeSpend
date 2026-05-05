@@ -254,7 +254,7 @@ export default function TransactionsPage() {
   }
 
   const handleBulkAssignCard = async () => {
-    if (selectedVisibleTransactionIds.length === 0) return
+    if (selectedVisibleTransactionIds.length === 0 || !bulkCardId) return
     setBulkAttributionSaving(true)
     setBulkMessage(null)
     const ok = await updateMany(selectedVisibleTransactionIds, { cardId: bulkCardId })
@@ -631,7 +631,7 @@ export default function TransactionsPage() {
               onChange={(event) => setBulkCardId(event.target.value)}
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
             >
-              <option value="">No card</option>
+              <option value="">Select card</option>
               {cards.map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.isPaymentMethod || !card.lastFour ? card.name : `${card.name} ...${card.lastFour}`}
@@ -641,7 +641,7 @@ export default function TransactionsPage() {
             <button
               type="button"
               onClick={handleBulkAssignCard}
-              disabled={bulkAttributionSaving}
+              disabled={bulkAttributionSaving || !bulkCardId}
               className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Assign card

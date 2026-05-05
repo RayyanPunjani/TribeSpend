@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { X, PencilLine } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { X, PencilLine, CreditCard } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Transaction } from '@/types'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -38,6 +39,7 @@ export default function AddTransactionModal({ onClose }: Props) {
     isReimbursable: false,
   })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // Auto-detect category from saved rules when description changes
   useEffect(() => {
@@ -61,20 +63,30 @@ export default function AddTransactionModal({ onClose }: Props) {
     ? creditCards.filter((c) => persons.find((p) => p.id === form.personId)?.cards.includes(c.id))
     : creditCards
   const availableCards = [...personCreditCards, ...paymentMethodCards]
+  const hasCards = cards.length > 0
 
   const canSave =
     form.description.trim() !== '' &&
     form.amount !== '' &&
     parseFloat(form.amount) !== 0 &&
-    !isNaN(parseFloat(form.amount))
+    !isNaN(parseFloat(form.amount)) &&
+    cards.some((card) => card.id === form.cardId)
 
   const handleSave = async () => {
     if (!canSave) return
     setSaving(true)
+    setSaveError('')
 
     const amountRaw = parseFloat(form.amount)
     const isCredit = amountRaw < 0
-    const selectedPerson = persons.find((p) => p.id === form.personId)
+    const selectedCard = cards.find((c) => c.id === form.cardId)
+    if (!selectedCard) {
+      setSaveError('Select a card or payment method before saving.')
+      setSaving(false)
+      return
+    }
+    const selectedPersonId = form.personId || selectedCard?.owner || ''
+    const selectedPerson = persons.find((p) => p.id === selectedPersonId)
 
     const transaction: Transaction = {
       id: uuidv4(),
@@ -84,8 +96,8 @@ export default function AddTransactionModal({ onClose }: Props) {
       cleanDescription: form.description.trim(),
       amount: Math.abs(amountRaw),
       category: form.category,
-      cardId: form.cardId || '',
-      personId: form.personId || undefined,
+      cardId: form.cardId,
+      personId: selectedPersonId || undefined,
       cardholderName: selectedPerson?.name || '',
       isPayment: isCredit,
       isCredit: isCredit,
@@ -101,13 +113,21 @@ export default function AddTransactionModal({ onClose }: Props) {
       refundReviewPending: false,
     }
 
-    await addMany(householdId!, [transaction])
-    setSaving(false)
-    onClose()
+    try {
+      await addMany(householdId!, [transaction])
+      onClose()
+    } catch (error) {
+      console.error('[AddTransactionModal] Failed to add transaction:', error)
+      setSaveError('Something went wrong. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) =>
+  const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) => {
+    setSaveError('')
     setForm((f) => ({ ...f, [k]: v }))
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm">
@@ -125,6 +145,29 @@ export default function AddTransactionModal({ onClose }: Props) {
 
         {/* Form */}
         <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 pb-6 flex flex-col gap-4">
+          {!hasCards && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                  <CreditCard size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-900">Add a card to start tracking transactions</p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700">
+                    Transactions need a card or payment method so spending, rewards, and ownership stay accurate.
+                  </p>
+                  <Link
+                    to="/app/wallet?tab=paymentMethods"
+                    onClick={onClose}
+                    className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+                  >
+                    Add Card
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Date + Post Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -194,7 +237,7 @@ export default function AddTransactionModal({ onClose }: Props) {
 
           {/* Person */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Person *</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Person</label>
             <select
               value={form.personId}
               onChange={(e) => { set('personId', e.target.value); set('cardId', '') }}
@@ -209,13 +252,14 @@ export default function AddTransactionModal({ onClose }: Props) {
 
           {/* Card / Account */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Card / Account</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Card / Account *</label>
             <select
               value={form.cardId}
               onChange={(e) => set('cardId', e.target.value)}
-              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-accent-500"
+              disabled={!hasCards}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-accent-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
             >
-              <option value="">No card / untracked</option>
+              <option value="">{hasCards ? 'Select card / payment method' : 'Add a card first'}</option>
               {personCreditCards.length > 0 && (
                 <optgroup label="Credit Cards">
                   {personCreditCards.map((c) => (
@@ -231,6 +275,12 @@ export default function AddTransactionModal({ onClose }: Props) {
                 </optgroup>
               )}
             </select>
+            {hasCards && !form.cardId && (
+              <p className="mt-1 text-xs text-amber-600">Select a card or payment method before saving.</p>
+            )}
+            {hasCards && availableCards.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">No cards are available for the selected person. Choose another person or add a card.</p>
+            )}
           </div>
 
           {/* Notes */}
@@ -266,6 +316,11 @@ export default function AddTransactionModal({ onClose }: Props) {
               Reimbursable (someone owes me for this)
             </label>
           </div>
+          {saveError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {saveError}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
