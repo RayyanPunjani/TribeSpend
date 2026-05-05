@@ -10,7 +10,7 @@ interface Props {
 
 export default function CategoryDropdown({ value, onChange, compact }: Props) {
   const [open, setOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const categoryNames = useCategoryStore((s) => s.categoryNames)
@@ -36,6 +36,7 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
         top: rect.bottom + 4,
         left: rect.left,
         width: Math.max(192, rect.width),
+        maxHeight: Math.max(160, window.innerHeight - rect.bottom - 16),
       })
     }
 
@@ -49,14 +50,16 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
   }, [open])
 
   const color = categoryColors[value] ?? '#94a3b8'
-  const options = categoryNames.includes(value) ? categoryNames : [value, ...categoryNames]
+  const options = (categoryNames.includes(value) ? categoryNames : [value, ...categoryNames])
+    .slice()
+    .sort((a, b) => a.localeCompare(b))
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 rounded-full border transition-colors hover:opacity-80 ${
+        className={`flex max-w-[180px] items-center gap-1.5 rounded-full border transition-colors hover:opacity-80 ${
           compact ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs'
         }`}
         style={{
@@ -69,18 +72,19 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
           className="w-1.5 h-1.5 rounded-full shrink-0"
           style={{ backgroundColor: color }}
         />
-        {value}
+        <span className="min-w-0 truncate">{value}</span>
         <span className="text-current opacity-50">▾</span>
       </button>
 
       {open && menuPosition && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-[300] bg-white border border-slate-200 rounded-xl shadow-card-md p-1 max-h-64 overflow-y-auto animate-slide-in"
+          className="fixed z-[300] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-card-md animate-slide-in"
           style={{
             top: menuPosition.top,
             left: menuPosition.left,
             minWidth: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
           }}
         >
           {options.map((cat) => {
@@ -90,12 +94,12 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
                 key={cat}
                 type="button"
                 onClick={() => { onChange(cat); setOpen(false) }}
-                className={`w-full text-left px-3 py-1.5 rounded-lg text-xs hover:bg-slate-50 flex items-center gap-2 transition-colors ${
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors hover:bg-slate-50 ${
                   cat === value ? 'bg-slate-50 font-medium' : ''
                 }`}
               >
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c }} />
-                {cat}
+                <span className="min-w-0 truncate">{cat}</span>
               </button>
             )
           })}

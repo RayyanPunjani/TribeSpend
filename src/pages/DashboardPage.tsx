@@ -382,7 +382,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Last 6 Months"
+          label="Total Spend"
           value={formatCurrency(totalSpend)}
           icon={<DollarSign size={18} className="text-accent-600" />}
           color="bg-accent-50"
@@ -469,6 +469,7 @@ export default function DashboardPage() {
               <Area
                 type="monotone"
                 dataKey="amount"
+                name="Total Spend"
                 stroke="#0d9488"
                 strokeWidth={2}
                 fill="url(#spendGradient)"
@@ -480,7 +481,9 @@ export default function DashboardPage() {
 
         <ChartCard title="Spending by Category" subtitle={isExampleData ? 'Example categories' : 'Top categories'}>
           {categoryData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-12 text-center">No spending data for this period.</p>
+            <p className="px-4 py-12 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-4 items-center">
               <ResponsiveContainer width="100%" height={220}>
@@ -511,7 +514,7 @@ export default function DashboardPage() {
                       style={{ backgroundColor: entry.name === 'Other' ? '#94a3b8' : (categoryColors[entry.name] ?? '#64748b') }}
                     />
                     <span className="flex-1 min-w-0 truncate text-slate-700">{entry.name}</span>
-                    <span className="font-semibold text-slate-800">{formatCurrency(entry.value)}</span>
+                    <span className="whitespace-nowrap font-semibold text-slate-800">{formatCurrency(entry.value)}</span>
                   </div>
                 ))}
               </div>
@@ -533,7 +536,9 @@ export default function DashboardPage() {
           </div>
 
           {recentTransactions.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No recent spending transactions.</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : (
             <div className="divide-y divide-slate-100">
               {recentTransactions.map((transaction) => {

@@ -246,7 +246,7 @@ export function CascadeForm({
         </div>
 
         {/* Authorized user checkbox — full row */}
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <label className="flex items-start gap-2 cursor-pointer select-none">
             <input
               type="checkbox"

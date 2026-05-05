@@ -203,7 +203,7 @@ export default function CardManager() {
   return (
     <div>
       {/* ── Credit Cards header ── */}
-      <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-700">Credit Cards</h3>
         {persons.length > 0 ? (
           <button
@@ -330,7 +330,7 @@ export default function CardManager() {
       {/* ── Other Payment Methods ── */}
       <div className="mt-6 pt-5 border-t border-slate-200">
         <div ref={paymentMethodsTopRef} />
-        <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Other Payment Methods</h3>
             <p className="text-xs text-slate-400 mt-0.5">Cash, Zelle, Venmo, etc. — for manual transactions</p>

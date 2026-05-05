@@ -356,7 +356,7 @@ export default function AnalyticsPage() {
       <EmptyState
         icon={TrendingUp}
         title="No data yet"
-        description="Upload your first statement to see detailed spending analytics and insights."
+        description="Upload transactions or connect your bank to get started."
         action={
           <Link
             to="/app/upload"
@@ -478,9 +478,11 @@ export default function AnalyticsPage() {
       {/* Charts row 1: Category + Monthly */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Spend by Category — clickable bars */}
-        <ChartCard title="Spend by Category">
+        <ChartCard title="Spending by Category">
           {categoryData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No spending data for this period.</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart
@@ -498,7 +500,7 @@ export default function AnalyticsPage() {
                 <XAxis type="number" tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
                 <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="value" name="Total Spend" radius={[0, 4, 4, 0]}>
                   {categoryData.map((entry) => (
                     <Cell
                       key={entry.name}
@@ -534,7 +536,9 @@ export default function AnalyticsPage() {
           }
         >
           {monthlyChartData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No spending data for this period.</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : monthlyMode === 'total' ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyData} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
@@ -542,7 +546,7 @@ export default function AnalyticsPage() {
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
-                <Bar dataKey="amount" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="amount" name="Total Spend" fill="#0d9488" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : monthlyMode === 'byCategory' ? (
@@ -632,7 +636,9 @@ export default function AnalyticsPage() {
 
         <ChartCard title="Spend by Card">
           {cardData.length === 0 ? (
-            <p className="text-sm text-slate-400 py-8 text-center">No card data for this period.</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={cardData} layout="vertical" margin={{ left: 16, right: 24, top: 4, bottom: 4 }}>
@@ -654,7 +660,9 @@ export default function AnalyticsPage() {
       {personComparisonData && (
         <ChartCard title="Spending Comparison">
           {personComparisonData.data.length === 0 ? (
-            <p className="text-sm text-slate-400 py-4 text-center">No spending data for this period.</p>
+            <p className="px-4 py-4 text-center text-sm text-slate-400">
+              Upload transactions or connect your bank to get started.
+            </p>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart

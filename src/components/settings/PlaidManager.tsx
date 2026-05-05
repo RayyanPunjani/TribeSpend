@@ -655,7 +655,7 @@ export default function PlaidManager() {
   return (
     <div className="flex flex-col gap-5">
       {/* Header + Link button */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs text-slate-500">
             {items.length === 0
@@ -828,7 +828,7 @@ export default function PlaidManager() {
                             </p>
                           </div>
                           {isEditing ? (
-                            <div className="flex w-full items-center gap-2 sm:w-auto">
+                            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
                               <select
                                 value={mappingDraftCardId}
                                 onChange={(e) => setMappingDraftCardId(e.target.value)}

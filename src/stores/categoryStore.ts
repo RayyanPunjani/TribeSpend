@@ -49,7 +49,7 @@ function buildCategoryNames(categories: HouseholdCategory[]): string[] {
     ...categories
       .filter((category) => !category.archived)
       .map((category) => category.name),
-  ])
+  ]).sort((a, b) => a.localeCompare(b))
 }
 
 function buildCategoryColors(categories: HouseholdCategory[]): Record<string, string> {

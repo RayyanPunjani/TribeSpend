@@ -580,7 +580,7 @@ export default function BudgetsPage() {
           <Target size={32} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">No budgets yet</p>
           <p className="text-slate-400 text-sm mt-1">
-            Create a budget to track spending by category or person.
+            Upload transactions or connect your bank to get started, then create a budget to track spending.
           </p>
           <button
             onClick={() => { setShowAddForm(true); setAddError('') }}

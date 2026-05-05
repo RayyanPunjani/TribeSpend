@@ -46,7 +46,7 @@ export default function PeopleManager() {
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-700">People</h3>
         <button
           onClick={() => setAdding(true)}
@@ -71,7 +71,7 @@ export default function PeopleManager() {
             </div>
 
             {editingId === person.id ? (
-              <div className="flex-1 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                 <input
                   type="text"
                   value={editName}
@@ -79,8 +79,10 @@ export default function PeopleManager() {
                   className="min-w-0 flex-1 border border-slate-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                   autoFocus
                 />
-                <ColorPicker value={editColor} onChange={setEditColor} />
-                <div className="flex items-center gap-2">
+                <div className="max-w-full sm:max-w-[230px]">
+                  <ColorPicker value={editColor} onChange={setEditColor} />
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
                   <button onClick={handleSaveEdit} className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-green-600 hover:bg-green-50 hover:text-green-700">
                     <Check size={16} />
                   </button>
@@ -95,18 +97,20 @@ export default function PeopleManager() {
                   <p className="text-sm font-medium text-slate-800">{person.name}</p>
                   <p className="text-xs text-slate-400">{person.cards.length} card(s)</p>
                 </div>
-                <button
-                  onClick={() => startEdit(person.id, person.name, person.color)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  onClick={() => remove(person.id)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => startEdit(person.id, person.name, person.color)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                  <button
+                    onClick={() => remove(person.id)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </>
             )}
           </div>

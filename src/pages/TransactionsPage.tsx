@@ -313,7 +313,7 @@ export default function TransactionsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Transactions</h1>
-            <p className="text-sm text-slate-500 mt-1">No transactions yet. Add one manually or import a CSV to get started.</p>
+            <p className="text-sm text-slate-500 mt-1">Upload transactions or connect your bank to get started.</p>
           </div>
           <HeaderActions onAdd={() => setShowAddModal(true)} addLabel="Add your first transaction" isPremium={isPremium} />
         </div>
@@ -321,7 +321,7 @@ export default function TransactionsPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <p className="text-lg font-semibold text-slate-800">No transactions yet</p>
           <p className="mt-1 text-sm text-slate-500">
-            Upload a statement for free, or add a transaction manually to try your first real entry.
+            Upload transactions or connect your bank to get started.
           </p>
           {!isPremium && (
             <p className="mt-1 text-sm text-slate-500">

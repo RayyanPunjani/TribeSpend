@@ -485,7 +485,7 @@ export default function RecurringPage() {
       {charges.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-12 text-center text-slate-400 text-sm">
           <p>No recurring charges detected yet.</p>
-          <p className="mt-1">Recurring charges are detected automatically as you import statements. You can also mark any transaction manually using the ↻ button, or click <strong>Scan for recurring</strong> above.</p>
+          <p className="mt-1">Upload transactions or connect your bank to get started. Recurring charges are detected automatically, and you can also mark any transaction manually using the ↻ button.</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -583,7 +583,7 @@ export default function RecurringPage() {
                             ))}
                           </select>
                         </label>
-                        {!charge.frequencyNeedsReview && charge.isFrequencyAutoDetected ? (
+                        {charge.frequency && charge.isFrequencyAutoDetected ? (
                           <span className="ml-2 align-middle text-[10px] font-medium text-blue-500">
                             Auto-detected
                           </span>
