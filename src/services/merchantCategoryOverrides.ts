@@ -24,6 +24,7 @@ export const MERCHANT_CATEGORY_OVERRIDES: MerchantCategoryOverride[] = [
     keywords: [
       'uber eats', 'ubereats', 'doordash', 'door dash', 'grubhub',
       'restaurant', 'cafe', 'coffee', 'starbucks', 'dunkin', 'chipotle',
+      'einstein', 'einstein bros', 'einstein bagels', 'giordanos', "giordano's",
       'mcdonald', 'wendy', 'burger king', 'panera', 'chick-fil',
       'pizza', 'burger', 'subway', 'taco bell', 'chicken', 'bbq',
       'bagel', 'waffle house', 'sushi', 'sonic', 'dairy queen',
@@ -50,7 +51,8 @@ export const MERCHANT_CATEGORY_OVERRIDES: MerchantCategoryOverride[] = [
     category: 'Shopping',
     keywords: [
       'amazon', 'amazon mktpl', 'amazon marketplace', 'amazon.com',
-      'amzn', 'target', 'walmart.com', 'best buy', 'ebay', 'etsy',
+      'amzn', 'target', 'walmart', 'walmart.com', 'best buy', 'bestbuy',
+      'apple', 'apple store', 'ebay', 'etsy',
       'nordstrom', 'nike', 'zara', 'hm.com', 'h&m', 'uniqlo',
       'hollister', 'patagonia', 'dollar tree', 'hobby lobby',
       'michaels', 'at home', 'apple store', 'tiktok shop', 'shein',
@@ -146,7 +148,8 @@ export const MERCHANT_CATEGORY_OVERRIDES: MerchantCategoryOverride[] = [
       'atom tickets', 'fandango', 'amc theatres', 'regal cinema',
       'cinema', 'movie', 'dave buster', 'bowlero', 'topgolf',
       'main event', 'arcade', 'steam ', 'xbox ', 'playstation',
-      'nintendo', 'gamestop', 'twitch',
+      'nintendo', 'gamestop', 'twitch', 'theater', 'theatre',
+      'escape room', 'escape', 'carnival', 'tickets', 'concert',
     ],
   },
   {
@@ -171,6 +174,7 @@ export function normalizeMerchantCategoryText(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b\d+\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

@@ -197,7 +197,7 @@ const STEPS: OnboardingStep[] = [
     title: 'Analytics',
     copy: 'Use charts, trends, and category or person filters to understand where spending is changing.',
     path: '/app/analytics',
-    cta: 'Open Analytics',
+    cta: 'View Analytics',
     icon: PieChart,
     example: {
       label: 'Example data',
@@ -266,6 +266,9 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
   const isReturnsStep = step.title === 'Returns'
   const isReimbursementsStep = step.title === 'Reimbursements'
   const isRecurringStep = step.title === 'Recurring'
+  const isAnalyticsStep = step.title === 'Analytics'
+  const isBudgetsStep = step.title === 'Budgets'
+  const isOptimizeStep = step.title === 'Optimize'
   const visibleSampleTransactions = sampleTransactions.filter((transaction) => !sampleFlags[transaction.id]?.hidden)
   const sampleReturns = visibleSampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.return)
   const sampleReimbursementRows = visibleSampleTransactions.filter((transaction) => sampleFlags[transaction.id]?.reimbursement)
@@ -567,7 +570,141 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
             </div>
           )}
 
-          {step.example && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && (
+          {isAnalyticsStep && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-white p-3 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Total Spend</p>
+                      <p className="text-xs text-slate-400">Last 6 months</p>
+                    </div>
+                    <span className="text-sm font-bold text-slate-900">$6,420</span>
+                  </div>
+                  <div className="flex h-32 items-end gap-2 rounded-lg bg-slate-50 px-2 pt-3">
+                    {[
+                      { month: 'Nov', amount: 860, height: 52 },
+                      { month: 'Dec', amount: 1120, height: 68 },
+                      { month: 'Jan', amount: 980, height: 59 },
+                      { month: 'Feb', amount: 1265, height: 76 },
+                      { month: 'Mar', amount: 1045, height: 63 },
+                      { month: 'Apr', amount: 1150, height: 70 },
+                    ].map((month) => (
+                      <div key={month.month} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+                        <span className="text-[10px] font-semibold text-slate-500">${Math.round(month.amount / 10) * 10}</span>
+                        <div
+                          className="w-full rounded-t-md bg-accent-500/85 shadow-sm"
+                          style={{ height: `${month.height}%`, minHeight: 18 }}
+                        />
+                        <span className="text-[10px] text-slate-400">{month.month}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white p-3 shadow-sm">
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold text-slate-800">Spending by Category</p>
+                    <p className="text-xs text-slate-400">Top categories</p>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { name: 'Dining', amount: '$1,540', pct: 74, color: '#f97316' },
+                      { name: 'Groceries', amount: '$1,210', pct: 58, color: '#22c55e' },
+                      { name: 'Subscriptions', amount: '$420', pct: 32, color: '#8b5cf6' },
+                      { name: 'Transportation', amount: '$360', pct: 26, color: '#0ea5e9' },
+                    ].map((category) => (
+                      <div key={category.name}>
+                        <div className="mb-1 flex items-center gap-2 text-xs">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                          <span className="min-w-0 flex-1 truncate text-slate-600">{category.name}</span>
+                          <span className="font-semibold text-slate-800">{category.amount}</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-slate-100">
+                          <div className="h-full rounded-full" style={{ width: `${category.pct}%`, backgroundColor: category.color }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isBudgetsStep && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="space-y-2">
+                {[
+                  { name: 'Dining', spent: 210, limit: 300, percent: 70, color: 'bg-orange-500' },
+                  { name: 'Groceries', spent: 300, limit: 500, percent: 60, color: 'bg-green-500' },
+                  { name: 'Subscriptions', spent: 90, limit: 100, percent: 90, color: 'bg-amber-500' },
+                ].map((budget) => (
+                  <div key={budget.name} className="rounded-xl bg-white px-3 py-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">{budget.name}</p>
+                        <p className="text-xs text-slate-400">
+                          ${budget.spent} of ${budget.limit} monthly budget
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        budget.percent >= 85 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {budget.percent}% used
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-slate-100">
+                      <div className={`h-full rounded-full ${budget.color}`} style={{ width: `${budget.percent}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isOptimizeStep && (
+            <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <div className="space-y-2">
+                {[
+                  {
+                    merchant: 'Urban Cafe',
+                    detail: 'Use Sapphire Preferred for dining',
+                    current: '1%',
+                    recommended: '3%',
+                    value: 'save $38/year',
+                  },
+                  {
+                    merchant: 'Fresh Market',
+                    detail: 'Use Blue Cash Preferred for groceries',
+                    current: '1%',
+                    recommended: '6%',
+                    value: 'save $96/year',
+                  },
+                ].map((rec) => (
+                  <div key={rec.merchant} className="rounded-xl bg-white px-3 py-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">{rec.merchant}</p>
+                        <p className="text-xs text-slate-400">{rec.detail}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                        {rec.value}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-lg bg-slate-100 px-2 py-1">Current {rec.current}</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="rounded-lg bg-accent-50 px-2 py-1 font-semibold text-accent-700">Best {rec.recommended}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step.example && !isTransactionsStep && !isWalletStep && !isReturnsStep && !isReimbursementsStep && !isRecurringStep && !isAnalyticsStep && !isBudgetsStep && !isOptimizeStep && (
             <div className="mt-6 rounded-xl border border-accent-200 bg-accent-50 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-accent-700">{step.example.label}</p>
               <div className="space-y-1.5">

@@ -8,6 +8,7 @@ export function normalizeDescription(desc: string): string {
   return desc
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\b\d+\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

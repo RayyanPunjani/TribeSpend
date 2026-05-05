@@ -74,7 +74,7 @@ export async function categorizeCsvRows(
 
   const withFallbacks = () => result.map((row) => ({
     ...row,
-    category: normalizeCategory(row.category),
+    category: normalizeCategory(row.category) === 'Needs Review' ? 'Other' : normalizeCategory(row.category),
   }))
 
   if (uniqueMerchants.length === 0 || !apiKey) return withFallbacks()
