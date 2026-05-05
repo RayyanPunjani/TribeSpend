@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { TOUR_CURRENT_STEP_KEY, TOUR_HAS_SEEN_KEY, TOUR_STEPS } from '@/lib/onboardingTour'
 
@@ -43,18 +43,45 @@ function getTooltipPosition(rect: TargetRect) {
 export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps) {
   const [stepIndex, setStepIndex] = useState(() => getStoredStep())
   const [finishing, setFinishing] = useState(false)
-  const [note, setNote] = useState<'skip' | 'finish' | null>(null)
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null)
   const [targetMissing, setTargetMissing] = useState(false)
+  const [stepVisible, setStepVisible] = useState(false)
+  const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const step = TOUR_STEPS[stepIndex]
 
+  const clearTransitionTimer = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current)
+      transitionTimerRef.current = null
+    }
+  }
+
+  const showStepAfterDelay = (delay = 150) => {
+    clearTransitionTimer()
+    transitionTimerRef.current = setTimeout(() => {
+      setStepVisible(true)
+      transitionTimerRef.current = null
+    }, delay)
+  }
+
+  const moveToStep = (nextStep: number) => {
+    setStepVisible(false)
+    clearTransitionTimer()
+    transitionTimerRef.current = setTimeout(() => {
+      setStepIndex(clamp(nextStep, 0, TOUR_STEPS.length - 1))
+      transitionTimerRef.current = null
+    }, 150)
+  }
+
   useEffect(() => {
     if (!active) return
     setStepIndex(getStoredStep())
-    setNote(null)
+    setStepVisible(false)
   }, [active])
+
+  useEffect(() => () => clearTransitionTimer(), [])
 
   useEffect(() => {
     if (!active) return
@@ -65,6 +92,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     if (!active || !step) return
     if (location.pathname !== step.route) {
       setTargetRect(null)
+      setStepVisible(false)
       navigate(step.route)
     }
   }, [active, location.pathname, navigate, step])
@@ -74,6 +102,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     let cancelled = false
     let attempts = 0
     let timeoutId: ReturnType<typeof setTimeout> | undefined
+    setStepVisible(false)
 
     const update = () => {
       if (cancelled) return
@@ -88,6 +117,7 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
         })
         setTargetMissing(false)
         element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' })
+        showStepAfterDelay(150)
         return
       }
 
@@ -95,12 +125,13 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
       if (attempts > 30) {
         setTargetRect(null)
         setTargetMissing(true)
+        showStepAfterDelay(150)
         return
       }
       timeoutId = setTimeout(update, 100)
     }
 
-    timeoutId = setTimeout(update, location.pathname === step.route ? 50 : 250)
+    timeoutId = setTimeout(update, location.pathname === step.route ? 300 : 350)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
     return () => {
@@ -124,7 +155,6 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
     localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
     try {
       await onFinish()
-      setNote('finish')
     } finally {
       setFinishing(false)
     }
@@ -135,28 +165,22 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
       void finish()
       return
     }
-    setStepIndex((current) => current + 1)
+    moveToStep(stepIndex + 1)
   }
 
   const goBack = () => {
-    setStepIndex((current) => Math.max(0, current - 1))
+    moveToStep(stepIndex - 1)
   }
 
   const skip = () => {
-    setNote('skip')
-  }
-
-  const closeNote = () => {
-    const mode = note
-    setNote(null)
-    if (mode === 'skip') onSkip()
+    onSkip()
   }
 
   return (
     <div className="fixed inset-0 z-[90] pointer-events-none">
       {targetRect ? (
         <div
-          className="fixed rounded-2xl ring-2 ring-accent-400 pointer-events-none transition-all"
+          className={`fixed rounded-2xl ring-2 ring-accent-400 pointer-events-none transition-all duration-150 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
           style={{
             top: targetRect.top,
             left: targetRect.left,
@@ -170,38 +194,13 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
       )}
 
       <section
-        className="fixed rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl pointer-events-auto"
+        className={`fixed rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl pointer-events-auto transition-opacity duration-150 ${stepVisible ? 'opacity-100' : 'opacity-0'}`}
         style={{
           top: tooltipStyle.top,
           left: tooltipStyle.left,
           width: tooltipStyle.width,
         }}
       >
-        {note ? (
-          <>
-            <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
-              {note === 'skip' ? 'Guide paused' : 'Guide complete'}
-            </p>
-            <h2 className="mt-1 text-base font-bold text-slate-900">
-              {note === 'skip' ? 'You can come back anytime' : 'You are all set'}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              {note === 'skip'
-                ? 'You can restart this guide anytime from Help & Support.'
-                : 'You can review this guide anytime from Help & Support.'}
-            </p>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={closeNote}
-                className="min-h-10 rounded-lg bg-accent-600 px-3 py-2 text-sm font-semibold text-white hover:bg-accent-700"
-              >
-                {note === 'skip' ? 'Got it' : 'Done'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
         <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
           Step {stepIndex + 1} of {TOUR_STEPS.length}
         </p>
@@ -266,8 +265,6 @@ export default function GuidedTour({ active, onSkip, onFinish }: GuidedTourProps
             </button>
           </div>
         </div>
-          </>
-        )}
       </section>
     </div>
   )

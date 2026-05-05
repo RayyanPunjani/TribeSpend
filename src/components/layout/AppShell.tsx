@@ -18,7 +18,7 @@ import BudgetsPage from '@/pages/BudgetsPage'
 import HelpSupportPage from '@/pages/HelpSupportPage'
 import OnboardingModal from '@/components/onboarding/OnboardingModal'
 import GuidedTour from '@/components/onboarding/GuidedTour'
-import { TOUR_CURRENT_STEP_KEY } from '@/lib/onboardingTour'
+import { TOUR_CURRENT_STEP_KEY, TOUR_DISMISSED_KEY } from '@/lib/onboardingTour'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -54,6 +54,7 @@ export default function AppShell() {
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false)
   const [showGuidedTour, setShowGuidedTour] = useState(false)
   const [guidedTourDismissed, setGuidedTourDismissed] = useState(false)
+  const [tourNotice, setTourNotice] = useState<'skip' | 'finish' | null>(null)
   const autoSyncStartedRef = useRef(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -73,6 +74,7 @@ export default function AppShell() {
     setShowOnboardingGuide(false)
     setShowGuidedTour(false)
     setGuidedTourDismissed(false)
+    setTourNotice(null)
   }, [profile?.id])
 
   useEffect(() => {
@@ -84,9 +86,11 @@ export default function AppShell() {
     if (params.get('tour') === '1') {
       try {
         localStorage.setItem(TOUR_CURRENT_STEP_KEY, '0')
+        localStorage.setItem(TOUR_DISMISSED_KEY, 'false')
       } catch (error) {
         console.warn('[GuidedTour] Unable to save tour step:', error)
       }
+      setTourNotice(null)
       setShowOnboardingGuide(false)
       setGuidedTourDismissed(false)
       setShowGuidedTour(true)
@@ -95,6 +99,12 @@ export default function AppShell() {
       navigate(`${location.pathname}${next.toString() ? `?${next.toString()}` : ''}`, { replace: true })
     }
     if (params.get('tour') === 'resume') {
+      try {
+        localStorage.setItem(TOUR_DISMISSED_KEY, 'false')
+      } catch (error) {
+        console.warn('[GuidedTour] Unable to resume tour:', error)
+      }
+      setTourNotice(null)
       setShowOnboardingGuide(false)
       setGuidedTourDismissed(false)
       setShowGuidedTour(true)
@@ -188,6 +198,12 @@ export default function AppShell() {
     setShowOnboardingGuide(false)
     setShowGuidedTour(false)
     setGuidedTourDismissed(false)
+    try {
+      localStorage.removeItem(TOUR_DISMISSED_KEY)
+      localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+    } catch (error) {
+      console.warn('[GuidedTour] Unable to clear tour state:', error)
+    }
     if (storageKey) {
       try {
         localStorage.setItem(storageKey, 'true')
@@ -218,6 +234,30 @@ export default function AppShell() {
     }
   }, [location.pathname, location.search, navigate, profile?.id, refreshProfile])
 
+  const handleGuidedTourSkip = useCallback(() => {
+    try {
+      localStorage.setItem(TOUR_DISMISSED_KEY, 'true')
+      localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+    } catch (error) {
+      console.warn('[GuidedTour] Unable to save dismissed state:', error)
+    }
+    setGuidedTourDismissed(true)
+    setShowGuidedTour(false)
+    setTourNotice('skip')
+  }, [])
+
+  const handleGuidedTourFinish = useCallback(async () => {
+    try {
+      localStorage.removeItem(TOUR_DISMISSED_KEY)
+      localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+    } catch (error) {
+      console.warn('[GuidedTour] Unable to clear tour state:', error)
+    }
+    await finishOnboarding()
+    setShowGuidedTour(false)
+    setTourNotice('finish')
+  }, [finishOnboarding])
+
   const shouldShowOnboarding =
     !!profile &&
     !showGuidedTour &&
@@ -226,8 +266,14 @@ export default function AppShell() {
   useEffect(() => {
     if (!profile || shouldShowOnboarding || showGuidedTour) return
     try {
+      const dismissed = localStorage.getItem(TOUR_DISMISSED_KEY) === 'true'
       const savedStep = localStorage.getItem(TOUR_CURRENT_STEP_KEY)
-      if (savedStep !== null || (profile.onboarding_completed !== true && !guidedTourDismissed)) setShowGuidedTour(true)
+      const completionKey = `tribespend_onboarding_completed_${profile.id}`
+      const completedLocally = localStorage.getItem(completionKey) === 'true'
+      const completed = profile.onboarding_completed === true || completedLocally
+      if (!dismissed && (savedStep !== null || (!completed && !guidedTourDismissed))) {
+        setShowGuidedTour(true)
+      }
     } catch (error) {
       console.warn('[GuidedTour] Unable to read tour state:', error)
     }
@@ -272,12 +318,15 @@ export default function AppShell() {
       )}
       <GuidedTour
         active={showGuidedTour}
-        onSkip={() => {
-          setGuidedTourDismissed(true)
-          setShowGuidedTour(false)
-        }}
-        onFinish={finishOnboarding}
+        onSkip={handleGuidedTourSkip}
+        onFinish={handleGuidedTourFinish}
       />
+      {tourNotice && (
+        <TourNoticeModal
+          mode={tourNotice}
+          onClose={() => setTourNotice(null)}
+        />
+      )}
       <Routes>
         <Route index element={<DashboardPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
@@ -299,5 +348,42 @@ export default function AppShell() {
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
     </Layout>
+  )
+}
+
+function TourNoticeModal({
+  mode,
+  onClose,
+}: {
+  mode: 'skip' | 'finish'
+  onClose: () => void
+}) {
+  const isSkip = mode === 'skip'
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 p-4">
+      <section className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+        <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">
+          {isSkip ? 'Guide paused' : 'Guide complete'}
+        </p>
+        <h2 className="mt-1 text-lg font-bold text-slate-900">
+          {isSkip ? 'You can come back anytime' : 'You are all set'}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          {isSkip
+            ? 'You can restart this guide anytime from Help & Support.'
+            : 'You can review this guide anytime from Help & Support.'}
+        </p>
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-10 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
+          >
+            {isSkip ? 'Got it' : 'Done'}
+          </button>
+        </div>
+      </section>
+    </div>
   )
 }

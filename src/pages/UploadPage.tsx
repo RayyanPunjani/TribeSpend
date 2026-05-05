@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { Loader2, AlertCircle, CheckCircle, Plus, Sheet } from 'lucide-react'
@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { isReviewCategory } from '@/utils/categoryFallback'
 // Statement metadata is no longer persisted separately
 import type {
   Transaction,
@@ -97,6 +98,7 @@ export default function UploadPage() {
   const [importedCount, setImportedCount] = useState(0)
   const [duplicatesSkippedCount, setDuplicatesSkippedCount] = useState(0)
   const [duplicateCsvWarning, setDuplicateCsvWarning] = useState(false)
+  const [importedNeedsReviewCount, setImportedNeedsReviewCount] = useState(0)
   const [summaryToasts, setSummaryToasts] = useState<Array<{ id: string; message: string }>>([])
 
   const [pendingCsvDetect, setPendingCsvDetect] = useState<{
@@ -117,6 +119,15 @@ export default function UploadPage() {
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
+
+  const pendingDuplicateCount = useMemo(() => {
+    if (!householdId || pendingTransactions.length === 0) return 0
+    return filterDuplicateCsvTransactions(
+      householdId,
+      pendingTransactions,
+      existingTransactions,
+    ).duplicatesSkipped
+  }, [existingTransactions, householdId, pendingTransactions])
 
   const addSummaryToast = (message: string) => {
     const id = Math.random().toString(36).slice(2)
@@ -310,6 +321,9 @@ export default function UploadPage() {
     setImportedCount(unique.length)
     setDuplicatesSkippedCount(duplicatesSkipped)
     setDuplicateCsvWarning(looksPreviouslyUploaded)
+    setImportedNeedsReviewCount(
+      unique.filter((transaction) => isReviewCategory(transaction.category)).length,
+    )
 
     const refundMatches = matchRefunds(unique, existingTransactions)
     try {
@@ -382,6 +396,7 @@ export default function UploadPage() {
     setImportedCount(0)
     setDuplicatesSkippedCount(0)
     setDuplicateCsvWarning(false)
+    setImportedNeedsReviewCount(0)
   }
 
   // ── Done screen ────────────────────────────────────────────────────────────
@@ -436,6 +451,19 @@ export default function UploadPage() {
               </div>
             </div>
           )}
+          {importedNeedsReviewCount > 0 && (
+            <div className="max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="flex items-start gap-2 text-left">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Some transactions still need category review after import.</p>
+                  <p className="mt-1 text-amber-700">
+                    {importedNeedsReviewCount} imported transaction{importedNeedsReviewCount !== 1 ? 's' : ''} are marked Other or Needs Review.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={resetUpload}
@@ -449,6 +477,14 @@ export default function UploadPage() {
             >
               View Transactions
             </Link>
+            {importedNeedsReviewCount > 0 && (
+              <Link
+                to="/app/transactions?review=categories"
+                className="px-5 py-2.5 border border-amber-300 bg-amber-50 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-100 transition-colors"
+              >
+                Review uncategorized transactions
+              </Link>
+            )}
           </div>
         </div>
 
@@ -522,6 +558,7 @@ export default function UploadPage() {
       <div className="max-w-5xl mx-auto">
         <ParseReview
           transactions={pendingTransactions}
+          duplicateCount={pendingDuplicateCount}
           onConfirm={handleConfirm}
           onBack={() => setStep('csv-assign')}
         />

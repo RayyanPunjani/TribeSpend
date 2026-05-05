@@ -137,3 +137,4 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
 
 export const TOUR_HAS_SEEN_KEY = 'tribespend_hasSeenTour'
 export const TOUR_CURRENT_STEP_KEY = 'tribespend_currentStep'
+export const TOUR_DISMISSED_KEY = 'onboarding_dismissed'

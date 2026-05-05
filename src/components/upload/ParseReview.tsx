@@ -10,9 +10,11 @@ import { useCategoryStore } from '@/stores/categoryStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { suggestCategory } from '@/services/keywordCategorizer'
 import { suggestMerchantPattern, matchesRule } from '@/services/categoryMatcher'
+import { isReviewCategory } from '@/utils/categoryFallback'
 
 interface Props {
   transactions: Transaction[]
+  duplicateCount?: number
   onConfirm: (transactions: Transaction[]) => void | Promise<void>
   onBack: () => void
 }
@@ -30,7 +32,7 @@ interface Toast {
   message: string
 }
 
-export default function ParseReview({ transactions, onConfirm, onBack }: Props) {
+export default function ParseReview({ transactions, duplicateCount = 0, onConfirm, onBack }: Props) {
   const { cards } = useCardStore()
   const { rules, add: addRule } = useCategoryRuleStore()
   const { transactions: existingTxns, updateMany } = useTransactionStore()
@@ -58,7 +60,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
     const autoCat: Transaction[] = []
     const needsReview: Transaction[] = []
     for (const t of transactions) {
-      if (t.category === 'Needs Review') needsReview.push(t)
+      if (isReviewCategory(t.category)) needsReview.push(t)
       else autoCat.push(t)
     }
     return { autoCatTxns: autoCat, needsReviewTxns: needsReview }
@@ -141,7 +143,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
         const override = overrides.get(t.id)
         if (override) return { ...t, category: override }
         // Apply merchant assignments to needs-review
-        if (t.category === 'Needs Review') {
+        if (isReviewCategory(t.category)) {
           const cat = merchantAssignments.get(t.cleanDescription)
           if (cat) return { ...t, category: cat, ruleMatched: true }
         }
@@ -181,7 +183,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
         const matching = existingTxns.filter(
           (t) =>
             !t.deleted &&
-            t.category === 'Needs Review' &&
+            isReviewCategory(t.category) &&
             matchesRule(t.description, rule),
         )
         if (matching.length > 0) {
@@ -216,6 +218,8 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
   }
 
   const unassignedCount = merchantGroups.length - merchantAssignments.size
+  const needsReviewCount = Math.max(0, needsReviewTxns.length - resolvedCount)
+  const totalRows = transactions.length + duplicateCount
 
   return (
     <div className="flex flex-col gap-5 relative">
@@ -237,8 +241,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
         <div>
           <h3 className="text-lg font-semibold text-slate-800">Review Transactions</h3>
           <p className="text-sm text-slate-500 mt-0.5">
-            <span className="font-semibold text-slate-700">{totalCategorized}</span> of{' '}
-            <span className="font-semibold text-slate-700">{transactions.length}</span> categorized
+            CSV columns matched successfully. <span className="font-semibold text-slate-700">{transactions.length}</span> transaction{transactions.length !== 1 ? 's' : ''} ready to import.
             {unassignedCount > 0 && (
               <span className="text-amber-600 ml-1">
                 · {unassignedCount} merchant{unassignedCount !== 1 ? 's' : ''} need review
@@ -262,6 +265,35 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
             Save {transactions.length} Transactions
           </button>
         </div>
+      </div>
+
+      <div className={`rounded-xl border px-4 py-3 ${
+        needsReviewCount > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'
+      }`}>
+        <p className={`text-sm font-semibold ${needsReviewCount > 0 ? 'text-amber-900' : 'text-green-800'}`}>
+          {totalRows} CSV row{totalRows !== 1 ? 's' : ''} reviewed
+        </p>
+        <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+          <div className="rounded-lg bg-white/75 px-3 py-2">
+            <p className="text-xs text-slate-500">Auto-categorized</p>
+            <p className="font-semibold text-slate-800">{totalCategorized}</p>
+          </div>
+          <div className="rounded-lg bg-white/75 px-3 py-2">
+            <p className="text-xs text-slate-500">Needs Review (Other)</p>
+            <p className={`font-semibold ${needsReviewCount > 0 ? 'text-amber-700' : 'text-slate-800'}`}>
+              {needsReviewCount}
+            </p>
+          </div>
+          <div className="rounded-lg bg-white/75 px-3 py-2">
+            <p className="text-xs text-slate-500">Duplicates skipped</p>
+            <p className="font-semibold text-slate-800">{duplicateCount}</p>
+          </div>
+        </div>
+        <p className={`mt-3 text-sm ${needsReviewCount > 0 ? 'text-amber-800' : 'text-green-700'}`}>
+          {needsReviewCount > 0
+            ? 'Some transactions still need category review after import. You can import now and categorize these later.'
+            : 'Categories look ready. You can still review or override anything before importing.'}
+        </p>
       </div>
 
       {/* ── Needs Review section ──────────────────────────────────────────── */}

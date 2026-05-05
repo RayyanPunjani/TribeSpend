@@ -162,6 +162,14 @@ export default function TransactionsPage() {
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
 
+  useEffect(() => {
+    if (searchParams.get('review') !== 'categories') return
+    setFilters({ needsReviewOnly: true, categories: [] })
+    const next = new URLSearchParams(searchParams)
+    next.delete('review')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setFilters, setSearchParams])
+
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
   const isPremium = profile?.plaid_access_enabled === true
