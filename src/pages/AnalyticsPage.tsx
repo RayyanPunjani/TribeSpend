@@ -353,19 +353,21 @@ export default function AnalyticsPage() {
 
   if (transactions.length === 0) {
     return (
-      <EmptyState
-        icon={TrendingUp}
-        title="No data yet"
-        description="Upload transactions or connect your bank to get started."
-        action={
-          <Link
-            to="/app/upload"
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
-          >
-            <Upload size={15} /> Upload Statement
-          </Link>
-        }
-      />
+      <div data-tour="analytics-chart">
+        <EmptyState
+          icon={TrendingUp}
+          title="No data yet"
+          description="Upload transactions or connect your bank to get started."
+          action={
+            <Link
+              to="/app/upload"
+              className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+            >
+              <Upload size={15} /> Upload Statement
+            </Link>
+          }
+        />
+      </div>
     )
   }
 
@@ -478,7 +480,7 @@ export default function AnalyticsPage() {
       {/* Charts row 1: Category + Monthly */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Spend by Category — clickable bars */}
-        <ChartCard title="Spending by Category">
+        <ChartCard title="Spending by Category" tourId="analytics-chart">
           {categoryData.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-400">
               Upload transactions or connect your bank to get started.
@@ -753,13 +755,15 @@ function ChartCard({
   title,
   children,
   right,
+  tourId,
 }: {
   title: string
   children: React.ReactNode
   right?: React.ReactNode
+  tourId?: string
 }) {
   return (
-    <div className="min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
+    <div data-tour={tourId} className="min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
       <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
         {right}

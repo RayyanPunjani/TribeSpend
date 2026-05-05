@@ -348,7 +348,7 @@ export default function RecurringPage() {
     const sampleAnnual = sampleMonthly * 12
 
     return (
-      <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+      <div data-tour="recurring-section" className="flex flex-col gap-5 max-w-4xl mx-auto">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Recurring Charges</h1>
@@ -427,7 +427,7 @@ export default function RecurringPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+    <div data-tour="recurring-section" className="flex flex-col gap-5 max-w-4xl mx-auto">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Recurring Charges</h1>
         <div className="flex items-center gap-3">

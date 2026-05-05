@@ -132,7 +132,7 @@ export default function ReturnsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-5xl mx-auto">
+    <div data-tour="returns-section" className="flex flex-col gap-5 max-w-5xl mx-auto">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Returns</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -524,7 +524,7 @@ function SampleReturnsPage({
   const completedPreview = completedRows.length > 0 ? completedRows : [fallback]
 
   return (
-    <div className="flex flex-col gap-5 max-w-5xl mx-auto">
+    <div data-tour="returns-section" className="flex flex-col gap-5 max-w-5xl mx-auto">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Returns</h1>

@@ -17,6 +17,8 @@ import OptimizePage from '@/pages/OptimizePage'
 import BudgetsPage from '@/pages/BudgetsPage'
 import HelpSupportPage from '@/pages/HelpSupportPage'
 import OnboardingModal from '@/components/onboarding/OnboardingModal'
+import GuidedTour from '@/components/onboarding/GuidedTour'
+import { TOUR_CURRENT_STEP_KEY } from '@/lib/onboardingTour'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -48,8 +50,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 export default function AppShell() {
   const { householdId, profile, refreshProfile } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+  const [, setOnboardingDismissed] = useState(false)
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false)
+  const [showGuidedTour, setShowGuidedTour] = useState(false)
+  const [guidedTourDismissed, setGuidedTourDismissed] = useState(false)
   const autoSyncStartedRef = useRef(false)
   const navigate = useNavigate()
   const location = useLocation()
@@ -67,6 +71,8 @@ export default function AppShell() {
   useEffect(() => {
     setOnboardingDismissed(false)
     setShowOnboardingGuide(false)
+    setShowGuidedTour(false)
+    setGuidedTourDismissed(false)
   }, [profile?.id])
 
   useEffect(() => {
@@ -75,7 +81,28 @@ export default function AppShell() {
       setOnboardingDismissed(false)
       setShowOnboardingGuide(true)
     }
-  }, [location.search])
+    if (params.get('tour') === '1') {
+      try {
+        localStorage.setItem(TOUR_CURRENT_STEP_KEY, '0')
+      } catch (error) {
+        console.warn('[GuidedTour] Unable to save tour step:', error)
+      }
+      setShowOnboardingGuide(false)
+      setGuidedTourDismissed(false)
+      setShowGuidedTour(true)
+      const next = new URLSearchParams(params)
+      next.delete('tour')
+      navigate(`${location.pathname}${next.toString() ? `?${next.toString()}` : ''}`, { replace: true })
+    }
+    if (params.get('tour') === 'resume') {
+      setShowOnboardingGuide(false)
+      setGuidedTourDismissed(false)
+      setShowGuidedTour(true)
+      const next = new URLSearchParams(params)
+      next.delete('tour')
+      navigate(`${location.pathname}${next.toString() ? `?${next.toString()}` : ''}`, { replace: true })
+    }
+  }, [location.pathname, location.search, navigate])
 
   useEffect(() => {
     if (!householdId) return
@@ -147,6 +174,8 @@ export default function AppShell() {
   const dismissOnboarding = useCallback((path?: string) => {
     setOnboardingDismissed(true)
     setShowOnboardingGuide(false)
+    setShowGuidedTour(false)
+    setGuidedTourDismissed(false)
     if (path) navigate(path)
     else if (location.search.includes('onboarding=1')) navigate(location.pathname, { replace: true })
   }, [location.pathname, location.search, navigate])
@@ -157,6 +186,8 @@ export default function AppShell() {
 
     setOnboardingDismissed(true)
     setShowOnboardingGuide(false)
+    setShowGuidedTour(false)
+    setGuidedTourDismissed(false)
     if (storageKey) {
       try {
         localStorage.setItem(storageKey, 'true')
@@ -187,20 +218,20 @@ export default function AppShell() {
     }
   }, [location.pathname, location.search, navigate, profile?.id, refreshProfile])
 
-  const onboardingStorageKey = profile?.id ? `tribespend_onboarding_completed_${profile.id}` : null
-  const onboardingCompletedLocally = (() => {
-    if (profile?.onboarding_completed === false) return false
-    if (!onboardingStorageKey) return false
-    try {
-      return localStorage.getItem(onboardingStorageKey) === 'true'
-    } catch {
-      return false
-    }
-  })()
   const shouldShowOnboarding =
     !!profile &&
-    (showOnboardingGuide ||
-      (profile.onboarding_completed !== true && !onboardingDismissed && !onboardingCompletedLocally))
+    !showGuidedTour &&
+    showOnboardingGuide
+
+  useEffect(() => {
+    if (!profile || shouldShowOnboarding || showGuidedTour) return
+    try {
+      const savedStep = localStorage.getItem(TOUR_CURRENT_STEP_KEY)
+      if (savedStep !== null || (profile.onboarding_completed !== true && !guidedTourDismissed)) setShowGuidedTour(true)
+    } catch (error) {
+      console.warn('[GuidedTour] Unable to read tour state:', error)
+    }
+  }, [guidedTourDismissed, profile, shouldShowOnboarding, showGuidedTour])
 
   if (!householdId) {
     return (
@@ -239,6 +270,14 @@ export default function AppShell() {
           hasRealTransactions={transactions.length > 0}
         />
       )}
+      <GuidedTour
+        active={showGuidedTour}
+        onSkip={() => {
+          setGuidedTourDismissed(true)
+          setShowGuidedTour(false)
+        }}
+        onFinish={finishOnboarding}
+      />
       <Routes>
         <Route index element={<DashboardPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

@@ -78,7 +78,7 @@ export default function ReimbursementsPage() {
     const person = sampleReimbursementDetails[preview[0]?.id]?.person ?? 'Nada'
 
     return (
-      <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+      <div data-tour="reimbursements-section" className="flex flex-col gap-5 max-w-4xl mx-auto">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Reimbursements</h1>
@@ -160,7 +160,7 @@ export default function ReimbursementsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+    <div data-tour="reimbursements-section" className="flex flex-col gap-5 max-w-4xl mx-auto">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Reimbursements</h1>
         {totalOutstanding > 0 && (

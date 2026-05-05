@@ -491,7 +491,7 @@ export default function BudgetsPage() {
   const editFormInvalid = !editForm.label.trim() || !editForm.amount
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div data-tour="budgets-section" className="max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">

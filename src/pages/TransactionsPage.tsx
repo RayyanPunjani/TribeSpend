@@ -982,10 +982,11 @@ function HeaderActions({
   isPremium?: boolean
 }) {
   return (
-    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+    <div data-tour="transactions-actions" className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
       <button
         type="button"
         onClick={onAdd}
+        data-tour="add-transaction"
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-accent-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700"
       >
         <Plus size={15} />
@@ -993,6 +994,7 @@ function HeaderActions({
       </button>
       <Link
         to="/app/upload"
+        data-tour="upload-csv"
         className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
       >
         <Upload size={15} />

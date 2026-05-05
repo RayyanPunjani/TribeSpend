@@ -64,7 +64,7 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
+      <section data-tour="wallet-section" className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
         <h2 className="text-base font-semibold text-slate-800 mb-5">
           {TABS.find((item) => item.id === tab)?.label}
         </h2>

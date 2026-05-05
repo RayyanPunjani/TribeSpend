@@ -458,7 +458,7 @@ export default function OptimizePage() {
       </div>
 
       {/* Section 1: Missed Rewards */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
+      <div data-tour="optimize-card" className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-orange-500" />

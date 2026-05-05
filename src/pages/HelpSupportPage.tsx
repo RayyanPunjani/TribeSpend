@@ -69,17 +69,23 @@ export default function HelpSupportPage() {
         ))}
       </div>
 
-      <section className="bg-white rounded-xl border border-slate-200 p-5">
+      <section data-tour="help-support" className="bg-white rounded-xl border border-slate-200 p-5">
         <h2 className="text-base font-semibold text-slate-800">Helpful Details</h2>
         <p className="text-sm text-slate-500 mt-2">
           If you&apos;re reporting a bug, please include screenshots, the email address on your account, and the
           steps to reproduce the issue. That helps us investigate quickly and reply with useful next steps.
         </p>
         <Link
-          to="/app?onboarding=1"
+          to="/app/help?tour=resume"
           className="mt-4 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
         >
-          View onboarding guide
+          Resume guided tour
+        </Link>
+        <Link
+          to="/app/help?tour=1"
+          className="ml-0 mt-3 inline-flex items-center justify-center rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700 sm:ml-2"
+        >
+          Restart guided tour
         </Link>
       </section>
     </div>
