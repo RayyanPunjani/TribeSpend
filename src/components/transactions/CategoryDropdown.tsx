@@ -28,15 +28,28 @@ export default function CategoryDropdown({ value, onChange, compact }: Props) {
 
   useEffect(() => {
     if (!open) return
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
 
     const updatePosition = () => {
       const rect = ref.current?.getBoundingClientRect()
       if (!rect) return
+      const spaceBelow = window.innerHeight - rect.bottom - 12
+      const spaceAbove = rect.top - 12
+      const shouldOpenDown = spaceBelow >= 180 || spaceBelow >= spaceAbove
+      const maxHeight = Math.max(160, Math.min(280, shouldOpenDown ? spaceBelow : spaceAbove))
       setMenuPosition({
-        top: rect.bottom + 4,
+        top: shouldOpenDown ? rect.bottom + 4 : Math.max(12, rect.top - maxHeight - 4),
         left: rect.left,
         width: Math.max(192, rect.width),
-        maxHeight: Math.max(160, window.innerHeight - rect.bottom - 16),
+        maxHeight,
       })
     }
 

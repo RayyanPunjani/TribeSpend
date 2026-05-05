@@ -15,7 +15,8 @@ export default function FilterBar() {
   const filterCategories = Array.from(new Set([
     ...categoryNames,
     ...transactions.map((transaction) => transaction.category),
-  ])).filter(Boolean)
+  ])).filter(Boolean).sort((a, b) => a.localeCompare(b))
+  const sortedPersons = [...persons].sort((a, b) => a.name.localeCompare(b.name))
 
   const hasActiveFilters =
     filters.cardIds.length > 0 ||
@@ -156,8 +157,10 @@ export default function FilterBar() {
                 Cards
               </p>
               <div className="flex flex-wrap gap-2">
-                {persons.map((person) => {
-                  const personCards = cards.filter((c) => c.owner === person.id)
+                {sortedPersons.map((person) => {
+                  const personCards = cards
+                    .filter((c) => c.owner === person.id)
+                    .sort((a, b) => a.name.localeCompare(b.name))
                   return personCards.map((card) => (
                     <button
                       key={card.id}

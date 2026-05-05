@@ -37,9 +37,10 @@ export default function CategoryRuleModal({
   const { transactions, updateMany, update } = useTransactionStore()
   const { householdId } = useAuth()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const sortedCategoryNames = [...categoryNames].sort((a, b) => a.localeCompare(b))
   const categoryOptions = category && !categoryNames.includes(category)
-    ? [category, ...categoryNames]
-    : categoryNames
+    ? [category, ...sortedCategoryNames]
+    : sortedCategoryNames
   const cardChanged = newCardId !== undefined && newCardId !== transaction.cardId
   const personChanged = newPersonId !== undefined && newPersonId !== (transaction.personId ?? '')
   const categoryChanged = newCategory !== undefined && newCategory !== transaction.category

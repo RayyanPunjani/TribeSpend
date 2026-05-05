@@ -41,7 +41,17 @@ export default function ParseReview({ transactions, duplicateCount = 0, onConfir
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const assignableCategories = useMemo(
-    () => categoryNames.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits'),
+    () => categoryNames
+      .filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
+      .slice()
+      .sort((a, b) => a.localeCompare(b)),
+    [categoryNames],
+  )
+  const sortedCategoryNames = useMemo(
+    () => categoryNames
+      .filter((c) => c !== 'Needs Review')
+      .slice()
+      .sort((a, b) => a.localeCompare(b)),
     [categoryNames],
   )
 
@@ -499,7 +509,7 @@ export default function ParseReview({ transactions, duplicateCount = 0, onConfir
                             }}
                             className="w-full text-xs rounded-lg px-2 py-1 border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-500"
                           >
-                            {categoryNames.filter((c) => c !== 'Needs Review').map((c) => (
+                            {sortedCategoryNames.map((c) => (
                               <option key={c} value={c}>{c}</option>
                             ))}
                           </select>

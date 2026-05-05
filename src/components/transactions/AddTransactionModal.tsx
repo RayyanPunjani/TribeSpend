@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { X, PencilLine, CreditCard } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
@@ -22,7 +22,14 @@ export default function AddTransactionModal({ onClose }: Props) {
   const { persons, addCardToPerson } = usePersonStore()
   const { rules } = useCategoryRuleStore()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
-  const categories = [...categoryNames, 'Payment']
+  const categories = useMemo(
+    () => Array.from(new Set([...categoryNames, 'Payment'])).sort((a, b) => a.localeCompare(b)),
+    [categoryNames],
+  )
+  const sortedPersons = useMemo(
+    () => [...persons].sort((a, b) => a.name.localeCompare(b.name)),
+    [persons],
+  )
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -57,8 +64,9 @@ export default function AddTransactionModal({ onClose }: Props) {
     }
   }, [form.description, rules])
 
-  const paymentMethodCards = cards.filter((c) => c.isPaymentMethod)
-  const creditCards = cards.filter((c) => !c.isPaymentMethod)
+  const sortCardsByName = (a: typeof cards[number], b: typeof cards[number]) => a.name.localeCompare(b.name)
+  const paymentMethodCards = cards.filter((c) => c.isPaymentMethod).sort(sortCardsByName)
+  const creditCards = cards.filter((c) => !c.isPaymentMethod).sort(sortCardsByName)
 
   // Cards for the selected person, plus all payment method cards
   const personCreditCards = form.personId
@@ -297,7 +305,7 @@ export default function AddTransactionModal({ onClose }: Props) {
               className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-accent-500"
             >
               <option value="">Select person</option>
-              {persons.map((p) => (
+              {sortedPersons.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>

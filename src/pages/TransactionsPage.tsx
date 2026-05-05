@@ -216,6 +216,10 @@ export default function TransactionsPage() {
 
   const cardMap = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards])
   const personMap = useMemo(() => new Map(persons.map((p) => [p.id, p])), [persons])
+  const sortedPersons = useMemo(
+    () => [...persons].sort((a, b) => a.name.localeCompare(b.name)),
+    [persons],
+  )
   const isPremium = profile?.plaid_access_enabled === true
     || profile?.subscription_status === 'active'
     || profile?.subscription_status === 'trialing'
@@ -275,7 +279,10 @@ export default function TransactionsPage() {
     visibleReviewRows.length > 0 &&
     (isActivelyReviewingCategories || selectedVisibleReviewIds.length > 0)
   const bulkCategories = useMemo(
-    () => categoryNames.filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category)),
+    () => categoryNames
+      .filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category))
+      .slice()
+      .sort((a, b) => a.localeCompare(b)),
     [categoryNames],
   )
   const selectedReviewGroups = useMemo(
@@ -784,7 +791,7 @@ export default function TransactionsPage() {
               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
             >
               <option value="">Unassigned person</option>
-              {persons.map((person) => (
+              {sortedPersons.map((person) => (
                 <option key={person.id} value={person.id}>{person.name}</option>
               ))}
             </select>

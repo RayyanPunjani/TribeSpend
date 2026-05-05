@@ -11,6 +11,7 @@ export default function CategoryRulesManager() {
   const { transactions, updateMany } = useTransactionStore()
   const { householdId } = useAuth()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const sortedCategoryNames = [...categoryNames].sort((a, b) => a.localeCompare(b))
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editPattern, setEditPattern] = useState('')
   const [editClean, setEditClean] = useState('')
@@ -117,8 +118,8 @@ export default function CategoryRulesManager() {
             <tbody className="divide-y divide-slate-100">
               {rules.map((rule) => {
                 const categoryOptions = rule.category && !categoryNames.includes(rule.category)
-                  ? [rule.category, ...categoryNames]
-                  : categoryNames
+                  ? [rule.category, ...sortedCategoryNames]
+                  : sortedCategoryNames
                 return (
                 <tr key={rule.id} className="hover:bg-slate-50">
                   {editingId === rule.id ? (

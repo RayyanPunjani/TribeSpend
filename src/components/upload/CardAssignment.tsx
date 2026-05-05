@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { User, Plus, Check, X } from 'lucide-react'
 import { useCardStore } from '@/stores/cardStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -37,6 +37,14 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
   const { add: addCredit } = useCardCreditStore()
   const { householdId } = useAuth()
   const hid = householdId!
+  const sortedPersons = useMemo(
+    () => [...persons].sort((a, b) => a.name.localeCompare(b.name)),
+    [persons],
+  )
+  const sortedCards = useMemo(
+    () => [...cards].sort((a, b) => a.name.localeCompare(b.name)),
+    [cards],
+  )
 
   const [assignments, setAssignments] = useState<CardholderAssignment[]>(
     cardholders.map((ch) => {
@@ -183,7 +191,7 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
                   className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                 >
                   <option value="">Select person</option>
-                  {persons.map((p) => (
+                  {sortedPersons.map((p) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -243,7 +251,7 @@ export default function CardAssignment({ cardholders, onAssign, onBack }: Props)
                   className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent-500"
                 >
                   <option value="">Auto-create new card</option>
-                  {cards
+                  {sortedCards
                     .filter((c) => !c.isPaymentMethod && (!assignments[i]?.personId || c.owner === assignments[i].personId))
                     .map((c) => (
                       <option key={c.id} value={c.id}>

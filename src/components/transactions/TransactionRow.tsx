@@ -34,6 +34,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
   const { update, transactions } = useTransactionStore()
   const { cards } = useCardStore()
   const { persons } = usePersonStore()
+  const sortedPersons = [...persons].sort((a, b) => a.name.localeCompare(b.name))
   const [openPopover, setOpenPopover] = useState<OpenPopover>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
   const [noteText, setNoteText] = useState(t.notes ?? '')
@@ -280,7 +281,7 @@ export default function TransactionRow({ transaction: t, card, person, selection
               aria-label={`Person for ${t.cleanDescription || t.description}`}
             >
               <option value="">Unassigned</option>
-              {persons.map((option) => (
+              {sortedPersons.map((option) => (
                 <option key={option.id} value={option.id}>{option.name}</option>
               ))}
             </select>

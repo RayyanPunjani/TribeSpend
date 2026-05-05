@@ -378,7 +378,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
 }) {
   const rewardCategories = CATEGORIES.filter(
     (category) => !['Needs Review', 'Refunds & Credits'].includes(category),
-  )
+  ).slice().sort((a, b) => a.localeCompare(b))
   const categoryOptions = [
     { value: 'base', label: 'Everything Else (Base Rate)' },
     ...rewardCategories.map((category) => ({ value: category, label: category })),
@@ -467,6 +467,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
   const categoryOptions = form.category && !categoryNames.includes(form.category)
     ? [form.category, ...categoryNames]
     : categoryNames
+  const sortedCategoryOptions = [...categoryOptions].sort((a, b) => a.localeCompare(b))
 
   return (
     <div className="border border-green-200 bg-green-50 rounded-xl p-3 flex flex-col gap-3">
@@ -520,7 +521,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
           <select value={form.category} onChange={(e) => onChange({ ...form, category: e.target.value })}
             className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-accent-500">
             <option value="">Any category</option>
-            {categoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+            {sortedCategoryOptions.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
           </select>
         </div>
         {form.creditType === 'statement' && (

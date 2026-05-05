@@ -98,6 +98,8 @@ function BudgetFormPanel({
   const categoryOptions = form.category && !categoryNames.includes(form.category)
     ? [form.category, ...categoryNames]
     : categoryNames
+  const sortedCategoryOptions = [...categoryOptions].sort((a, b) => a.localeCompare(b))
+  const sortedPersons = [...persons].sort((a, b) => a.name.localeCompare(b.name))
 
   const sf = (k: keyof Pick<BudgetForm, 'label' | 'personId' | 'category' | 'amount' | 'notifyEmail'>) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -195,7 +197,7 @@ function BudgetFormPanel({
           <div className="relative">
             <select value={form.personId} onChange={sf('personId')} className={`${inputCls} appearance-none pr-8`}>
               <option value="">Entire Household</option>
-              {persons.map((p) => (
+              {sortedPersons.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
@@ -209,7 +211,7 @@ function BudgetFormPanel({
           <div className="relative">
             <select value={form.category} onChange={sf('category')} className={`${inputCls} appearance-none pr-8`}>
               <option value="">All Spending</option>
-              {categoryOptions.map((c) => (
+              {sortedCategoryOptions.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>

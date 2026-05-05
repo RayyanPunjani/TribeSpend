@@ -64,6 +64,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
   const { add: addCredit } = useCardCreditStore()
   const { householdId } = useAuth()
   const hid = householdId!
+  const sortedPersons = [...persons].sort((a, b) => a.name.localeCompare(b.name))
 
   // Smart pre-fill: guess brand from institution name
   const defaultBrand = guessPresetBrand(institutionName)
@@ -253,7 +254,7 @@ function AccountSetupModal({ itemId, institutionName, accounts, onDone }: Accoun
                         className={`flex-1 ${selectCls}`}
                       >
                         <option value="">Select person…</option>
-                        {persons.map((p) => (
+                        {sortedPersons.map((p) => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
@@ -374,6 +375,7 @@ export default function PlaidManager() {
   const { householdId, profile, session } = useAuth()
   const { cards } = useCardStore()
   const hasPlaidAccess = profile?.plaid_access_enabled === true
+  const sortedCards = [...cards].sort((a, b) => a.name.localeCompare(b.name))
 
   const [serverOnline, setServerOnline] = useState<boolean | null>(null)
   const [items, setItems] = useState<PlaidItem[]>([])
@@ -836,7 +838,7 @@ export default function PlaidManager() {
                                 className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-accent-500 sm:w-56"
                               >
                                 <option value="">No card / Unmapped</option>
-                                {cards.map((availableCard) => (
+                                {sortedCards.map((availableCard) => (
                                   <option key={availableCard.id} value={availableCard.id}>
                                     {availableCard.name}
                                     {availableCard.lastFour ? ` ···${availableCard.lastFour}` : ''}

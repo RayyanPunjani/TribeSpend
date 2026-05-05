@@ -57,6 +57,7 @@ export function CascadeForm({
   const [showAddPerson, setShowAddPerson] = useState(false)
   const [newPersonName, setNewPersonName] = useState('')
   const [newPersonColor, setNewPersonColor] = useState('#3b82f6')
+  const sortedPersons = [...persons].sort((a, b) => a.name.localeCompare(b.name))
 
   const handleAddPerson = async () => {
     if (!newPersonName.trim()) return
@@ -216,7 +217,7 @@ export function CascadeForm({
           </div>
           <select value={form.owner} onChange={sf('owner')} className={inputCls}>
             <option value="">Select person</option>
-            {persons.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {sortedPersons.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
           {showAddPerson && (
             <div className="mt-1.5 p-2 border border-slate-200 rounded-lg bg-white flex flex-col gap-2">
