@@ -34,7 +34,9 @@ import AddTransactionModal from '@/components/transactions/AddTransactionModal'
 import CategoryRuleModal from '@/components/shared/CategoryRuleModal'
 import { formatCurrency } from '@/utils/formatters'
 import { suggestMerchantPattern } from '@/services/categoryMatcher'
+import { suggestCsvMerchantCategory, normalizeCsvMerchantText } from '@/services/csvMerchantCategorizer'
 import { isReviewCategory } from '@/utils/categoryFallback'
+import { normalizeMerchantName } from '@/lib/merchantNormalize'
 import type { Transaction } from '@/types'
 import type { CreditCard, Person } from '@/types'
 
@@ -66,6 +68,48 @@ const QUICK_SORTS: QuickSort[] = [
   { label: 'By Merchant',     key: 'description', dir: 'asc'  },
   { label: 'By Category',     key: 'category',    dir: 'asc'  },
 ]
+
+interface ReviewMerchantGroup {
+  key: string
+  label: string
+  transactions: Transaction[]
+  total: number
+  suggestion: string | null
+}
+
+function getReviewMerchantKey(transaction: Transaction): string {
+  const text = `${transaction.cleanDescription || ''} ${transaction.description || ''}`
+  const normalized = normalizeCsvMerchantText(text)
+  if (!normalized) return 'unknown'
+
+  const compact = normalized.replace(/\s+/g, '')
+  const knownMerchants: Array<[string, string]> = [
+    ['grubhub', 'grubhub'],
+    ['ubereats', 'uber eats'],
+    ['bestbuy', 'best buy'],
+    ['einsteinbros', 'einsteinbros'],
+    ['raceway', 'raceway'],
+    ['racetrac', 'racetrac'],
+    ['7eleven', '7-eleven'],
+    ['residenceinn', 'residence inn'],
+    ['hotworx', 'hotworx'],
+    ['icna', 'icna'],
+    ['softtouchdental', 'softtouch dental'],
+    ['ntta', 'ntta'],
+    ['fedex', 'fedex'],
+    ['usps', 'usps'],
+    ['ups', 'ups'],
+  ]
+
+  const known = knownMerchants.find(([compactMerchant]) => compact.includes(compactMerchant))
+  if (known) return known[1]
+
+  return normalized
+    .split(' ')
+    .filter((word) => word.length > 1)
+    .slice(0, 2)
+    .join(' ') || normalized
+}
 
 function sortTransactions(
   txns: Transaction[],
@@ -191,6 +235,34 @@ export default function TransactionsPage() {
     () => sorted.filter((t) => isReviewCategory(t.category) && !t.isPayment && !t.isCredit && !t.deleted),
     [sorted],
   )
+  const reviewMerchantGroups = useMemo<ReviewMerchantGroup[]>(() => {
+    const groups = new Map<string, ReviewMerchantGroup>()
+    for (const transaction of visibleReviewRows) {
+      const key = getReviewMerchantKey(transaction)
+      const existing = groups.get(key)
+      if (existing) {
+        existing.transactions.push(transaction)
+        existing.total += transaction.amount
+        if (!existing.suggestion) {
+          existing.suggestion = suggestCsvMerchantCategory(`${transaction.cleanDescription} ${transaction.description}`)
+        }
+      } else {
+        groups.set(key, {
+          key,
+          label: normalizeMerchantName(key),
+          transactions: [transaction],
+          total: transaction.amount,
+          suggestion: suggestCsvMerchantCategory(`${transaction.cleanDescription} ${transaction.description}`),
+        })
+      }
+    }
+
+    return Array.from(groups.values()).sort((a, b) => {
+      const countDiff = b.transactions.length - a.transactions.length
+      if (countDiff !== 0) return countDiff
+      return Math.abs(b.total) - Math.abs(a.total)
+    })
+  }, [visibleReviewRows])
   const visibleTransactionIds = useMemo(() => sorted.map((t) => t.id), [sorted])
   const selectedVisibleTransactionIds = selectedIds.filter((id) => visibleTransactionIds.includes(id))
   const allVisibleTransactionsSelected = visibleTransactionIds.length > 0 && visibleTransactionIds.every((id) => selectedIds.includes(id))
@@ -205,6 +277,12 @@ export default function TransactionsPage() {
   const bulkCategories = useMemo(
     () => categoryNames.filter((category) => !['Other', 'Needs Review', 'Refunds & Credits', 'Payment'].includes(category)),
     [categoryNames],
+  )
+  const selectedReviewGroups = useMemo(
+    () => reviewMerchantGroups.filter((group) =>
+      group.transactions.some((transaction) => selectedVisibleReviewIds.includes(transaction.id)),
+    ),
+    [reviewMerchantGroups, selectedVisibleReviewIds],
   )
 
   const { totalSpend, totalReimbursable } = useMemo(() => {
@@ -310,6 +388,90 @@ export default function TransactionsPage() {
       setSelectedIds((current) => current.filter((id) => !selectedVisibleReviewIds.includes(id)))
     } else {
       setBulkMessage({ type: 'error', text: 'Could not update selected transactions. Please try again.' })
+    }
+  }
+
+  const handleSelectAllReviewRows = () => {
+    setSelectedIds((current) => Array.from(new Set([...current, ...visibleReviewIds])))
+  }
+
+  const handleSelectReviewGroup = (group: ReviewMerchantGroup) => {
+    const ids = group.transactions.map((transaction) => transaction.id)
+    setSelectedIds((current) => Array.from(new Set([...current, ...ids])))
+  }
+
+  const handleApplyCategoryToGroup = async (group: ReviewMerchantGroup, category: string) => {
+    if (!householdId || !category) return
+    setBulkSaving(true)
+    setBulkMessage(null)
+
+    const ids = group.transactions.map((transaction) => transaction.id)
+    const example = group.transactions[0]
+
+    try {
+      await addRule(householdId, {
+        merchantPattern: group.key,
+        rawDescriptionExample: example.description,
+        cleanDescription: group.label,
+        category,
+        source: 'user_correction',
+      })
+    } catch (error) {
+      console.warn('[TransactionsPage] Could not save merchant category rule:', error)
+    }
+
+    const ok = await updateMany(ids, { category, ruleMatched: true, cleanDescription: group.label })
+    setBulkSaving(false)
+    if (ok) {
+      setBulkMessage({
+        type: 'success',
+        text: `Updated ${ids.length} ${group.label} transaction${ids.length === 1 ? '' : 's'} and saved a merchant rule.`,
+      })
+      setSelectedIds((current) => current.filter((id) => !ids.includes(id)))
+    } else {
+      setBulkMessage({ type: 'error', text: 'Could not update similar transactions. Please try again.' })
+    }
+  }
+
+  const handleApplySelectedSimilar = async () => {
+    if (!householdId || selectedReviewGroups.length === 0 || !bulkCategory) return
+    setBulkSaving(true)
+    setBulkMessage(null)
+
+    let updatedCount = 0
+    const updatedIds: string[] = []
+
+    for (const group of selectedReviewGroups) {
+      const ids = group.transactions.map((transaction) => transaction.id)
+      const example = group.transactions[0]
+      try {
+        await addRule(householdId!, {
+          merchantPattern: group.key,
+          rawDescriptionExample: example.description,
+          cleanDescription: group.label,
+          category: bulkCategory,
+          source: 'user_correction',
+        })
+      } catch (error) {
+        console.warn('[TransactionsPage] Could not save merchant category rule:', error)
+      }
+
+      const ok = await updateMany(ids, { category: bulkCategory, ruleMatched: true, cleanDescription: group.label })
+      if (ok) {
+        updatedCount += ids.length
+        updatedIds.push(...ids)
+      }
+    }
+
+    setBulkSaving(false)
+    if (updatedCount > 0) {
+      setBulkMessage({
+        type: 'success',
+        text: `Updated ${updatedCount} similar transaction${updatedCount === 1 ? '' : 's'} and saved merchant rules.`,
+      })
+      setSelectedIds((current) => current.filter((id) => !updatedIds.includes(id)))
+    } else {
+      setBulkMessage({ type: 'error', text: 'Could not update similar transactions. Please try again.' })
     }
   }
 
@@ -666,40 +828,126 @@ export default function TransactionsPage() {
       )}
 
       {showBulkReview && (
-        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-sm font-semibold text-amber-900">Bulk category review</p>
-            <p className="text-xs text-amber-700">
-              Select Other or Needs Review rows, apply a category, and TribeSpend will remember similar merchants next time.
-            </p>
-            {bulkMessage && (
-              <p className={`mt-1 text-xs ${bulkMessage.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
-                {bulkMessage.text}
+        <div className="flex flex-col gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Bulk category review</p>
+              <p className="text-xs text-amber-700">
+                {visibleReviewRows.length} transaction{visibleReviewRows.length === 1 ? '' : 's'} need review. Group similar merchants, apply a suggestion, and TribeSpend will remember it next time.
               </p>
-            )}
+              {bulkMessage && (
+                <p className={`mt-1 text-xs ${bulkMessage.type === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                  {bulkMessage.text}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAllReviewRows}
+                disabled={visibleReviewIds.length === 0}
+                className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Select all needing review
+              </button>
+              <span className="text-xs font-medium text-amber-800">
+                {selectedVisibleReviewIds.length} selected
+              </span>
+              <select
+                value={bulkCategory}
+                onChange={(event) => setBulkCategory(event.target.value)}
+                className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+              >
+                {bulkCategories.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleBulkApplyCategory}
+                disabled={selectedVisibleReviewIds.length === 0 || bulkSaving}
+                className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {bulkSaving ? 'Applying...' : 'Apply to selected'}
+              </button>
+              {selectedReviewGroups.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleApplySelectedSimilar}
+                  disabled={bulkSaving}
+                  className="rounded-lg border border-accent-200 bg-white px-3 py-1.5 text-xs font-semibold text-accent-700 hover:bg-accent-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Apply to all similar transactions
+                </button>
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-amber-800">
-              {selectedVisibleReviewIds.length} selected
-            </span>
-            <select
-              value={bulkCategory}
-              onChange={(event) => setBulkCategory(event.target.value)}
-              className="rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
-            >
-              {bulkCategories.map((category) => (
-                <option key={category} value={category}>{category}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleBulkApplyCategory}
-              disabled={selectedVisibleReviewIds.length === 0 || bulkSaving}
-              className="rounded-lg bg-accent-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {bulkSaving ? 'Applying...' : 'Apply to selected'}
-            </button>
-          </div>
+
+          {reviewMerchantGroups.length > 0 && (
+            <div className="grid gap-2 lg:grid-cols-2">
+              {reviewMerchantGroups.slice(0, 8).map((group) => {
+                const selectedInGroup = group.transactions.filter((transaction) =>
+                  selectedVisibleReviewIds.includes(transaction.id),
+                ).length
+                const categoryValue = group.suggestion && bulkCategories.includes(group.suggestion)
+                  ? group.suggestion
+                  : ''
+
+                return (
+                  <div key={group.key} className="rounded-xl border border-amber-100 bg-white/85 px-3 py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {group.label} <span className="font-normal text-slate-400">({group.transactions.length})</span>
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {group.suggestion ? (
+                            <>Suggested: <span className="font-semibold text-amber-700">{group.suggestion}</span></>
+                          ) : (
+                            'No suggestion yet'
+                          )}
+                          {selectedInGroup > 0 && (
+                            <span className="ml-2 text-accent-700">{selectedInGroup} selected</span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectReviewGroup(group)}
+                        className="shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                      >
+                        Select group
+                      </button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <select
+                        defaultValue={categoryValue}
+                        onChange={(event) => {
+                          if (event.target.value) void handleApplyCategoryToGroup(group, event.target.value)
+                        }}
+                        className="min-w-[150px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent-500"
+                      >
+                        <option value="">Choose category...</option>
+                        {bulkCategories.map((category) => (
+                          <option key={category} value={category}>{category}</option>
+                        ))}
+                      </select>
+                      {group.suggestion && bulkCategories.includes(group.suggestion) && (
+                        <button
+                          type="button"
+                          onClick={() => handleApplyCategoryToGroup(group, group.suggestion!)}
+                          disabled={bulkSaving}
+                          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Apply {group.suggestion}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
