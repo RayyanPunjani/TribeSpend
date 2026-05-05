@@ -575,7 +575,7 @@ export default function OptimizePage() {
             <span className="text-xs text-slate-400 ml-1">— last 12 months of spending</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200">
                   <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500">Card</th>

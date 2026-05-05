@@ -203,10 +203,10 @@ export default function FilterBar() {
           </div>
 
           {/* Date + Amount range */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-2">Date Range</p>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
                   type="date"
                   value={filters.dateStart}
@@ -224,7 +224,7 @@ export default function FilterBar() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-2">Amount Range ($)</p>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input
                   type="number"
                   value={filters.amountMin}

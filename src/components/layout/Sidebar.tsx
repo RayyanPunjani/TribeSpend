@@ -48,8 +48,14 @@ const NAV_SECTIONS = [
   },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobile?: boolean
+  onNavigate?: () => void
+}
+
+export default function Sidebar({ mobile = false, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const isCollapsed = mobile ? false : collapsed
   const { profile } = useAuth()
   const isPremium = profile?.plaid_access_enabled === true
     || profile?.subscription_status === 'active'
@@ -60,14 +66,16 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`flex flex-col bg-sidebar-bg h-screen sticky top-0 transition-all duration-200 ${
-        collapsed ? 'w-16' : 'w-56'
-      } shrink-0`}
+      className={`flex flex-col bg-sidebar-bg transition-all duration-200 ${
+        mobile
+          ? 'h-full w-72 max-w-[86vw]'
+          : `h-screen sticky top-0 ${isCollapsed ? 'w-16' : 'w-56'} shrink-0`
+      }`}
     >
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-5 border-b border-slate-700/50">
         <TribeSpendLogoIcon className="w-8 h-8 shrink-0 text-white drop-shadow-[0_0_10px_rgba(45,212,191,0.18)]" />
-        {!collapsed && (
+        {!isCollapsed && (
           <span className="font-bold text-base tracking-tight">
             <span className="text-accent-400">Tribe</span><span className="text-white">Spend</span>
           </span>
@@ -78,7 +86,7 @@ export default function Sidebar() {
       <nav className="flex-1 px-2 py-4 flex flex-col gap-5 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.label} className="flex flex-col gap-1">
-            {!collapsed && (
+            {!isCollapsed && (
               <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                 {section.label}
               </p>
@@ -88,6 +96,7 @@ export default function Sidebar() {
                 key={to}
                 to={to}
                 end={end}
+                onClick={onNavigate}
                 className={({ isActive }) =>
                   `relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
                     isActive
@@ -97,11 +106,11 @@ export default function Sidebar() {
                 }
               >
                 <Icon className="w-4.5 h-4.5 shrink-0" size={18} />
-                {!collapsed && <span>{label}</span>}
+                {!isCollapsed && <span>{label}</span>}
                 {label === 'Returns' && pendingRefundReviews > 0 && (
                   <span
                     className={`ml-auto bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-4 h-4 px-1 flex items-center justify-center ${
-                      collapsed ? 'absolute right-1.5 top-1.5' : ''
+                      isCollapsed ? 'absolute right-1.5 top-1.5' : ''
                     }`}
                   >
                     {pendingRefundReviews > 9 ? '9+' : pendingRefundReviews}
@@ -113,13 +122,14 @@ export default function Sidebar() {
         ))}
 
         <div className="flex flex-col gap-1">
-          {!collapsed && (
+          {!isCollapsed && (
             <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
               Support
             </p>
           )}
           <NavLink
             to="/app/help"
+            onClick={onNavigate}
             className={({ isActive }) =>
               `relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium ${
                 isActive
@@ -130,7 +140,7 @@ export default function Sidebar() {
             title="Help & Support"
           >
             <Mail size={18} className="shrink-0" />
-            {!collapsed && <span>Help & Support</span>}
+            {!isCollapsed && <span>Help & Support</span>}
           </NavLink>
         </div>
       </nav>
@@ -139,9 +149,10 @@ export default function Sidebar() {
       <div className="px-2 pb-4 flex flex-col gap-1 border-t border-slate-700/50 pt-3">
         <NavLink
           to="/app/settings"
+          onClick={onNavigate}
           className={({ isActive }) =>
             `relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm ${
-              collapsed ? 'justify-center' : ''
+              isCollapsed ? 'justify-center' : ''
             } ${
               isActive
                 ? 'bg-accent-700/40 text-accent-300'
@@ -151,7 +162,7 @@ export default function Sidebar() {
             title={profile?.name || 'Account'}
           >
             <UserCircle size={18} className="shrink-0" />
-            {!collapsed && (
+            {!isCollapsed && (
               <span className="min-w-0 flex-1 text-left">
                 <span className="block truncate text-sm font-medium">{profile?.name || 'Account'}</span>
                 {isPremium && (
@@ -162,26 +173,28 @@ export default function Sidebar() {
                 )}
               </span>
             )}
-            {collapsed && isPremium && (
+            {isCollapsed && isPremium && (
               <span className="absolute right-1.5 top-1.5 w-2 h-2 rounded-full bg-amber-300" title="Premium" />
             )}
           </NavLink>
 
-        <button
-          onClick={() => {
-            setCollapsed((c) => !c)
-          }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200 transition-colors text-sm"
-        >
-          {collapsed ? (
-            <ChevronRight size={18} />
-          ) : (
-            <>
-              <ChevronLeft size={18} />
-              <span>Collapse</span>
-            </>
-          )}
-        </button>
+        {!mobile && (
+          <button
+            onClick={() => {
+              setCollapsed((c) => !c)
+            }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-text hover:bg-sidebar-hover hover:text-slate-200 transition-colors text-sm"
+          >
+            {collapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <>
+                <ChevronLeft size={18} />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
     </aside>
   )

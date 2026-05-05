@@ -340,7 +340,7 @@ export default function TransactionsPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto overflow-y-hidden">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500">Date</th>
@@ -537,10 +537,10 @@ export default function TransactionsPage() {
   return (
     <div className="flex flex-col gap-4 max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Transactions</h1>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-4 text-sm text-slate-500">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
             <span>{filtered.length} transactions</span>
             <span className="font-semibold text-slate-800">{formatCurrency(totalSpend)}</span>
             {totalReimbursable > 0 && (
@@ -703,7 +703,7 @@ export default function TransactionsPage() {
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto overflow-y-hidden">
-            <table className="w-full">
+            <table className="w-full min-w-[1060px]">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 w-10">
@@ -957,7 +957,7 @@ function SampleModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/30 p-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-2xl">
+      <div className="w-full max-w-sm max-h-[85vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 pb-6 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-800">{title}</p>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
@@ -982,18 +982,18 @@ function HeaderActions({
   isPremium?: boolean
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-accent-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-accent-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-700"
       >
         <Plus size={15} />
         {addLabel}
       </button>
       <Link
         to="/app/upload"
-        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
       >
         <Upload size={15} />
         Upload CSV
@@ -1001,7 +1001,7 @@ function HeaderActions({
       <div className="flex flex-col items-start gap-1 sm:items-end">
         <Link
           to="/app/wallet?tab=linkedAccounts"
-          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
             isPremium
               ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'

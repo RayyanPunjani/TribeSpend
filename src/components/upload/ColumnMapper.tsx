@@ -78,7 +78,8 @@ export default function ColumnMapper({ headers, previewRows, onConfirm, onCancel
 
       {/* Column mapping table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[680px] text-sm">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 w-40">Column</th>
@@ -114,6 +115,7 @@ export default function ColumnMapper({ headers, previewRows, onConfirm, onCancel
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Validation hint */}

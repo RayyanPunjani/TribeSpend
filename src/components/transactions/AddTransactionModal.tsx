@@ -111,8 +111,8 @@ export default function AddTransactionModal({ onClose }: Props) {
     setForm((f) => ({ ...f, [k]: v }))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -125,9 +125,9 @@ export default function AddTransactionModal({ onClose }: Props) {
         </div>
 
         {/* Form */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 flex flex-col gap-4">
+        <div className="overflow-y-auto flex-1 px-4 sm:px-6 py-5 pb-6 flex flex-col gap-4">
           {/* Date + Post Date */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Date *</label>
               <input
@@ -270,17 +270,17 @@ export default function AddTransactionModal({ onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-100">
+        <div className="flex flex-col gap-2 px-4 py-4 border-t border-slate-100 sm:flex-row sm:px-6">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm hover:bg-slate-50"
+            className="min-h-11 px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={!canSave || saving}
-            className="flex-1 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 disabled:opacity-50 transition-colors"
+            className="min-h-11 flex-1 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 disabled:opacity-50 transition-colors"
           >
             {saving ? 'Saving…' : 'Add Transaction'}
           </button>

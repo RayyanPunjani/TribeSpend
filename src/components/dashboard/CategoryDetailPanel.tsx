@@ -227,8 +227,8 @@ export default function CategoryDetailPanel({
                 <span className="font-normal text-slate-400"> (showing newest 8 of {catCharges.length})</span>
               )}
             </p>
-            <div className="rounded-lg border border-slate-100 overflow-hidden">
-              <table className="w-full text-xs">
+            <div className="rounded-lg border border-slate-100 overflow-hidden overflow-x-auto">
+              <table className="w-full min-w-[560px] text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
                     <th className="text-left px-3 py-2 font-medium text-slate-500">Date</th>

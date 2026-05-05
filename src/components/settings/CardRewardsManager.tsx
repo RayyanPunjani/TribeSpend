@@ -389,7 +389,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
 
   return (
     <div className="border border-accent-200 bg-accent-50 rounded-xl p-3 flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Category</label>
           <select value={form.category} onChange={(e) => onChange({ ...form, category: e.target.value })}
@@ -409,7 +409,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">
             {form.rewardType === 'cashback' ? 'Rate (e.g. 0.03 for 3%)' : 'Multiplier (e.g. 3 for 3x)'}
@@ -433,7 +433,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
         Rotating category (seasonal / quarterly)
       </label>
       {form.isRotating && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Active From</label>
             <input type="date" value={form.activeStartDate} onChange={(e) => onChange({ ...form, activeStartDate: e.target.value })}
@@ -452,7 +452,7 @@ function RuleForm({ form, onChange, onSave, onCancel }: {
           placeholder="e.g. 'Q1 2025 rotating category'"
           className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500" />
       </div>
-      <div className="flex gap-2 justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <button onClick={onCancel} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-300 rounded-lg">Cancel</button>
         <button onClick={onSave} className="px-3 py-1.5 text-xs bg-accent-600 text-white rounded-lg hover:bg-accent-700">Save Rule</button>
       </div>
@@ -470,7 +470,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
 
   return (
     <div className="border border-green-200 bg-green-50 rounded-xl p-3 flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Credit Name</label>
           <input type="text" value={form.name} onChange={(e) => onChange({ ...form, name: e.target.value })}
@@ -485,7 +485,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Frequency</label>
           <select value={form.frequency} onChange={(e) => onChange({ ...form, frequency: e.target.value as CreditForm['frequency'] })}
@@ -514,7 +514,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Category (optional)</label>
           <select value={form.category} onChange={(e) => onChange({ ...form, category: e.target.value })}
@@ -541,7 +541,7 @@ function CreditFormComp({ form, onChange, onSave, onCancel }: {
           className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent-500" />
       </div>
 
-      <div className="flex gap-2 justify-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <button onClick={onCancel} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-300 rounded-lg">Cancel</button>
         <button onClick={onSave} className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700">Save Credit</button>
       </div>

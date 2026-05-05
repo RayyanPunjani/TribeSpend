@@ -425,7 +425,7 @@ export default function ParseReview({ transactions, onConfirm, onBack }: Props) 
 
           {autoCatExpanded && (
             <div className="border-t border-slate-100 overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full min-w-[860px] text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
                     <th className="text-left px-4 py-2 font-medium text-slate-500 w-20">Date</th>

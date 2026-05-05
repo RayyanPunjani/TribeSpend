@@ -196,7 +196,7 @@ function BudgetFormPanel({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {/* Amount */}
         <div>
           <label className={labelCls}>Limit ($) *</label>
@@ -345,7 +345,7 @@ function BudgetFormPanel({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 pt-1">
+      <div className="flex flex-col gap-2 pt-1 sm:flex-row">
         <button
           onClick={onSubmit}
           disabled={disableSubmit}

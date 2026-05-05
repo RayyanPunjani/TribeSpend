@@ -133,9 +133,9 @@ export default function ReturnsPage() {
 
   return (
     <div className="flex flex-col gap-5 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Returns</h1>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           {expectedReturns.length > 0 && (
             <span>
               <span className="text-slate-500">Expected: </span>
@@ -159,10 +159,11 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
+      <div className="-mx-1 overflow-x-auto px-1">
+      <div className="flex min-w-max gap-1 rounded-xl bg-slate-100 p-1 sm:min-w-0">
         <button
           onClick={() => switchTab('expected')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+          className={`flex min-w-[160px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all sm:flex-1 ${
             tab === 'expected' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
@@ -176,7 +177,7 @@ export default function ReturnsPage() {
         </button>
         <button
           onClick={() => switchTab('review')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+          className={`flex min-w-[150px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all sm:flex-1 ${
             tab === 'review' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
@@ -190,7 +191,7 @@ export default function ReturnsPage() {
         </button>
         <button
           onClick={() => switchTab('completed')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+          className={`flex min-w-[170px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all sm:flex-1 ${
             tab === 'completed' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
           }`}
         >
@@ -202,6 +203,7 @@ export default function ReturnsPage() {
             </span>
           )}
         </button>
+      </div>
       </div>
 
       {tab === 'expected' && (
@@ -216,7 +218,8 @@ export default function ReturnsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
@@ -263,6 +266,7 @@ export default function ReturnsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>
@@ -277,7 +281,8 @@ export default function ReturnsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
@@ -412,6 +417,7 @@ export default function ReturnsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>
@@ -426,7 +432,8 @@ export default function ReturnsPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Refund Date</th>
@@ -487,6 +494,7 @@ export default function ReturnsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </>
@@ -517,14 +525,14 @@ function SampleReturnsPage({
 
   return (
     <div className="flex flex-col gap-5 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Returns</h1>
           <p className="mt-1 text-sm text-slate-500">Example data</p>
         </div>
         <Link
           to="/app/transactions"
-          className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
         >
           Practice on Transactions
         </Link>
@@ -542,7 +550,8 @@ function SampleReturnsPage({
 
       {tab === 'expected' && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
@@ -572,12 +581,14 @@ function SampleReturnsPage({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {tab === 'review' && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Date</th>
@@ -605,12 +616,14 @@ function SampleReturnsPage({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {tab === 'completed' && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-400">Refund Date</th>
@@ -642,6 +655,7 @@ function SampleReturnsPage({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

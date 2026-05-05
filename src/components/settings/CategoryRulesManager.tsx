@@ -104,7 +104,7 @@ export default function CategoryRulesManager() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
                 <th className="pb-2 pr-4 font-medium">Pattern</th>

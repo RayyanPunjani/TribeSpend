@@ -8,21 +8,21 @@ export default function LandingPage() {
       <div className="absolute w-[420px] h-[420px] rounded-full bg-teal-500/[0.05] blur-3xl -bottom-40 -left-28 pointer-events-none" />
 
       <div className="relative z-10 min-h-screen flex flex-col">
-        <header className="flex items-center justify-between px-6 sm:px-10 py-6">
-          <Link to="/" className="flex items-center gap-2.5">
+        <header className="flex items-center justify-between gap-3 px-5 py-6 sm:px-10">
+          <Link to="/" className="flex min-w-0 items-center gap-2.5">
             <TribeSpendLogoIcon className="w-8 h-8 shrink-0 text-white" />
-            <span className="text-xl font-bold">
+            <span className="truncate text-xl font-bold">
               <span className="text-gray-100">Tribe</span>
               <span className="text-teal-400">Spend</span>
             </span>
           </Link>
-          <div className="flex items-center gap-3 text-sm">
-            <Link to="/login" className="text-gray-300 hover:text-white">
+          <div className="flex shrink-0 items-center gap-2 text-sm sm:gap-3">
+            <Link to="/login" className="whitespace-nowrap text-gray-300 hover:text-white">
               Sign in
             </Link>
             <Link
               to="/signup"
-              className="px-4 py-2 rounded-xl bg-teal-500 text-[#0a0e17] font-semibold hover:bg-teal-400"
+              className="min-h-11 px-4 py-2 rounded-xl bg-teal-500 text-[#0a0e17] font-semibold hover:bg-teal-400"
             >
               Get started
             </Link>

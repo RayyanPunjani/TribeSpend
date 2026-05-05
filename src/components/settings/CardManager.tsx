@@ -203,7 +203,7 @@ export default function CardManager() {
   return (
     <div>
       {/* ── Credit Cards header ── */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-3 mb-3">
         <h3 className="text-sm font-semibold text-slate-700">Credit Cards</h3>
         {persons.length > 0 ? (
           <button
@@ -280,7 +280,7 @@ export default function CardManager() {
           return (
             <div
               key={card.id}
-              className={`flex items-center gap-3 p-3 rounded-xl border bg-white transition-all duration-700 ${
+              className={`flex items-start gap-3 p-3 rounded-xl border bg-white transition-all duration-700 sm:items-center ${
                 highlightedCardId === card.id ? 'border-accent-300 shadow-[0_0_0_3px_rgba(20,184,166,0.16)]' : 'border-slate-200'
               }`}
               style={{ borderLeftColor: card.color, borderLeftWidth: 3 }}
@@ -292,7 +292,7 @@ export default function CardManager() {
                 <CreditCard size={16} style={{ color: card.color }} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <p className="text-sm font-medium text-slate-800 truncate">{card.name}</p>
                   {card.isAuthorizedUser && (
                     <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">AU</span>
@@ -304,13 +304,13 @@ export default function CardManager() {
               </div>
               <button
                 onClick={() => startEdit(card.id)}
-                className="text-slate-400 hover:text-slate-600 shrink-0"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <Pencil size={14} />
               </button>
               <button
                 onClick={() => handleRemove(card.id, card.owner)}
-                className="text-slate-400 hover:text-red-500 shrink-0"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
               >
                 <Trash2 size={14} />
               </button>
@@ -330,7 +330,7 @@ export default function CardManager() {
       {/* ── Other Payment Methods ── */}
       <div className="mt-6 pt-5 border-t border-slate-200">
         <div ref={paymentMethodsTopRef} />
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between gap-3 mb-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Other Payment Methods</h3>
             <p className="text-xs text-slate-400 mt-0.5">Cash, Zelle, Venmo, etc. — for manual transactions</p>
@@ -364,7 +364,7 @@ export default function CardManager() {
               </div>
               <button
                 onClick={() => removeCard(pm.id)}
-                className="text-slate-400 hover:text-red-500 shrink-0"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500"
               >
                 <Trash2 size={14} />
               </button>
@@ -409,7 +409,7 @@ export default function CardManager() {
                 <p className="text-xs text-slate-500 mb-2">Color:</p>
                 <ColorPicker value={pmColor} onChange={setPmColor} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={handleAddPaymentMethod}
                   disabled={!pmName.trim()}

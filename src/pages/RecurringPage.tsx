@@ -349,14 +349,14 @@ export default function RecurringPage() {
 
     return (
       <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Recurring Charges</h1>
             <p className="mt-1 text-sm text-slate-500">Example data</p>
           </div>
           <Link
             to="/app/transactions"
-            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
           >
             Practice on Transactions
           </Link>
@@ -366,7 +366,7 @@ export default function RecurringPage() {
           Mark a sample transaction with the recurring icon to see it appear here. Example data disappears once real transactions exist.
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Est. monthly</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{formatCurrency(sampleMonthly)}</p>
@@ -428,7 +428,7 @@ export default function RecurringPage() {
 
   return (
     <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Recurring Charges</h1>
         <div className="flex items-center gap-3">
           <div className="text-sm text-slate-500">

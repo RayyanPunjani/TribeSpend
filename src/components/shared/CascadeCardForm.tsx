@@ -183,7 +183,7 @@ export function CascadeForm({
 
       {/* Manual issuer + card type fields (CUSTOM path) */}
       {showManualIssuer && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Issuer (Bank)</label>
             <input type="text" value={form.issuer} onChange={sf('issuer')} placeholder="e.g., Chase" className={inputCls} />
@@ -198,7 +198,7 @@ export function CascadeForm({
       <div className="border-t border-accent-100" />
 
       {/* Card details grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Last 4 Digits *</label>
           <input type="text" value={form.lastFour} onChange={sf('lastFour')} maxLength={4} placeholder="1234" className={inputCls} />
@@ -284,7 +284,7 @@ export function CascadeForm({
         <ColorPicker value={form.color} onChange={(c) => setForm((p) => ({ ...p, color: c }))} />
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <button
           onClick={onSubmit}
           disabled={disableSubmit}

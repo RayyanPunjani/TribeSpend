@@ -526,14 +526,14 @@ export default function UploadPage() {
   // ── Upload screen ──────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Upload Statement</h1>
           <p className="text-sm text-slate-500 mt-1">Import a CSV from your bank or credit card.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 border border-slate-300 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
         >
           <Plus size={15} /> Add Manually
         </button>
@@ -546,7 +546,7 @@ export default function UploadPage() {
         <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-3">
           Download your CSV from
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {BANK_HINTS.map(({ name, hint }) => (
             <div
               key={name}

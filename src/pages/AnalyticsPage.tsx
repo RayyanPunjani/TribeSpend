@@ -393,7 +393,7 @@ export default function AnalyticsPage() {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           label="Total Spend"
           value={formatCurrency(totalSpend)}
@@ -425,7 +425,7 @@ export default function AnalyticsPage() {
 
       {/* Pending returns row */}
       {pendingReturnsTotal > 0 && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
               <DollarSign size={18} className="text-purple-600" />
@@ -451,7 +451,7 @@ export default function AnalyticsPage() {
 
       {/* Reimbursement info cards */}
       {(reimbOwed > 0 || reimbReceived > 0) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center shrink-0">
               <DollarSign size={18} className="text-orange-600" />
@@ -686,7 +686,7 @@ export default function AnalyticsPage() {
       {/* Shared vs Personal */}
       {hasSpendTypes && (
         <ChartCard title="Shared vs Personal">
-          <div className="flex items-center justify-between mb-4 text-sm">
+          <div className="flex flex-col gap-2 mb-4 text-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <span className="text-slate-500">Total shared: </span>
               <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.totalShared)}</span>
@@ -696,7 +696,8 @@ export default function AnalyticsPage() {
               <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.eachShare)}</span>
             </div>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="overflow-x-auto">
+          <div className="min-w-[560px] divide-y divide-slate-100">
             <div className="grid grid-cols-4 gap-2 py-2 text-xs font-semibold text-slate-500">
               <span>Person</span>
               <span className="text-right">Shared Paid</span>
@@ -717,6 +718,7 @@ export default function AnalyticsPage() {
               </div>
             ))}
           </div>
+          </div>
         </ChartCard>
       )}
     </div>
@@ -731,9 +733,9 @@ function StatCard({ label, value, icon, color }: {
       <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center shrink-0`}>
         {icon}
       </div>
-      <div>
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-lg font-bold text-slate-800">{value}</p>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-500 truncate">{label}</p>
+        <p className="text-lg font-bold text-slate-800 truncate">{value}</p>
       </div>
     </div>
   )
@@ -749,8 +751,8 @@ function ChartCard({
   right?: React.ReactNode
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <div className="flex items-center justify-between mb-4">
+    <div className="min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
+      <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
         {right}
       </div>

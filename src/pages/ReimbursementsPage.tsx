@@ -79,14 +79,14 @@ export default function ReimbursementsPage() {
 
     return (
       <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Reimbursements</h1>
             <p className="mt-1 text-sm text-slate-500">Example data</p>
           </div>
           <Link
             to="/app/transactions"
-            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
+            className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent-600 px-4 py-2 text-sm font-medium text-white hover:bg-accent-700"
           >
             Practice on Transactions
           </Link>
@@ -97,7 +97,7 @@ export default function ReimbursementsPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
+          <div className="flex flex-col gap-3 px-5 py-4 bg-slate-50 border-b border-slate-200 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center text-accent-700 font-bold text-sm">
                 {person.charAt(0)}
@@ -115,7 +115,8 @@ export default function ReimbursementsPage() {
             </span>
           </div>
 
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-100">
                 <th className="text-left px-4 py-2 text-xs font-semibold text-slate-400">Date</th>
@@ -152,6 +153,7 @@ export default function ReimbursementsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     )
@@ -159,7 +161,7 @@ export default function ReimbursementsPage() {
 
   return (
     <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-slate-800">Reimbursements</h1>
         {totalOutstanding > 0 && (
           <div className="text-sm">
@@ -197,7 +199,7 @@ export default function ReimbursementsPage() {
 
           return (
             <div key={person} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
+              <div className="flex flex-col gap-3 px-5 py-4 bg-slate-50 border-b border-slate-200 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center text-accent-700 font-bold text-sm">
                     {person.charAt(0)}
@@ -221,7 +223,8 @@ export default function ReimbursementsPage() {
                 )}
               </div>
 
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[800px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
                     <th className="text-left px-4 py-2 text-xs font-semibold text-slate-400">Date</th>
@@ -271,6 +274,7 @@ export default function ReimbursementsPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         })

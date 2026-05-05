@@ -45,12 +45,13 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 bg-slate-100 rounded-xl p-1 flex-wrap">
+      <div className="-mx-1 overflow-x-auto px-1">
+        <div className="flex min-w-max gap-1 rounded-xl bg-slate-100 p-1 sm:min-w-0 sm:flex-wrap">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => selectTab(id)}
-            className={`flex-1 min-w-[140px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+            className={`flex min-w-[150px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all sm:flex-1 ${
               tab === id
                 ? 'bg-white text-slate-800 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
@@ -60,9 +61,10 @@ export default function WalletPage() {
             <span>{label}</span>
           </button>
         ))}
+        </div>
       </div>
 
-      <section className="bg-white rounded-xl border border-slate-200 p-6">
+      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6">
         <h2 className="text-base font-semibold text-slate-800 mb-5">
           {TABS.find((item) => item.id === tab)?.label}
         </h2>

@@ -285,8 +285,8 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-3 sm:p-4" role="dialog" aria-modal="true">
+      <div className="flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl border border-slate-200">
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-accent-600">Guided demo</p>
@@ -303,7 +303,7 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
           </button>
         </div>
 
-        <div className="px-6 py-6">
+        <div className="overflow-y-auto px-4 py-5 pb-6 sm:px-6 sm:py-6">
           <div className="mb-5 flex items-center gap-1.5">
             {STEPS.map((item, index) => (
               <button
@@ -318,7 +318,7 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
             ))}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent-50 text-accent-600">
               <Icon size={22} />
             </div>
@@ -651,22 +651,22 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 bg-slate-50 px-6 py-4">
+        <div className="flex flex-col gap-3 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <button
             type="button"
             onClick={() => onDismiss()}
             disabled={saving}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
+            className="min-h-11 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50 sm:min-h-0"
           >
             Close
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setStepIndex((current) => Math.max(0, current - 1))}
               disabled={isFirst || saving}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-40"
+              className="min-h-11 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-white hover:text-slate-700 disabled:opacity-40 sm:min-h-0"
             >
               Back
             </button>
@@ -675,7 +675,7 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
                 type="button"
                 onClick={finish}
                 disabled={saving}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="min-h-11 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 sm:min-h-0"
               >
                 Finish
               </button>
@@ -684,7 +684,7 @@ export default function OnboardingModal({ onDismiss, onFinish, hasRealTransactio
                 type="button"
                 onClick={() => setStepIndex((current) => Math.min(STEPS.length - 1, current + 1))}
                 disabled={saving}
-                className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50"
+                className="min-h-11 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50 sm:min-h-0"
               >
                 Next
               </button>
