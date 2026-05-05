@@ -673,33 +673,38 @@ export default function PlaidManager() {
             </Link>
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {items.length > 0 && (
-            <button
-              onClick={() => handleSync()}
-              disabled={syncingItems.has('__all__')}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
-            >
-              {syncingItems.has('__all__') ? (
-                <Loader2 size={12} className="animate-spin" />
-              ) : (
-                <RefreshCw size={12} />
-              )}
-              {syncStatus['__all__'] || 'Sync All'}
-            </button>
-          )}
-          <button
-            onClick={handleLinkAccount}
-            disabled={loadingLink}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-60"
-          >
-            {loadingLink ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Link2 size={14} />
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {items.length > 0 && (
+              <button
+                onClick={() => handleSync()}
+                disabled={syncingItems.has('__all__')}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-slate-600 rounded-xl text-xs font-medium hover:bg-slate-50 disabled:opacity-50"
+              >
+                {syncingItems.has('__all__') ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={12} />
+                )}
+                {syncStatus['__all__'] || 'Sync All'}
+              </button>
             )}
-            Link Bank Account
-          </button>
+            <button
+              onClick={handleLinkAccount}
+              disabled={loadingLink}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 transition-colors disabled:opacity-60"
+            >
+              {loadingLink ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Link2 size={14} />
+              )}
+              Link Bank Account
+            </button>
+          </div>
+          <p className="max-w-xs text-xs leading-relaxed text-slate-400 sm:text-right">
+            Transactions refresh a few times a day depending on your bank. Your initial history goes back as far as your bank allows, and will continue to build as new transactions sync.
+          </p>
         </div>
       </div>
 
