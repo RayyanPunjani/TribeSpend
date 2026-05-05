@@ -18,8 +18,8 @@ interface Props {
 export default function AddTransactionModal({ onClose }: Props) {
   const { addMany } = useTransactionStore()
   const { householdId } = useAuth()
-  const { cards } = useCardStore()
-  const { persons } = usePersonStore()
+  const { cards, add: addCard } = useCardStore()
+  const { persons, addCardToPerson } = usePersonStore()
   const { rules } = useCategoryRuleStore()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
   const categories = [...categoryNames, 'Payment']
@@ -39,7 +39,9 @@ export default function AddTransactionModal({ onClose }: Props) {
     isReimbursable: false,
   })
   const [saving, setSaving] = useState(false)
+  const [creatingDefaultCard, setCreatingDefaultCard] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [saveMessage, setSaveMessage] = useState('')
 
   // Auto-detect category from saved rules when description changes
   useEffect(() => {
@@ -70,52 +72,92 @@ export default function AddTransactionModal({ onClose }: Props) {
     form.amount !== '' &&
     parseFloat(form.amount) !== 0 &&
     !isNaN(parseFloat(form.amount)) &&
-    cards.some((card) => card.id === form.cardId)
+    (cards.length === 0 || cards.some((card) => card.id === form.cardId))
+
+  const createDefaultCard = async () => {
+    if (!householdId) throw new Error('Missing household')
+    setCreatingDefaultCard(true)
+    setSaveError('')
+    try {
+      const defaultCard = await addCard(householdId, {
+        name: 'Default Card',
+        issuer: 'Other',
+        cardType: 'Payment Method',
+        lastFour: '',
+        owner: form.personId || '',
+        color: '#64748b',
+        isPaymentMethod: true,
+        isAuthorizedUser: false,
+        isCustomName: true,
+      })
+      if (form.personId) await addCardToPerson(form.personId, defaultCard.id)
+      setForm((current) => ({ ...current, cardId: defaultCard.id }))
+      setSaveMessage('A default card was created for you')
+      return defaultCard
+    } catch (error) {
+      console.error('[AddTransactionModal] Failed to create default card:', error)
+      setSaveError('Something went wrong. Please try again.')
+      throw error
+    } finally {
+      setCreatingDefaultCard(false)
+    }
+  }
 
   const handleSave = async () => {
     if (!canSave) return
     setSaving(true)
     setSaveError('')
 
-    const amountRaw = parseFloat(form.amount)
-    const isCredit = amountRaw < 0
-    const selectedCard = cards.find((c) => c.id === form.cardId)
-    if (!selectedCard) {
-      setSaveError('Select a card or payment method before saving.')
-      setSaving(false)
-      return
-    }
-    const selectedPersonId = form.personId || selectedCard?.owner || ''
-    const selectedPerson = persons.find((p) => p.id === selectedPersonId)
-
-    const transaction: Transaction = {
-      id: uuidv4(),
-      transDate: form.transDate,
-      postDate: form.postDate || form.transDate,
-      description: form.description.trim(),
-      cleanDescription: form.description.trim(),
-      amount: Math.abs(amountRaw),
-      category: form.category,
-      cardId: form.cardId,
-      personId: selectedPersonId || undefined,
-      cardholderName: selectedPerson?.name || '',
-      isPayment: isCredit,
-      isCredit: isCredit,
-      isBalancePayment: false,
-      statementId: 'manual',
-      reimbursementStatus: form.isReimbursable ? 'settled' : 'none',
-      reimbursementPaid: false,
-      isRecurring: form.isRecurring || undefined,
-      notes: form.notes.trim() || undefined,
-      isManualEntry: true,
-      refundForId: null,
-      hasRefund: false,
-      refundReviewPending: false,
-    }
-
     try {
+      const amountRaw = parseFloat(form.amount)
+      const isCredit = amountRaw < 0
+      let selectedCard = cards.find((c) => c.id === form.cardId)
+      let cardId = form.cardId
+      let createdDefault = false
+      if (!selectedCard && cards.length === 0) {
+        selectedCard = await createDefaultCard()
+        cardId = selectedCard.id
+        createdDefault = true
+      }
+      if (!selectedCard) {
+        setSaveError('Select a card or payment method before saving.')
+        return
+      }
+      const selectedPersonId = form.personId || selectedCard?.owner || ''
+      const selectedPerson = persons.find((p) => p.id === selectedPersonId)
+
+      const transaction: Transaction = {
+        id: uuidv4(),
+        transDate: form.transDate,
+        postDate: form.postDate || form.transDate,
+        description: form.description.trim(),
+        cleanDescription: form.description.trim(),
+        amount: Math.abs(amountRaw),
+        category: form.category,
+        cardId,
+        personId: selectedPersonId || undefined,
+        cardholderName: selectedPerson?.name || '',
+        isPayment: isCredit,
+        isCredit: isCredit,
+        isBalancePayment: false,
+        statementId: 'manual',
+        reimbursementStatus: form.isReimbursable ? 'settled' : 'none',
+        reimbursementPaid: false,
+        isRecurring: form.isRecurring || undefined,
+        notes: form.notes.trim() || undefined,
+        isManualEntry: true,
+        refundForId: null,
+        hasRefund: false,
+        refundReviewPending: false,
+      }
+
       await addMany(householdId!, [transaction])
-      onClose()
+      if (createdDefault) {
+        setSaveMessage('A default card was created for you')
+        window.setTimeout(onClose, 900)
+      } else {
+        onClose()
+      }
     } catch (error) {
       console.error('[AddTransactionModal] Failed to add transaction:', error)
       setSaveError('Something went wrong. Please try again.')
@@ -126,6 +168,7 @@ export default function AddTransactionModal({ onClose }: Props) {
 
   const set = <K extends keyof typeof form>(k: K, v: typeof form[K]) => {
     setSaveError('')
+    setSaveMessage('')
     setForm((f) => ({ ...f, [k]: v }))
   }
 
@@ -152,17 +195,27 @@ export default function AddTransactionModal({ onClose }: Props) {
                   <CreditCard size={16} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-amber-900">Add a card to start tracking transactions</p>
+                  <p className="text-sm font-semibold text-amber-900">You need a card to start tracking transactions</p>
                   <p className="mt-1 text-xs leading-5 text-amber-700">
                     Transactions need a card or payment method so spending, rewards, and ownership stay accurate.
                   </p>
-                  <Link
-                    to="/app/wallet?tab=paymentMethods"
-                    onClick={onClose}
-                    className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
-                  >
-                    Add Card
-                  </Link>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <Link
+                      to="/app/wallet?tab=paymentMethods"
+                      onClick={onClose}
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+                    >
+                      Create Card
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { void createDefaultCard() }}
+                      disabled={creatingDefaultCard}
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {creatingDefaultCard ? 'Creating...' : 'Use default card'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -321,6 +374,11 @@ export default function AddTransactionModal({ onClose }: Props) {
               {saveError}
             </div>
           )}
+          {saveMessage && (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {saveMessage}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -333,10 +391,10 @@ export default function AddTransactionModal({ onClose }: Props) {
           </button>
           <button
             onClick={handleSave}
-            disabled={!canSave || saving}
+            disabled={!canSave || saving || creatingDefaultCard}
             className="min-h-11 flex-1 py-2 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700 disabled:opacity-50 transition-colors"
           >
-            {saving ? 'Saving…' : 'Add Transaction'}
+            {saving ? 'Saving…' : !hasCards ? 'Create default and add transaction' : 'Add Transaction'}
           </button>
         </div>
       </div>
