@@ -6,6 +6,7 @@
 
 import type { Transaction } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid } from '@/utils/uuid'
 
 const BASE = import.meta.env.DEV ? '/api/plaid' : '/.netlify/functions/plaid'
 const PREMIUM_REQUIRED_MESSAGE = 'Premium subscription required for Plaid access.'
@@ -124,7 +125,12 @@ export async function exchangeToken(
 export async function mapAccounts(
   mappings: Array<{ plaidAccountId: string; cardId: string | null }>,
 ): Promise<{ success: boolean }> {
-  return post('/accounts/map', { mappings })
+  return post('/accounts/map', {
+    mappings: mappings.map((mapping) => ({
+      ...mapping,
+      cardId: nullableUuid(mapping.cardId),
+    })),
+  })
 }
 
 /** List all connected Plaid items (institutions) */

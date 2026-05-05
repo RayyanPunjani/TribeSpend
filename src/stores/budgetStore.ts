@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 export const MAX_BUDGETS_PER_HOUSEHOLD = 3
 export const BUDGET_LIMIT_ERROR = 'You can only create up to 3 budgets.'
@@ -52,9 +53,9 @@ function fromRow(r: Record<string, unknown>): Budget {
 
 function toRow(b: Partial<Budget> & { id?: string }, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (b.id !== undefined) row.id = b.id
-  if (b.personId !== undefined) row.person_id = b.personId ?? null
+  if (b.personId !== undefined) row.person_id = nullableUuid(b.personId)
   if (b.category !== undefined) row.category = b.category ?? null
   if (b.label !== undefined) row.label = b.label
   if (b.amount !== undefined) row.amount = b.amount
@@ -62,7 +63,7 @@ function toRow(b: Partial<Budget> & { id?: string }, householdId?: string): Reco
   if (b.notifyEmail !== undefined) row.notify_email = b.notifyEmail
   if (b.notifyThresholds !== undefined) row.notify_thresholds = b.notifyThresholds
   if (b.createdAt !== undefined) row.created_at = b.createdAt
-  return row
+  return sanitizeUuidFields(row)
 }
 
 export const useBudgetStore = create<BudgetState>((set) => ({

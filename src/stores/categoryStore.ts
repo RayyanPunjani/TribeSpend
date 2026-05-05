@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import { CATEGORIES, CATEGORY_COLORS } from '@/utils/categories'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 export interface HouseholdCategory {
   id: string
@@ -88,7 +89,7 @@ function fromRow(row: Record<string, unknown>): HouseholdCategory {
 
 function toRow(category: Partial<HouseholdCategory>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (category.id !== undefined) row.id = category.id
   if (category.name !== undefined) row.name = category.name
   if (category.parentCategory !== undefined) row.parent_category = category.parentCategory || null
@@ -97,7 +98,7 @@ function toRow(category: Partial<HouseholdCategory>, householdId?: string): Reco
   if (category.archived !== undefined) row.archived = category.archived
   if (category.createdAt !== undefined) row.created_at = category.createdAt
   row.updated_at = new Date().toISOString()
-  return row
+  return sanitizeUuidFields(row)
 }
 
 function nextState(categories: HouseholdCategory[]) {

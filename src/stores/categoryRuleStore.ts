@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type { CategoryRule } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 interface CategoryRuleState {
   rules: CategoryRule[]
@@ -31,17 +32,17 @@ function fromRow(r: Record<string, unknown>): CategoryRule {
 
 function toRow(rule: Partial<CategoryRule>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (rule.id !== undefined) row.id = rule.id
   if (rule.merchantPattern !== undefined) row.merchant_pattern = rule.merchantPattern
   if (rule.rawDescriptionExample !== undefined) row.raw_description_example = rule.rawDescriptionExample
   if (rule.cleanDescription !== undefined) row.clean_description = rule.cleanDescription
   if (rule.category !== undefined) row.category = rule.category
-  if (rule.cardId !== undefined) row.card_id = rule.cardId || null
-  if (rule.personId !== undefined) row.person_id = rule.personId || null
+  if (rule.cardId !== undefined) row.card_id = nullableUuid(rule.cardId)
+  if (rule.personId !== undefined) row.person_id = nullableUuid(rule.personId)
   if (rule.source !== undefined) row.source = rule.source
   if (rule.matchCount !== undefined) row.match_count = rule.matchCount
-  return row
+  return sanitizeUuidFields(row)
 }
 
 function isDuplicateRuleError(error: unknown): boolean {

@@ -58,13 +58,15 @@ export default function CategoryRuleModal({
   const handleSaveRule = async () => {
     setApplying(true)
     try {
+      const ruleCardId = newCardId ?? transaction.cardId
+      const rulePersonId = newPersonId ?? transaction.personId
       await addRule(householdId!, {
         merchantPattern: pattern.toLowerCase().trim(),
         rawDescriptionExample: transaction.description,
         cleanDescription: cleanName,
         category,
-        cardId: newCardId ?? transaction.cardId,
-        personId: newPersonId ?? transaction.personId,
+        ...(ruleCardId ? { cardId: ruleCardId } : {}),
+        ...(rulePersonId ? { personId: rulePersonId } : {}),
         source: 'user_correction',
       })
 

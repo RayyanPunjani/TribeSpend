@@ -74,7 +74,6 @@ export default function AddTransactionModal({ onClose }: Props) {
 
     const amountRaw = parseFloat(form.amount)
     const isCredit = amountRaw < 0
-    const selectedCard = cards.find((c) => c.id === form.cardId)
     const selectedPerson = persons.find((p) => p.id === form.personId)
 
     const transaction: Transaction = {
@@ -85,7 +84,7 @@ export default function AddTransactionModal({ onClose }: Props) {
       cleanDescription: form.description.trim(),
       amount: Math.abs(amountRaw),
       category: form.category,
-      cardId: form.cardId || 'manual',
+      cardId: form.cardId || '',
       personId: form.personId || undefined,
       cardholderName: selectedPerson?.name || '',
       isPayment: isCredit,

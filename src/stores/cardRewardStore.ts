@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type { CardRewardRule } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 interface CardRewardState {
   rules: CardRewardRule[]
@@ -37,9 +38,9 @@ function fromRow(r: Record<string, unknown>): CardRewardRule {
 
 function toRow(rule: Partial<CardRewardRule>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (rule.id !== undefined) row.id = rule.id
-  if (rule.cardId !== undefined) row.card_id = rule.cardId
+  if (rule.cardId !== undefined) row.card_id = nullableUuid(rule.cardId)
   if (rule.category !== undefined) row.category = rule.category
   if (rule.merchantKeywords !== undefined) row.merchant_keywords = rule.merchantKeywords.length > 0 ? rule.merchantKeywords : null
   if (rule.rewardType !== undefined) row.reward_type = rule.rewardType
@@ -48,7 +49,7 @@ function toRow(rule: Partial<CardRewardRule>, householdId?: string): Record<stri
   if (rule.activeStartDate !== undefined) row.active_start_date = rule.activeStartDate
   if (rule.activeEndDate !== undefined) row.active_end_date = rule.activeEndDate
   if (rule.notes !== undefined) row.notes = rule.notes
-  return row
+  return sanitizeUuidFields(row)
 }
 
 export const useCardRewardStore = create<CardRewardState>((set, get) => ({

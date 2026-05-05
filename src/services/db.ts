@@ -9,6 +9,7 @@
 
 import { supabase } from '@/lib/supabase'
 import type { AppSettings } from '@/types'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 // ─── Settings helpers (localStorage — no Supabase needed) ─────────────────
 
@@ -85,8 +86,8 @@ export async function importAllData(householdId: string, jsonString: string): Pr
 
     // Ensure every row has the correct household_id
     const withHousehold = rows.map((r: Record<string, unknown>) => ({
-      ...r,
-      household_id: householdId,
+      ...sanitizeUuidFields(r),
+      household_id: nullableUuid(householdId),
     }))
 
     const { error } = await supabase

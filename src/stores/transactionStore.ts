@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Transaction, TransactionFilters } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { normalizeCategory, isReviewCategory } from '@/utils/categoryFallback'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 const BUDGET_ALERTS_URL = 'https://okqniovbcybhtfjexnay.functions.supabase.co/budget-alerts'
 
@@ -119,7 +120,7 @@ function fromRow(r: Record<string, unknown>): Transaction {
 
 function toRow(t: Partial<Transaction>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (t.id !== undefined) row.id = t.id
   if (t.transDate !== undefined) row.trans_date = t.transDate
   if (t.postDate !== undefined) row.post_date = t.postDate
@@ -127,8 +128,8 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.cleanDescription !== undefined) row.clean_description = t.cleanDescription
   if (t.amount !== undefined) row.amount = t.amount
   if (t.category !== undefined) row.category = normalizeCategory(t.category)
-  if (t.cardId !== undefined) row.card_id = t.cardId || null
-  if (t.personId !== undefined) row.person_id = t.personId || null
+  if (t.cardId !== undefined) row.card_id = nullableUuid(t.cardId)
+  if (t.personId !== undefined) row.person_id = nullableUuid(t.personId)
   if (t.cardholderName !== undefined) row.cardholder_name = t.cardholderName
   if (t.isPayment !== undefined) row.is_payment = t.isPayment
   if (t.isCredit !== undefined) row.is_credit = t.isCredit
@@ -151,10 +152,10 @@ function toRow(t: Partial<Transaction>, householdId?: string): Record<string, un
   if (t.expectedReturnNote !== undefined) row.expected_return_note = t.expectedReturnNote
   if (t.expectedReturnAmount !== undefined) row.expected_return_amount = t.expectedReturnAmount
   if (t.expectingReturn !== undefined) row.expected_return_status = t.expectingReturn ? 'expected' : null
-  if (t.refundForId !== undefined) row.refund_for_id = t.refundForId
+  if (t.refundForId !== undefined) row.refund_for_id = nullableUuid(t.refundForId)
   if (t.hasRefund !== undefined) row.has_refund = t.hasRefund
   if (t.refundReviewPending !== undefined) row.refund_review_pending = t.refundReviewPending
-  return row
+  return sanitizeUuidFields(row)
 }
 
 function triggerBudgetAlerts() {

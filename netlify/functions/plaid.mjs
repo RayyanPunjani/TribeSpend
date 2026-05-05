@@ -46,6 +46,10 @@ const jsonHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
 }
 
+function nullableUuid(value) {
+  return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
 function json(statusCode, body) {
   return { statusCode, headers: jsonHeaders, body: JSON.stringify(body) }
 }
@@ -444,16 +448,16 @@ function dateMonthsAgo(months) {
 function transactionToRow(transaction, householdId) {
   return {
     id: transaction.id,
-    household_id: householdId,
+    household_id: nullableUuid(householdId),
     trans_date: transaction.transDate,
     post_date: transaction.postDate,
     description: transaction.description,
     clean_description: transaction.cleanDescription,
     amount: transaction.amount,
     category: normalizeCategory(transaction.category),
-    card_id: transaction.cardId || null,
+    card_id: nullableUuid(transaction.cardId),
     cardholder_name: transaction.cardholderName || '',
-    person_id: transaction.personId || null,
+    person_id: nullableUuid(transaction.personId),
     is_payment: transaction.isPayment,
     is_credit: transaction.isCredit,
     is_balance_payment: transaction.isBalancePayment,
@@ -474,7 +478,7 @@ function transactionToRow(transaction, householdId) {
     is_deleted: false,
     source: 'plaid',
     plaid_transaction_id: transaction.plaidTransactionId,
-    refund_for_id: transaction.refundForId,
+    refund_for_id: nullableUuid(transaction.refundForId),
     has_refund: transaction.hasRefund,
     refund_review_pending: transaction.refundReviewPending,
   }
@@ -765,7 +769,7 @@ async function handleRoute(event) {
     const itemId = crypto.randomUUID()
     const { error: itemError } = await auth.supabase.from('plaid_items').insert({
       id: itemId,
-      household_id: auth.householdId,
+      household_id: nullableUuid(auth.householdId),
       access_token_encrypted: encryptToken(accessToken),
       plaid_item_id: exchange.item_id ?? null,
       institution_id: body.institution?.institution_id ?? null,
@@ -775,8 +779,8 @@ async function handleRoute(event) {
 
     const accountRows = plaidAccounts.map((account) => ({
       id: crypto.randomUUID(),
-      plaid_item_id: itemId,
-      household_id: auth.householdId,
+      plaid_item_id: nullableUuid(itemId),
+      household_id: nullableUuid(auth.householdId),
       account_id: account.account_id,
       card_id: null,
       enabled: true,
@@ -812,7 +816,7 @@ async function handleRoute(event) {
     for (const mapping of body.mappings) {
       const { error } = await auth.supabase
         .from('plaid_account_mappings')
-        .update({ card_id: mapping.cardId })
+        .update({ card_id: nullableUuid(mapping.cardId) })
         .eq('account_id', mapping.plaidAccountId)
         .eq('household_id', auth.householdId)
         .in('plaid_item_id', itemIds)

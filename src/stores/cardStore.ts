@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { CreditCard } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { nextColor } from '@/utils/colors'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 interface CardState {
   cards: CreditCard[]
@@ -32,19 +33,19 @@ function fromRow(r: Record<string, unknown>): CreditCard {
 
 function toRow(c: Partial<CreditCard>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (c.id !== undefined) row.id = c.id
   if (c.name !== undefined) row.name = c.name
   if (c.issuer !== undefined) row.issuer = c.issuer
   if (c.cardType !== undefined) row.card_type = c.cardType
   if (c.lastFour !== undefined) row.last_four = c.lastFour
-  if (c.owner !== undefined) row.person_id = c.owner
+  if (c.owner !== undefined) row.person_id = nullableUuid(c.owner)
   if (c.color !== undefined) row.color = c.color
   if (c.isPaymentMethod !== undefined) row.is_payment_method = c.isPaymentMethod
   if (c.annualFee !== undefined) row.annual_fee = c.annualFee
   if (c.isAuthorizedUser !== undefined) row.is_authorized_user = c.isAuthorizedUser
   if (c.isCustomName !== undefined) row.is_custom_name = c.isCustomName
-  return row
+  return sanitizeUuidFields(row)
 }
 
 export const useCardStore = create<CardState>((set, get) => ({

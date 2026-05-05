@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { v4 as uuidv4 } from 'uuid'
 import type { CardCredit } from '@/types'
 import { supabase } from '@/lib/supabase'
+import { nullableUuid, sanitizeUuidFields } from '@/utils/uuid'
 
 interface CardCreditState {
   credits: CardCredit[]
@@ -30,9 +31,9 @@ function fromRow(r: Record<string, unknown>): CardCredit {
 
 function toRow(c: Partial<CardCredit>, householdId?: string): Record<string, unknown> {
   const row: Record<string, unknown> = {}
-  if (householdId) row.household_id = householdId
+  if (householdId !== undefined) row.household_id = nullableUuid(householdId)
   if (c.id !== undefined) row.id = c.id
-  if (c.cardId !== undefined) row.card_id = c.cardId
+  if (c.cardId !== undefined) row.card_id = nullableUuid(c.cardId)
   if (c.name !== undefined) row.name = c.name
   if (c.amount !== undefined) row.amount = c.amount
   if (c.frequency !== undefined) row.frequency = c.frequency
@@ -41,7 +42,7 @@ function toRow(c: Partial<CardCredit>, householdId?: string): Record<string, unk
   if (c.merchantMatch !== undefined) row.merchant_match = c.merchantMatch
   if (c.notes !== undefined) row.notes = c.notes
   if (c.cardAnniversaryBased !== undefined) row.card_anniversary_based = c.cardAnniversaryBased
-  return row
+  return sanitizeUuidFields(row)
 }
 
 export const useCardCreditStore = create<CardCreditState>((set, get) => ({

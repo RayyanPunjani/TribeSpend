@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Person } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { nextColor } from '@/utils/colors'
+import { nullableUuid } from '@/utils/uuid'
 
 interface PersonState {
   persons: Person[]
@@ -64,7 +65,7 @@ export const usePersonStore = create<PersonState>((set, get) => ({
     }
     const { error } = await supabase.from('people').insert({
       id: newPerson.id,
-      household_id: householdId,
+      household_id: nullableUuid(householdId),
       name: newPerson.name,
       color: newPerson.color,
     })
@@ -94,7 +95,7 @@ export const usePersonStore = create<PersonState>((set, get) => ({
 
   addCardToPerson: async (personId, cardId) => {
     // Update the card's person_id in the cards table
-    const { error } = await supabase.from('cards').update({ person_id: personId }).eq('id', cardId)
+    const { error } = await supabase.from('cards').update({ person_id: nullableUuid(personId) }).eq('id', cardId)
     if (error) { console.error('Failed to assign card to person:', error); return }
     set((s) => ({
       persons: s.persons.map((p) =>
