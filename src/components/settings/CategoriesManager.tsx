@@ -13,7 +13,7 @@ const COLOR_SWATCHES = [
 
 const PARENT_CATEGORIES = CATEGORIES.filter(
   (category) => !['Needs Review', 'Refunds & Credits'].includes(category),
-)
+).sort((a, b) => a.localeCompare(b))
 
 export default function CategoriesManager() {
   const { householdId } = useAuth()
@@ -66,7 +66,18 @@ export default function CategoriesManager() {
   const handleAdd = async () => {
     const name = newName.trim()
     setError(null)
-    if (!name || !newParent) return
+    if (!householdId) {
+      setError('Unable to save categories until your household finishes loading.')
+      return
+    }
+    if (!name) {
+      setError('Category name is required.')
+      return
+    }
+    if (!newParent) {
+      setError('Choose a parent reward category.')
+      return
+    }
     if (isDuplicate(name)) {
       setError('That category already exists.')
       return
@@ -76,7 +87,8 @@ export default function CategoriesManager() {
       setNewName('')
       setNewParent('')
       setNewColor(COLOR_SWATCHES[0])
-    } catch {
+    } catch (err) {
+      console.error('[CategoriesManager] Failed to add category:', err)
       setError('Unable to add category. Please try again.')
     }
   }
@@ -93,7 +105,14 @@ export default function CategoriesManager() {
     if (!editing) return
     const name = editName.trim()
     setError(null)
-    if (!name || !editParent) return
+    if (!name) {
+      setError('Category name is required.')
+      return
+    }
+    if (!editParent) {
+      setError('Choose a parent reward category.')
+      return
+    }
     if (isDuplicate(name, editing.id)) {
       setError('That category already exists.')
       return

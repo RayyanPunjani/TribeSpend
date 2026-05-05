@@ -8,6 +8,7 @@ import { usePersonStore } from '@/stores/personStore'
 import { resolveRewardCategory, useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { POINT_VALUE_CENTS, EXCLUDED_FROM_SPEND } from '@/lib/constants'
+import { merchantSearchText, normalizeMerchantKey } from '@/lib/merchantNormalize'
 import { normalizeMerchantCategoryText, suggestMerchantOverrideCategory } from '@/services/merchantCategoryOverrides'
 import type { CardRewardRule, CardCredit, CreditCard as CreditCardType, Transaction } from '@/types'
 
@@ -40,7 +41,7 @@ function merchantLabelFromKeywords(keywords: string[]): string | undefined {
     keywords
       .map((keyword) => {
         const normalized = keyword.toUpperCase()
-        if (['AMAZON', 'AMZN'].includes(normalized)) return 'Amazon'
+        if (['AMAZON', 'AMAZON.COM', 'AMZN'].includes(normalized)) return 'Amazon'
         if (['WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'].includes(normalized)) return 'Whole Foods'
         return titleKeyword(keyword)
       }),
@@ -53,7 +54,7 @@ function inferredMerchantKeywords(rule: CardRewardRule, card: CreditCardType): s
   if (explicit.length > 0) return explicit
 
   const cardText = `${card.name} ${card.issuer} ${card.cardType} ${rule.notes ?? ''}`.toUpperCase()
-  if (rule.category === 'Shopping' && cardText.includes('AMAZON')) return ['AMAZON', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS']
+  if (rule.category === 'Shopping' && cardText.includes('AMAZON')) return ['AMAZON', 'AMAZON.COM', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS']
   if (rule.category === 'Shopping' && cardText.includes('TARGET')) return ['TARGET']
   if (rule.category === 'Shopping' && cardText.includes('APPLE')) return ['APPLE', 'APPLE.COM', 'APP STORE', 'ICLOUD']
   if ((rule.category === 'Groceries' || rule.category === 'Shopping') && cardText.includes('COSTCO')) return ['COSTCO']
@@ -65,11 +66,24 @@ function transactionMerchantText(transaction: Transaction): string {
   return `${transaction.cleanDescription ?? ''} ${transaction.description ?? ''}`.toUpperCase()
 }
 
+function rewardMerchantSearchText(transaction: Transaction): string {
+  return ` ${normalizeMerchantCategoryText(
+    merchantSearchText(transaction.cleanDescription, transaction.description, transactionMerchantText(transaction)),
+  )} `
+}
+
+function rewardKeywordSearchTerms(keyword: string): string[] {
+  return Array.from(new Set([
+    normalizeMerchantCategoryText(keyword),
+    normalizeMerchantCategoryText(normalizeMerchantKey(keyword)),
+  ].filter(Boolean)))
+}
+
 function merchantMatchesKeywords(transaction: Transaction, keywords: string[]): boolean {
-  const merchantText = ` ${normalizeMerchantCategoryText(transactionMerchantText(transaction))} `
+  const merchantText = rewardMerchantSearchText(transaction)
   return keywords.some((keyword) => {
-    const normalizedKeyword = normalizeMerchantCategoryText(keyword)
-    return normalizedKeyword && merchantText.includes(` ${normalizedKeyword} `)
+    const terms = rewardKeywordSearchTerms(keyword)
+    return terms.some((term) => merchantText.includes(` ${term} `))
   })
 }
 
@@ -79,6 +93,20 @@ function getRewardCategoryForTransaction(
 ): string {
   const merchantCategory = suggestMerchantOverrideCategory(transactionMerchantText(transaction))
   return merchantCategory ?? resolveRewardCategory(transaction.category, categoryParentMap)
+}
+
+function getRewardCategoryCandidates(
+  transaction: Transaction,
+  categoryParentMap: Record<string, string>,
+): string[] {
+  const originalCategory = transaction.category
+  const parentCategory = resolveRewardCategory(originalCategory, categoryParentMap)
+  const merchantCategory = suggestMerchantOverrideCategory(transactionMerchantText(transaction))
+  return Array.from(new Set([
+    originalCategory,
+    parentCategory,
+    merchantCategory,
+  ].filter((category): category is string => typeof category === 'string' && category.length > 0)))
 }
 
 function ruleIsActive(rule: CardRewardRule, today: string): boolean {
@@ -100,8 +128,18 @@ function ruleMatchesTransaction(
   const keywords = inferredMerchantKeywords(rule, card)
   if (keywords.length > 0) return merchantMatchesKeywords(transaction, keywords)
 
-  const rewardCategory = getRewardCategoryForTransaction(transaction, categoryParentMap)
-  return rule.category === rewardCategory
+  return getRewardCategoryCandidates(transaction, categoryParentMap).includes(rule.category)
+}
+
+function categoryRuleMatchRank(
+  rule: CardRewardRule,
+  transaction: Transaction,
+  categoryParentMap: Record<string, string>,
+): number {
+  if (rule.category === transaction.category) return 0
+  if (rule.category === resolveRewardCategory(transaction.category, categoryParentMap)) return 1
+  if (rule.category === getRewardCategoryForTransaction(transaction, categoryParentMap)) return 2
+  return 3
 }
 
 function getRewardForTransaction(
@@ -119,7 +157,10 @@ function getRewardForTransaction(
   const matchingCategoryRules = cardRules
     .filter((rule) => rule.category !== 'base' && inferredMerchantKeywords(rule, card).length === 0)
     .filter((rule) => ruleMatchesTransaction(rule, card, transaction, today, categoryParentMap))
-    .sort((a, b) => getEffectiveCashbackRate(b) - getEffectiveCashbackRate(a))
+    .sort((a, b) => (
+      categoryRuleMatchRank(a, transaction, categoryParentMap) - categoryRuleMatchRank(b, transaction, categoryParentMap) ||
+      getEffectiveCashbackRate(b) - getEffectiveCashbackRate(a)
+    ))
   const rule = matchingMerchantRules[0] ?? matchingCategoryRules[0] ?? cardRules.find((r) => r.category === 'base')
   if (!rule) return null
 

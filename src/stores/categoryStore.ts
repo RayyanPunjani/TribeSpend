@@ -137,6 +137,7 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
   add: async (householdId, category) => {
     const name = category.name.trim()
     if (!name) throw new Error('Category name is required')
+    if (!category.parentCategory) throw new Error('Parent reward category is required')
 
     const newCategory: HouseholdCategory = {
       id: uuidv4(),
@@ -149,9 +150,12 @@ export const useCategoryStore = create<CategoryState>((set, get) => ({
       createdAt: new Date().toISOString(),
     }
 
+    const row = toRow(newCategory, householdId)
+    delete row.archived
+
     const { error } = await supabase
       .from('household_categories')
-      .insert(toRow(newCategory, householdId))
+      .insert(row)
 
     if (error) {
       console.error('Failed to add household category:', error)

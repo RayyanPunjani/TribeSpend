@@ -6,7 +6,6 @@ import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { useCategoryStore } from '@/stores/categoryStore'
-import { CATEGORIES } from '@/utils/categories'
 import type { CardRewardRule, CardCredit } from '@/types'
 
 type RewardForm = {
@@ -61,7 +60,7 @@ const FREQ_LABELS: Record<string, string> = {
 function formatMerchantKeywords(keywords: string[]): string {
   const labels = keywords.map((keyword) => {
     const normalized = keyword.toUpperCase()
-    if (['AMAZON', 'AMZN'].includes(normalized)) return 'Amazon'
+    if (['AMAZON', 'AMAZON.COM', 'AMZN'].includes(normalized)) return 'Amazon'
     if (['WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'].includes(normalized)) return 'Whole Foods'
     return keyword
       .toLowerCase()
@@ -376,7 +375,8 @@ export default function CardRewardsManager() {
 function RuleForm({ form, onChange, onSave, onCancel }: {
   form: RewardForm; onChange: (f: RewardForm) => void; onSave: () => void; onCancel: () => void
 }) {
-  const rewardCategories = CATEGORIES.filter(
+  const categoryNames = useCategoryStore((s) => s.categoryNames)
+  const rewardCategories = categoryNames.filter(
     (category) => !['Needs Review', 'Refunds & Credits'].includes(category),
   ).slice().sort((a, b) => a.localeCompare(b))
   const categoryOptions = [

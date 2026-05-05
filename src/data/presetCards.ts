@@ -89,7 +89,7 @@ export const PRESET_CARDS: PresetCardTemplate[] = [
     issuer: 'Chase', brand: 'Amazon', cardName: 'Amazon Prime Visa', cardType: 'Amazon Prime Visa',
     annualFee: 0, rewardType: 'cashback', group: 'fintech',
     rewards: [
-      { category: 'Shopping',         merchantKeywords: ['AMAZON', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'], rate: 0.05, notes: 'Amazon / Whole Foods only (Prime members)' },
+      { category: 'Shopping',         merchantKeywords: ['AMAZON', 'AMAZON.COM', 'AMZN', 'WHOLE FOODS', 'WHOLEFOODS', 'WHOLEFDS'], rate: 0.05, notes: 'Amazon / Whole Foods only (Prime members)' },
       { category: 'Dining',           rate: 0.02 },
       { category: 'Gas & EV Charging', rate: 0.02 },
       { category: 'Transportation',   rate: 0.02, notes: 'Local transit & rideshare' },
