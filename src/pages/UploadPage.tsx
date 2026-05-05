@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import { Loader2, AlertCircle, CheckCircle, Plus, Sheet } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/utils/formatters'
@@ -50,8 +50,42 @@ const BANK_HINTS = [
   { name: 'Citi',           hint: 'Account Details → Download' },
 ]
 
+function normalizeDuplicateDescription(value: string) {
+  return value.toLowerCase().trim().replace(/\s+/g, ' ')
+}
+
+function transactionFingerprint(householdId: string, transaction: Pick<Transaction, 'transDate' | 'amount' | 'description' | 'cardId'>) {
+  const description = normalizeDuplicateDescription(transaction.description)
+  const amount = Number(transaction.amount).toFixed(2)
+  const cardId = transaction.cardId || ''
+  return [householdId, transaction.transDate, amount, description, cardId].join('|')
+}
+
+function filterDuplicateCsvTransactions(
+  householdId: string,
+  transactions: Transaction[],
+  existingTransactions: Transaction[],
+) {
+  const seen = new Set(
+    existingTransactions.map((transaction) => transactionFingerprint(householdId, transaction)),
+  )
+  const unique: Transaction[] = []
+  let duplicatesSkipped = 0
+
+  for (const transaction of transactions) {
+    const fingerprint = transactionFingerprint(householdId, transaction)
+    if (seen.has(fingerprint)) {
+      duplicatesSkipped++
+      continue
+    }
+    seen.add(fingerprint)
+    unique.push(transaction)
+  }
+
+  return { unique, duplicatesSkipped }
+}
+
 export default function UploadPage() {
-  const navigate = useNavigate()
   const [step, setStep] = useState<Step>('upload')
   const [items, setItems] = useState<UploadItem[]>([])
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
@@ -61,6 +95,8 @@ export default function UploadPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [importedCardId, setImportedCardId] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
+  const [duplicatesSkippedCount, setDuplicatesSkippedCount] = useState(0)
+  const [duplicateCsvWarning, setDuplicateCsvWarning] = useState(false)
   const [summaryToasts, setSummaryToasts] = useState<Array<{ id: string; message: string }>>([])
 
   const [pendingCsvDetect, setPendingCsvDetect] = useState<{
@@ -260,10 +296,22 @@ export default function UploadPage() {
   // ── Confirm ────────────────────────────────────────────────────────────────
 
   const handleConfirm = async (transactions: Transaction[]) => {
-    await addTransactions(householdId!, transactions)
-    setImportedCount(transactions.length)
+    const { unique, duplicatesSkipped } = filterDuplicateCsvTransactions(
+      householdId!,
+      transactions,
+      existingTransactions,
+    )
+    const totalRows = unique.length + duplicatesSkipped
+    const looksPreviouslyUploaded = totalRows > 0 && duplicatesSkipped / totalRows >= 0.6
 
-    const refundMatches = matchRefunds(transactions, existingTransactions)
+    if (unique.length > 0) {
+      await addTransactions(householdId!, unique)
+    }
+    setImportedCount(unique.length)
+    setDuplicatesSkippedCount(duplicatesSkipped)
+    setDuplicateCsvWarning(looksPreviouslyUploaded)
+
+    const refundMatches = matchRefunds(unique, existingTransactions)
     try {
       await Promise.all([
         ...refundMatches.updatedRefunds.map((refund) =>
@@ -291,7 +339,7 @@ export default function UploadPage() {
     const pendingReturns = existingTransactions.filter(
       (t) => t.expectingReturn && t.returnStatus === 'pending' && !t.deleted,
     )
-    const newCredits = transactions.filter((t) => t.isCredit && !t.isBalancePayment)
+    const newCredits = unique.filter((t) => t.isCredit && !t.isBalancePayment)
 
     if (pendingReturns.length > 0 && newCredits.length > 0) {
       const matches: Array<{ pending: Transaction; credit: Transaction }> = []
@@ -312,7 +360,6 @@ export default function UploadPage() {
     }
 
     setStep('done')
-    navigate('/app/transactions')
   }
 
   const handleConfirmReturnMatch = async (pendingId: string, creditId: string) => {
@@ -332,6 +379,9 @@ export default function UploadPage() {
     setPendingCsvDetect(null)
     setParseError(null)
     setImportedCardId(null)
+    setImportedCount(0)
+    setDuplicatesSkippedCount(0)
+    setDuplicateCsvWarning(false)
   }
 
   // ── Done screen ────────────────────────────────────────────────────────────
@@ -362,6 +412,11 @@ export default function UploadPage() {
             <h2 className="text-2xl font-bold text-slate-800">Import complete</h2>
             <p className="text-slate-500 mt-1.5">
               {importedCount} transaction{importedCount !== 1 ? 's' : ''} imported
+              {duplicatesSkippedCount > 0 && (
+                <span className="text-slate-400">
+                  {' '}· {duplicatesSkippedCount} duplicate{duplicatesSkippedCount !== 1 ? 's' : ''} skipped
+                </span>
+              )}
               {importedCard && (
                 <span className="text-slate-400">
                   {' '}from {importedCard.name}
@@ -370,6 +425,17 @@ export default function UploadPage() {
               )}
             </p>
           </div>
+          {duplicateCsvWarning && (
+            <div className="max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="flex items-start gap-2 text-left">
+                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">This CSV looks like it may have already been uploaded.</p>
+                  <p className="mt-1 text-amber-700">Most transactions already exist.</p>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={resetUpload}

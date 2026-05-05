@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  Target, Plus, Pencil, Trash2, AlertTriangle, Check, X, ChevronDown, Mail, Loader2,
+  Target, Plus, Pencil, Trash2, AlertTriangle, Check, X, ChevronDown, Mail,
 } from 'lucide-react'
 import { BUDGET_LIMIT_ERROR, MAX_BUDGETS_PER_HOUSEHOLD, useBudgetStore } from '@/stores/budgetStore'
 import { usePersonStore } from '@/stores/personStore'
@@ -22,46 +22,8 @@ const PERIOD_OPTIONS = [
 ]
 
 const DEFAULT_THRESHOLD_CHIPS = [50, 80, 100]
-const BUDGET_ALERTS_URL = 'https://okqniovbcybhtfjexnay.functions.supabase.co/budget-alerts'
-
-type TestEmailStatus = 'sending' | 'success' | 'error'
-
-interface TestEmailState {
-  status: TestEmailStatus
-  message: string
-}
-
 function isValidEmail(v: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
-}
-
-async function sendBudgetTestEmail(budgetId: string): Promise<void> {
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!anonKey) throw new Error('Missing Supabase anon key')
-
-  const response = await fetch(BUDGET_ALERTS_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${anonKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ test: true, budgetId }),
-  })
-
-  let payload: { sent?: number; error?: string; details?: string } | null = null
-  try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-
-  if (!response.ok) {
-    throw new Error(payload?.error || payload?.details || 'Failed to send test email')
-  }
-
-  if (!payload?.sent) {
-    throw new Error('No test email was sent')
-  }
 }
 
 interface BudgetForm {
@@ -369,23 +331,18 @@ function BudgetFormPanel({
 interface BudgetCardProps {
   status: BudgetStatus
   personName: string
-  testEmailState?: TestEmailState
   onEdit: () => void
   onDelete: () => void
-  onSendTestEmail: () => void
 }
 
 function BudgetCard({
   status,
   personName,
-  testEmailState,
   onEdit,
   onDelete,
-  onSendTestEmail,
 }: BudgetCardProps) {
   const { budget, spent, remaining, percentUsed } = status
   const isOver = status.status === 'over'
-  const sendingTest = testEmailState?.status === 'sending'
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -450,25 +407,6 @@ function BudgetCard({
         <span className="ml-1 text-slate-300">({percentUsed.toFixed(0)}%)</span>
       </p>
 
-      {budget.notifyEmail && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onSendTestEmail}
-            disabled={sendingTest}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:border-accent-300 hover:text-accent-600 hover:bg-accent-50 disabled:opacity-60 transition-colors"
-          >
-            {sendingTest ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
-            {sendingTest ? 'Sending…' : 'Send Test Email'}
-          </button>
-          {testEmailState?.status === 'success' && (
-            <span className="text-xs text-emerald-600">Test email sent</span>
-          )}
-          {testEmailState?.status === 'error' && (
-            <span className="text-xs text-red-500">{testEmailState.message}</span>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -488,7 +426,6 @@ export default function BudgetsPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<BudgetForm>({ ...emptyForm })
-  const [testEmailStates, setTestEmailStates] = useState<Record<string, TestEmailState>>({})
   const [addError, setAddError] = useState('')
 
   const alerts = statuses.filter((s) => s.status !== 'ok')
@@ -545,27 +482,6 @@ export default function BudgetsPage() {
   const handleDelete = async (id: string) => {
     await removeBudget(id)
     if (editingId === id) setEditingId(null)
-  }
-
-  const handleSendTestEmail = async (budgetId: string) => {
-    setTestEmailStates((s) => ({
-      ...s,
-      [budgetId]: { status: 'sending', message: 'Sending test email…' },
-    }))
-
-    try {
-      await sendBudgetTestEmail(budgetId)
-      setTestEmailStates((s) => ({
-        ...s,
-        [budgetId]: { status: 'success', message: 'Test email sent' },
-      }))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to send test email'
-      setTestEmailStates((s) => ({
-        ...s,
-        [budgetId]: { status: 'error', message },
-      }))
-    }
   }
 
   const personName = (personId?: string) =>
@@ -699,10 +615,8 @@ export default function BudgetsPage() {
                 key={s.budget.id}
                 status={s}
                 personName={personName(s.budget.personId)}
-                testEmailState={testEmailStates[s.budget.id]}
                 onEdit={() => startEdit(s)}
                 onDelete={() => handleDelete(s.budget.id)}
-                onSendTestEmail={() => handleSendTestEmail(s.budget.id)}
               />
             )
           })}
