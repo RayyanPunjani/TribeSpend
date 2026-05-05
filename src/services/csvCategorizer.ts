@@ -6,7 +6,7 @@
 
 import type { CsvParsedRow, CategoryRule } from '@/types'
 import { findMatchingRule } from './categoryMatcher'
-import { suggestCategory } from './keywordCategorizer'
+import { suggestCsvMerchantCategory } from './csvMerchantCategorizer'
 import { CATEGORIES as ALL_CATEGORIES } from '@/utils/categories'
 import { normalizeCategory } from '@/utils/categoryFallback'
 
@@ -28,6 +28,7 @@ export async function categorizeCsvRows(
 ): Promise<CsvParsedRow[]> {
   const result = rows.map((row) => ({ ...row }))
   const aiCategories = categories.filter((c) => c !== 'Needs Review' && c !== 'Refunds & Credits')
+  const validCategories = new Set([...ALL_CATEGORIES, ...categories])
   const ruleMatchedRows = new Set<CsvParsedRow>()
 
   // Step 1: Apply saved rules
@@ -60,7 +61,7 @@ export async function categorizeCsvRows(
   // Step 1.5: Merchant keyword overrides for imports. User-saved rules above stay authoritative.
   for (const row of result) {
     if (ruleMatchedRows.has(row) || row.isPayment || row.isCredit || row.isBalancePayment) continue
-    const suggested = suggestCategory(`${row.description} ${row.cleanDescription}`)
+    const suggested = suggestCsvMerchantCategory(`${row.description} ${row.cleanDescription}`)
     if (suggested) {
       row.category = suggested
     }
@@ -72,10 +73,13 @@ export async function categorizeCsvRows(
   )
   const uniqueMerchants = [...new Set(needsCategorization.map((r) => r.cleanDescription || r.description))]
 
-  const withFallbacks = () => result.map((row) => ({
-    ...row,
-    category: normalizeCategory(row.category) === 'Needs Review' ? 'Other' : normalizeCategory(row.category),
-  }))
+  const withFallbacks = () => result.map((row) => {
+    const normalized = normalizeCategory(row.category)
+    return {
+      ...row,
+      category: normalized === 'Needs Review' || !validCategories.has(normalized) ? 'Other' : normalized,
+    }
+  })
 
   if (uniqueMerchants.length === 0 || !apiKey) return withFallbacks()
 
