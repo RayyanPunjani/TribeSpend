@@ -398,6 +398,8 @@ export default function AnalyticsPage() {
   }, [displaySpendCharges, cardMap, personMap, persons, filters.includeReimb])
 
   const hasSpendTypes = displaySpendCharges.some((t) => t.spendType)
+  const hasSharedTransactions = displaySpendCharges.some((t) => t.spendType === 'shared')
+  const shouldShowSharedTable = hasSharedTransactions && sharedPersonalData.totalShared > 0
 
   const handleViewInTransactions = (category: string) => {
     setTxnFilters({ categories: [category] })
@@ -770,39 +772,51 @@ export default function AnalyticsPage() {
       {/* Shared vs Personal */}
       {hasSpendTypes && (
         <ChartCard title={`Shared vs Personal — ${timeframeLabel}`} subtitle={chartSubtitle}>
-          <div className="flex flex-col gap-2 mb-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <span className="text-slate-500">Total shared: </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.totalShared)}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Each share: </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.eachShare)}</span>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-          <div className="min-w-[560px] divide-y divide-slate-100">
-            <div className="grid grid-cols-4 gap-2 py-2 text-xs font-semibold text-slate-500">
-              <span>Person</span>
-              <span className="text-right">Shared Paid</span>
-              <span className="text-right">Personal</span>
-              <span className="text-right">Net Balance</span>
-            </div>
-            {sharedPersonalData.balances.map((b) => (
-              <div key={b.name} className="grid grid-cols-4 gap-2 py-2.5 items-center">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
-                  <span className="text-sm font-medium text-slate-800">{b.name}</span>
+          {shouldShowSharedTable ? (
+            <>
+              <div className="flex flex-col gap-2 mb-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <span className="text-slate-500">Total shared: </span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.totalShared)}</span>
                 </div>
-                <span className="text-sm text-right text-slate-700">{formatCurrency(b.paid)}</span>
-                <span className="text-sm text-right text-slate-700">{formatCurrency(b.personal)}</span>
-                <span className={`text-sm font-semibold text-right ${b.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {b.net >= 0 ? '+' : ''}{formatCurrency(b.net)}
-                </span>
+                <div>
+                  <span className="text-slate-500">Each share: </span>
+                  <span className="font-semibold text-slate-800">{formatCurrency(sharedPersonalData.eachShare)}</span>
+                </div>
               </div>
-            ))}
-          </div>
-          </div>
+              <div className="overflow-x-auto">
+              <div className="min-w-[560px] divide-y divide-slate-100">
+                <div className="grid grid-cols-4 gap-2 py-2 text-xs font-semibold text-slate-500">
+                  <span>Person</span>
+                  <span className="text-right">Shared Paid</span>
+                  <span className="text-right">Personal</span>
+                  <span className="text-right">Net Balance</span>
+                </div>
+                {sharedPersonalData.balances.map((b) => (
+                  <div key={b.name} className="grid grid-cols-4 gap-2 py-2.5 items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
+                      <span className="text-sm font-medium text-slate-800">{b.name}</span>
+                    </div>
+                    <span className="text-sm text-right text-slate-700">{formatCurrency(b.paid)}</span>
+                    <span className="text-sm text-right text-slate-700">{formatCurrency(b.personal)}</span>
+                    <span className={`text-sm font-semibold text-right ${b.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {b.net >= 0 ? '+' : ''}{formatCurrency(b.net)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center">
+              <p className="text-sm font-semibold text-slate-800">Track shared expenses</p>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+                Split expenses with others and see who owes who.
+              </p>
+              <p className="mt-3 text-xs font-medium text-accent-700">Learn how it works</p>
+            </div>
+          )}
         </ChartCard>
       )}
     </div>

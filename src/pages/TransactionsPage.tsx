@@ -1237,7 +1237,7 @@ function SampleModalShell({
 
 function HeaderActions({
   onAdd,
-  addLabel = '+ Add Transaction',
+  addLabel = 'Add Transaction',
   isPremium = false,
 }: {
   onAdd: () => void
