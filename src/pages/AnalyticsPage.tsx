@@ -23,6 +23,17 @@ import type { Transaction } from '@/types'
 
 type MonthlyMode = 'total' | 'byCategory' | 'byPerson'
 
+const PERIOD_TITLE_LABELS: Record<DashboardFilterState['datePreset'], string> = {
+  thisMonth: 'This Month',
+  lastMonth: 'Last Month',
+  last3Months: 'Last 3 Months',
+  last6Months: 'Last 6 Months',
+  thisYear: 'This Year',
+  lastYear: 'Last Year',
+  allTime: 'All Time',
+  custom: 'Custom Range',
+}
+
 function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
   includeReimb: boolean,
@@ -38,6 +49,15 @@ function getEffectiveAmount(
     if (t.reimbursementStatus === 'partial') return Math.max(0, t.amount - (t.reimbursementAmount ?? 0))
   }
   return t.amount
+}
+
+function formatRangeDate(value: string): string {
+  if (!value) return ''
+  try {
+    return format(parseISO(value), 'MMM d, yyyy')
+  } catch {
+    return value
+  }
 }
 
 export default function AnalyticsPage() {
@@ -64,6 +84,39 @@ export default function AnalyticsPage() {
     }
     return getPresetRange(filters.datePreset)
   }, [filters.datePreset, filters.customStart, filters.customEnd])
+
+  const timeframeLabel = useMemo(() => {
+    if (filters.datePreset === 'custom') {
+      const start = formatRangeDate(dateRange.start)
+      const end = formatRangeDate(dateRange.end)
+      if (start && end) return `${start} to ${end}`
+      if (start) return `Since ${start}`
+      if (end) return `Through ${end}`
+      return 'Custom Range'
+    }
+    return PERIOD_TITLE_LABELS[filters.datePreset]
+  }, [dateRange, filters.datePreset])
+
+  const activeFilterChips = useMemo(() => {
+    const chips = [timeframeLabel]
+    if (filters.selectedPersonIds.length > 0) {
+      chips.push(
+        ...filters.selectedPersonIds.map((id) => personMap.get(id)?.name).filter((name): name is string => Boolean(name)),
+      )
+    }
+    if (filters.selectedCardIds.length > 0) {
+      chips.push(
+        ...filters.selectedCardIds.map((id) => cardMap.get(id)?.name).filter((name): name is string => Boolean(name)),
+      )
+    }
+    if (!filters.includeReimb) chips.push('Net spend')
+    if (!filters.includeExpectedReturns) chips.push('Excludes expected returns')
+    if (filters.includePayments) chips.push('Includes payments & credits')
+    return chips
+  }, [cardMap, filters, personMap, timeframeLabel])
+
+  const hasActiveFilterContext = activeFilterChips.length > 1
+  const chartSubtitle = hasActiveFilterContext ? 'Updates based on your selected filters' : undefined
 
   // Helper: does a transaction pass person/card/toggle filters (but not date)?
   const passesBaseFilters = useMemo(() => {
@@ -394,6 +447,22 @@ export default function AnalyticsPage() {
         cards={cards}
       />
 
+      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <p className="text-xs font-medium text-slate-500">
+          Charts update based on your selected filters.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {activeFilterChips.map((chip) => (
+            <span
+              key={chip}
+              className="inline-flex items-center rounded-full border border-accent-100 bg-accent-50 px-2.5 py-1 text-xs font-medium text-accent-700"
+            >
+              {chip}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
@@ -480,7 +549,11 @@ export default function AnalyticsPage() {
       {/* Charts row 1: Category + Monthly */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* Spend by Category — clickable bars */}
-        <ChartCard title="Spending by Category" tourId="analytics-chart">
+        <ChartCard
+          title={`Spending by Category — ${timeframeLabel}`}
+          subtitle={chartSubtitle}
+          tourId="analytics-chart"
+        >
           {categoryData.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-400">
               Upload transactions or connect your bank to get started.
@@ -518,7 +591,8 @@ export default function AnalyticsPage() {
 
         {/* Monthly Spending — with mode toggle */}
         <ChartCard
-          title="Monthly Spending"
+          title={`Spending Over Time — ${timeframeLabel}`}
+          subtitle={chartSubtitle}
           right={
             <div className="flex items-center gap-1">
               {(['total', 'byCategory', 'byPerson'] as MonthlyMode[]).map((mode) => (
@@ -610,7 +684,7 @@ export default function AnalyticsPage() {
       {/* Charts row 2: By Person + By Card */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {personData.length > 1 && (
-          <ChartCard title="Spend by Person">
+          <ChartCard title={`Spend by Person — ${timeframeLabel}`} subtitle={chartSubtitle}>
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
@@ -636,7 +710,7 @@ export default function AnalyticsPage() {
           </ChartCard>
         )}
 
-        <ChartCard title="Spend by Card">
+        <ChartCard title={`Spend by Card — ${timeframeLabel}`} subtitle={chartSubtitle}>
           {cardData.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-400">
               Upload transactions or connect your bank to get started.
@@ -660,7 +734,7 @@ export default function AnalyticsPage() {
 
       {/* Person Comparison */}
       {personComparisonData && (
-        <ChartCard title="Spending Comparison">
+        <ChartCard title={`Spending Comparison — ${timeframeLabel}`} subtitle={chartSubtitle}>
           {personComparisonData.data.length === 0 ? (
             <p className="px-4 py-4 text-center text-sm text-slate-400">
               Upload transactions or connect your bank to get started.
@@ -695,7 +769,7 @@ export default function AnalyticsPage() {
 
       {/* Shared vs Personal */}
       {hasSpendTypes && (
-        <ChartCard title="Shared vs Personal">
+        <ChartCard title={`Shared vs Personal — ${timeframeLabel}`} subtitle={chartSubtitle}>
           <div className="flex flex-col gap-2 mb-4 text-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <span className="text-slate-500">Total shared: </span>
@@ -754,18 +828,23 @@ function StatCard({ label, value, icon, color }: {
 function ChartCard({
   title,
   children,
+  subtitle,
   right,
   tourId,
 }: {
   title: string
   children: React.ReactNode
+  subtitle?: string
   right?: React.ReactNode
   tourId?: string
 }) {
   return (
     <div data-tour={tourId} className="min-w-0 bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
       <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
+          {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+        </div>
         {right}
       </div>
       {children}
