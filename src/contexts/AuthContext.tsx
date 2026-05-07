@@ -41,6 +41,7 @@ export interface AuthContextType {
   signInWithGoogle: () => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
+  setProfileOnboardingCompleted: (completed: boolean) => void
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -242,6 +243,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [ensureAccountHolderPerson, fetchProfileWithRetry, setProfileState])
 
+  const setProfileOnboardingCompleted = useCallback((completed: boolean) => {
+    const current = profileRef.current
+    if (!current) return
+    setProfileState({ ...current, onboarding_completed: completed })
+  }, [setProfileState])
+
   useEffect(() => {
     let mounted = true
 
@@ -392,7 +399,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user, session, profile,
         householdId: profile?.household_id ?? null,
-        loading, signUp, signIn, signInWithGoogle, signOut, refreshProfile,
+        loading, signUp, signIn, signInWithGoogle, signOut, refreshProfile, setProfileOnboardingCompleted,
       }}
     >
       {children}

@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid, Legend,
 } from 'recharts'
-import { TrendingUp, CreditCard, Users, DollarSign, Upload } from 'lucide-react'
+import { TrendingUp, CreditCard, Users, DollarSign, Upload, Crown } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -12,7 +12,6 @@ import { usePersonStore } from '@/stores/personStore'
 import { useCategoryStore } from '@/stores/categoryStore'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
-import EmptyState from '@/components/shared/EmptyState'
 import DashboardFilters, {
   DEFAULT_DASHBOARD_FILTERS,
   type DashboardFilterState,
@@ -33,6 +32,23 @@ const PERIOD_TITLE_LABELS: Record<DashboardFilterState['datePreset'], string> = 
   allTime: 'All Time',
   custom: 'Custom Range',
 }
+
+const EXAMPLE_MONTHLY_DATA = [
+  { month: 'Jan', amount: 3420 },
+  { month: 'Feb', amount: 3185 },
+  { month: 'Mar', amount: 3640 },
+  { month: 'Apr', amount: 3310 },
+  { month: 'May', amount: 3895 },
+  { month: 'Jun', amount: 3560 },
+]
+
+const EXAMPLE_CATEGORY_DATA = [
+  { name: 'Dining', value: 620 },
+  { name: 'Groceries', value: 540 },
+  { name: 'Rent', value: 1850 },
+  { name: 'Subscriptions', value: 148 },
+  { name: 'Transportation', value: 310 },
+]
 
 function getEffectiveAmount(
   t: Pick<Transaction, 'amount' | 'reimbursementStatus' | 'reimbursementAmount' | 'reimbursementPaid'>,
@@ -408,20 +424,72 @@ export default function AnalyticsPage() {
 
   if (transactions.length === 0) {
     return (
-      <div data-tour="analytics-chart">
-        <EmptyState
-          icon={TrendingUp}
-          title="No data yet"
-          description="Upload transactions or connect your bank to get started."
-          action={
-            <Link
-              to="/app/upload"
-              className="flex items-center gap-2 px-5 py-2.5 bg-accent-600 text-white rounded-xl text-sm font-medium hover:bg-accent-700"
-            >
-              <Upload size={15} /> Upload Statement
-            </Link>
-          }
-        />
+      <div className="flex flex-col gap-5 max-w-6xl mx-auto">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Analytics</h1>
+          <p className="text-sm text-slate-500 mt-1">Explore spending trends, categories, people, cards, and filters.</p>
+        </div>
+
+        <div className="rounded-xl border border-accent-100 bg-accent-50 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Upload transactions or connect your bank to replace this with your real data.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                to="/app/upload"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
+              >
+                <Upload size={15} /> Upload CSV
+              </Link>
+              <Link
+                to="/app/wallet?tab=linkedAccounts"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+              >
+                <Crown size={15} /> Connect bank
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Total Spend" value={formatCurrency(10920)} icon={<DollarSign size={18} className="text-accent-600" />} color="bg-accent-50" />
+          <StatCard label="Transactions" value="84" icon={<TrendingUp size={18} className="text-blue-600" />} color="bg-blue-50" />
+          <StatCard label="Avg. Transaction" value={formatCurrency(130)} icon={<CreditCard size={18} className="text-purple-600" />} color="bg-purple-50" />
+          <StatCard label="Cards Active" value="3" icon={<Users size={18} className="text-green-600" />} color="bg-green-50" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <ChartCard title="Spending by Category — Example data" subtitle="Example spending breakdown" tourId="analytics-chart">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={EXAMPLE_CATEGORY_DATA} layout="vertical" margin={{ left: 16, right: 24, top: 4, bottom: 4 }}>
+                <XAxis type="number" tickFormatter={(v) => `$${v}`} tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                <Bar dataKey="value" name="Total Spend" radius={[0, 4, 4, 0]}>
+                  {EXAMPLE_CATEGORY_DATA.map((entry) => (
+                    <Cell key={entry.name} fill={categoryColors[entry.name] ?? '#94a3b8'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Spending Over Time — Example data" subtitle="Last 6 months">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={EXAMPLE_MONTHLY_DATA} margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(v) => `$${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`} tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: any) => formatCurrency(Number(v))} />
+                <Bar dataKey="amount" name="Total Spend" fill="#0d9488" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
       </div>
     )
   }

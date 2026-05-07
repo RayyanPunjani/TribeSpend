@@ -23,6 +23,7 @@ import { useCategoryStore } from '@/stores/categoryStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatCurrency } from '@/utils/formatters'
 import { EXCLUDED_FROM_SPEND } from '@/lib/constants'
+import { getStoredTourState } from '@/lib/onboardingState'
 import BudgetAlerts from '@/components/dashboard/BudgetAlerts'
 import type { CardCredit, Transaction } from '@/types'
 
@@ -168,6 +169,8 @@ export default function DashboardPage() {
   const [accountsLoaded, setAccountsLoaded] = useState(false)
   const [dismissedCredits, setDismissedCredits] = useState<Set<string>>(new Set())
   const [creditsExpanded, setCreditsExpanded] = useState(false)
+  const onboardingState = profile?.id ? getStoredTourState(profile.id) : 'NOT_STARTED'
+  const showGuidedTourCard = profile?.onboarding_completed !== true && onboardingState === 'DISMISSED'
 
   useEffect(() => {
     let cancelled = false
@@ -338,20 +341,20 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {profile?.onboarding_completed !== true && (
+      {showGuidedTourCard && (
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-800">Guided product tour</h2>
               <p className="mt-1 text-xs text-slate-500">
-                Resume the guide to explore tracking, budgets, reimbursements, recurring charges, analytics, and rewards.
+                Explore tracking, budgets, reimbursements, recurring charges, analytics, and rewards.
               </p>
             </div>
             <Link
-              to="/app?tour=resume"
+              to="/app?tour=1"
               className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
             >
-              Resume guided tour
+              Take guided tour
             </Link>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-3">
@@ -370,11 +373,11 @@ export default function DashboardPage() {
               <span className="font-medium">Connect bank automatically</span>
             </Link>
             <Link
-              to="/app?tour=resume"
+              to="/app?tour=1"
               className="flex items-center gap-2 rounded-lg border border-accent-100 bg-accent-50 px-3 py-2 text-xs text-accent-800 hover:bg-accent-100/70"
             >
               <span className="h-2 w-2 rounded-full bg-accent-500" />
-              <span className="font-medium">Resume guided tour</span>
+              <span className="font-medium">Take guided tour</span>
             </Link>
           </div>
         </section>

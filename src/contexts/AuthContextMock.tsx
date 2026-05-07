@@ -25,6 +25,7 @@ const mockValue: AuthContextType = {
   signInWithGoogle: async () => ({ error: null }),
   signOut: async () => {},
   refreshProfile: async () => {},
+  setProfileOnboardingCompleted: () => {},
 }
 
 export function MockAuthProvider({ children }: { children: ReactNode }) {

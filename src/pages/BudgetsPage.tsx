@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  Target, Plus, Pencil, Trash2, AlertTriangle, Check, X, ChevronDown, Mail,
+  Target, Plus, Pencil, Trash2, AlertTriangle, Check, X, ChevronDown, Mail, Upload, Crown,
 } from 'lucide-react'
 import { BUDGET_LIMIT_ERROR, MAX_BUDGETS_PER_HOUSEHOLD, useBudgetStore } from '@/stores/budgetStore'
 import { usePersonStore } from '@/stores/personStore'
 import { useCategoryStore } from '@/stores/categoryStore'
+import { useTransactionStore } from '@/stores/transactionStore'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBudgetStatus, type BudgetStatus } from '@/hooks/useBudgetStatus'
 import { formatCurrency } from '@/utils/formatters'
@@ -413,12 +415,46 @@ function BudgetCard({
   )
 }
 
+const EXAMPLE_BUDGETS = [
+  { label: 'Dining', category: 'Dining', amount: 300, spent: 212, period: 'monthly', status: 'warning' as const },
+  { label: 'Groceries', category: 'Groceries', amount: 500, spent: 304, period: 'monthly', status: 'ok' as const },
+  { label: 'Subscriptions', category: 'Subscriptions', amount: 100, spent: 91, period: 'monthly', status: 'warning' as const },
+]
+
+function ExampleBudgetCard({ budget }: { budget: (typeof EXAMPLE_BUDGETS)[number] }) {
+  const remaining = budget.amount - budget.spent
+  const percentUsed = (budget.spent / budget.amount) * 100
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="mb-3">
+        <h3 className="font-semibold text-slate-800 truncate">{budget.label}</h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Household · {budget.category} · {PERIOD_LABELS[budget.period]}
+        </p>
+      </div>
+      <div className="flex items-baseline justify-between text-sm mb-2">
+        <span className={`font-semibold ${budget.status === 'warning' ? 'text-amber-600' : 'text-slate-800'}`}>
+          {formatCurrency(budget.spent)}
+        </span>
+        <span className="text-slate-400 text-xs">of {formatCurrency(budget.amount)}</span>
+      </div>
+      <ProgressBar percent={percentUsed} status={budget.status} thresholds={[50, 80, 100]} />
+      <p className="text-xs mt-1.5 text-slate-400">
+        {formatCurrency(remaining)} remaining
+        <span className="ml-1 text-slate-300">({percentUsed.toFixed(0)}%)</span>
+      </p>
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BudgetsPage() {
   const { householdId } = useAuth()
   const hid = householdId!
   const { budgets, add: addBudget, update: updateBudget, remove: removeBudget } = useBudgetStore()
+  const { transactions } = useTransactionStore()
   const { persons } = usePersonStore()
   const categoryNames = useCategoryStore((s) => s.categoryNames)
   const statuses = useBudgetStatus()
@@ -432,6 +468,7 @@ export default function BudgetsPage() {
 
   const alerts = statuses.filter((s) => s.status !== 'ok')
   const budgetLimitReached = budgets.length >= MAX_BUDGETS_PER_HOUSEHOLD
+  const showExampleBudgets = transactions.length === 0 && statuses.length === 0 && !showAddForm
 
   const handleAdd = async () => {
     if (!addForm.label.trim() || !addForm.amount) return
@@ -577,7 +614,39 @@ export default function BudgetsPage() {
       )}
 
       {/* Budget list */}
-      {statuses.length === 0 && !showAddForm ? (
+      {showExampleBudgets ? (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-accent-100 bg-accent-50 px-4 py-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Upload transactions or connect your bank to replace this with your real data.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link
+                  to="/app/upload"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
+                >
+                  <Upload size={15} /> Upload CSV
+                </Link>
+                <Link
+                  to="/app/wallet?tab=linkedAccounts"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+                >
+                  <Crown size={15} /> Connect bank
+                </Link>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            {EXAMPLE_BUDGETS.map((budget) => (
+              <ExampleBudgetCard key={budget.label} budget={budget} />
+            ))}
+          </div>
+        </div>
+      ) : statuses.length === 0 && !showAddForm ? (
         <div className="text-center py-16 bg-white border border-dashed border-slate-200 rounded-xl">
           <Target size={32} className="mx-auto text-slate-300 mb-3" />
           <p className="text-slate-500 font-medium">No budgets yet</p>

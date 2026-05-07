@@ -19,6 +19,13 @@ import HelpSupportPage from '@/pages/HelpSupportPage'
 import OnboardingModal from '@/components/onboarding/OnboardingModal'
 import GuidedTour from '@/components/onboarding/GuidedTour'
 import { TOUR_CURRENT_STEP_KEY, TOUR_DISMISSED_KEY } from '@/lib/onboardingTour'
+import {
+  clearOnboardingRuntimeState,
+  getLocalCompletionKey,
+  getStoredTourState,
+  markOnboardingCompletedLocally,
+  setStoredTourState,
+} from '@/lib/onboardingState'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useBudgetStore } from '@/stores/budgetStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -48,7 +55,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 export default function AppShell() {
-  const { householdId, profile, refreshProfile } = useAuth()
+  const { householdId, profile, refreshProfile, loading: authLoading, setProfileOnboardingCompleted } = useAuth()
   const [dataLoaded, setDataLoaded] = useState(false)
   const [, setOnboardingDismissed] = useState(false)
   const [showOnboardingGuide, setShowOnboardingGuide] = useState(false)
@@ -56,6 +63,7 @@ export default function AppShell() {
   const [guidedTourDismissed, setGuidedTourDismissed] = useState(false)
   const [tourNotice, setTourNotice] = useState<'skip' | 'finish' | null>(null)
   const autoSyncStartedRef = useRef(false)
+  const autoStartedTourForProfileRef = useRef<string | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -75,6 +83,7 @@ export default function AppShell() {
     setShowGuidedTour(false)
     setGuidedTourDismissed(false)
     setTourNotice(null)
+    autoStartedTourForProfileRef.current = null
   }, [profile?.id])
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export default function AppShell() {
       try {
         localStorage.setItem(TOUR_CURRENT_STEP_KEY, '0')
         localStorage.setItem(TOUR_DISMISSED_KEY, 'false')
+        if (profile?.id) setStoredTourState(profile.id, 'ACTIVE')
       } catch (error) {
         console.warn('[GuidedTour] Unable to save tour step:', error)
       }
@@ -101,6 +111,7 @@ export default function AppShell() {
     if (params.get('tour') === 'resume') {
       try {
         localStorage.setItem(TOUR_DISMISSED_KEY, 'false')
+        if (profile?.id) setStoredTourState(profile.id, 'ACTIVE')
       } catch (error) {
         console.warn('[GuidedTour] Unable to resume tour:', error)
       }
@@ -112,7 +123,7 @@ export default function AppShell() {
       next.delete('tour')
       navigate(`${location.pathname}${next.toString() ? `?${next.toString()}` : ''}`, { replace: true })
     }
-  }, [location.pathname, location.search, navigate])
+  }, [location.pathname, location.search, navigate, profile?.id])
 
   useEffect(() => {
     if (!householdId) return
@@ -192,24 +203,23 @@ export default function AppShell() {
 
   const finishOnboarding = useCallback(async () => {
     const profileId = profile?.id
-    const storageKey = profileId ? `tribespend_onboarding_completed_${profileId}` : null
 
     setOnboardingDismissed(true)
     setShowOnboardingGuide(false)
     setShowGuidedTour(false)
     setGuidedTourDismissed(false)
     try {
-      localStorage.removeItem(TOUR_DISMISSED_KEY)
-      localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+      clearOnboardingRuntimeState(profileId)
     } catch (error) {
       console.warn('[GuidedTour] Unable to clear tour state:', error)
     }
-    if (storageKey) {
+    if (profileId) {
       try {
-        localStorage.setItem(storageKey, 'true')
+        markOnboardingCompletedLocally(profileId)
       } catch (error) {
         console.warn('[Onboarding] Unable to save local completion flag:', error)
       }
+      setProfileOnboardingCompleted(true)
     }
 
     if (profileId) {
@@ -232,31 +242,31 @@ export default function AppShell() {
     if (location.search.includes('onboarding=1')) {
       navigate(location.pathname, { replace: true })
     }
-  }, [location.pathname, location.search, navigate, profile?.id, refreshProfile])
+  }, [location.pathname, location.search, navigate, profile?.id, refreshProfile, setProfileOnboardingCompleted])
 
   const handleGuidedTourSkip = useCallback(() => {
     try {
       localStorage.setItem(TOUR_DISMISSED_KEY, 'true')
       localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+      if (profile?.id) setStoredTourState(profile.id, 'DISMISSED')
     } catch (error) {
       console.warn('[GuidedTour] Unable to save dismissed state:', error)
     }
     setGuidedTourDismissed(true)
     setShowGuidedTour(false)
     setTourNotice('skip')
-  }, [])
+  }, [profile?.id])
 
   const handleGuidedTourFinish = useCallback(async () => {
     try {
-      localStorage.removeItem(TOUR_DISMISSED_KEY)
-      localStorage.removeItem(TOUR_CURRENT_STEP_KEY)
+      clearOnboardingRuntimeState(profile?.id)
     } catch (error) {
       console.warn('[GuidedTour] Unable to clear tour state:', error)
     }
     await finishOnboarding()
     setShowGuidedTour(false)
     setTourNotice('finish')
-  }, [finishOnboarding])
+  }, [finishOnboarding, profile?.id])
 
   const shouldShowOnboarding =
     !!profile &&
@@ -264,20 +274,37 @@ export default function AppShell() {
     showOnboardingGuide
 
   useEffect(() => {
-    if (!profile || shouldShowOnboarding || showGuidedTour) return
+    if (authLoading || !dataLoaded || !profile?.id || shouldShowOnboarding || showGuidedTour) return
+    if (autoStartedTourForProfileRef.current === profile.id) return
+
     try {
-      const dismissed = localStorage.getItem(TOUR_DISMISSED_KEY) === 'true'
-      const savedStep = localStorage.getItem(TOUR_CURRENT_STEP_KEY)
-      const completionKey = `tribespend_onboarding_completed_${profile.id}`
-      const completedLocally = localStorage.getItem(completionKey) === 'true'
+      const completedLocally = localStorage.getItem(getLocalCompletionKey(profile.id)) === 'true'
       const completed = profile.onboarding_completed === true || (profile.onboarding_completed !== false && completedLocally)
-      if (!dismissed && (savedStep !== null || (!completed && !guidedTourDismissed))) {
+      const storedTourState = getStoredTourState(profile.id)
+      const tourState = profile.onboarding_completed === false && storedTourState === 'COMPLETED'
+        ? 'NOT_STARTED'
+        : completed ? 'COMPLETED' : storedTourState
+      const shouldAutoStart = profile.onboarding_completed === false && tourState === 'NOT_STARTED'
+
+      if (completed) {
+        autoStartedTourForProfileRef.current = profile.id
+        setShowGuidedTour(false)
+        setGuidedTourDismissed(false)
+        return
+      }
+
+      if (shouldAutoStart) {
+        autoStartedTourForProfileRef.current = profile.id
+        localStorage.setItem(TOUR_CURRENT_STEP_KEY, '0')
+        localStorage.removeItem(TOUR_DISMISSED_KEY)
+        setStoredTourState(profile.id, 'ACTIVE')
+        setTourNotice(null)
         setShowGuidedTour(true)
       }
     } catch (error) {
       console.warn('[GuidedTour] Unable to read tour state:', error)
     }
-  }, [guidedTourDismissed, profile, shouldShowOnboarding, showGuidedTour])
+  }, [authLoading, dataLoaded, profile, shouldShowOnboarding, showGuidedTour])
 
   if (!householdId) {
     return (

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Sparkles, CreditCard, AlertCircle, TrendingUp, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Sparkles, CreditCard, AlertCircle, TrendingUp, ExternalLink, ChevronDown, ChevronRight, Upload, Crown } from 'lucide-react'
 import { useCardRewardStore } from '@/stores/cardRewardStore'
 import { useCardCreditStore } from '@/stores/cardCreditStore'
 import { useTransactionStore } from '@/stores/transactionStore'
@@ -23,6 +24,34 @@ type RewardMatch = {
   effectiveRate: number
   merchantLabel?: string
 }
+
+const EXAMPLE_MISSED_REWARDS = [
+  {
+    merchant: 'Urban Grill',
+    category: 'Dining',
+    amount: 86.42,
+    usedCard: 'Everyday Card',
+    usedRate: 1,
+    bestCard: 'Dining Rewards Card',
+    bestRate: 4,
+    diff: 2.59,
+  },
+  {
+    merchant: 'Amazon Marketplace',
+    category: 'Shopping',
+    amount: 145.18,
+    usedCard: 'Debit Card',
+    usedRate: 0,
+    bestCard: 'Amazon Prime Visa',
+    bestRate: 5,
+    diff: 7.26,
+  },
+]
+
+const EXAMPLE_CARD_RECOMMENDATIONS = [
+  { category: 'Dining', total: 620, card: 'Dining Rewards Card', rate: 4, note: 'Use for restaurants and delivery' },
+  { category: 'Groceries', total: 540, card: 'Grocery Rewards Card', rate: 3, note: 'Use for weekly grocery runs' },
+]
 
 function titleKeyword(keyword: string): string {
   return keyword
@@ -487,6 +516,104 @@ export default function OptimizePage() {
     }
     return map
   }, [creditUsage])
+
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col gap-6 max-w-5xl mx-auto">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-accent-100 flex items-center justify-center">
+            <Sparkles size={20} className="text-accent-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800">Optimize</h1>
+        </div>
+
+        <div className="rounded-xl border border-accent-100 bg-accent-50 px-4 py-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-accent-700">Example data</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Upload transactions or connect your bank to replace this with your real data.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                to="/app/upload"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-white hover:bg-accent-700"
+              >
+                <Upload size={15} /> Upload CSV
+              </Link>
+              <Link
+                to="/app/wallet?tab=linkedAccounts"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+              >
+                <Crown size={15} /> Connect bank
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div data-tour="optimize-card" className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-orange-500" />
+              <h2 className="text-sm font-semibold text-slate-700">Missed Rewards</h2>
+              <span className="text-xs text-slate-400 ml-1">— example</span>
+            </div>
+            <p className="text-sm font-semibold text-orange-600">
+              {formatCurrency(EXAMPLE_MISSED_REWARDS.reduce((sum, row) => sum + row.diff, 0))} potential
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-100 overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {EXAMPLE_MISSED_REWARDS.map((row) => (
+                <div key={row.merchant} className="grid grid-cols-[1fr_auto] gap-3 px-3 py-3 bg-white">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm font-medium text-slate-800 truncate">{row.merchant}</span>
+                      <span className="text-xs text-slate-400 shrink-0">{row.category}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                      <span>{formatCurrency(row.amount)}</span>
+                      <span className="text-slate-300">·</span>
+                      <span>{row.usedCard} {row.usedRate}%</span>
+                      <span className="text-slate-300">→</span>
+                      <span className="text-accent-700">{row.bestCard} {row.bestRate}%</span>
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold text-orange-600 shrink-0 self-center">
+                    +{formatCurrency(row.diff)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <CreditCard size={16} className="text-blue-500" />
+            <h2 className="text-sm font-semibold text-slate-700">Card Recommendations</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {EXAMPLE_CARD_RECOMMENDATIONS.map((rec) => (
+              <div key={rec.category} className="border border-slate-200 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{rec.category}</span>
+                  <span className="text-xs text-slate-400">{formatCurrency(rec.total)} spent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-accent-500" />
+                  <span className="text-sm font-medium text-slate-800">{rec.card}</span>
+                  <span className="ml-auto text-xs text-accent-600 font-semibold">{rec.rate.toFixed(1)}% avg</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">{rec.note}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
